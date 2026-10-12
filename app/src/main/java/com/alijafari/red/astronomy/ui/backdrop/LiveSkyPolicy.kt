@@ -24,14 +24,14 @@ object LiveSkyPolicy {
     const val DEFAULT_ENABLED: Boolean = false
 
     // Root tab indices. These match FloatingBottomBar's NavItem targetTabIndex values and the `when` in MainActivity.
+    // Index 2 is retired and deliberately not reused: it was the Moon tab, and the Moon now lives on Home.
     const val TAB_LAB: Int = 0
     const val TAB_SATELLITES: Int = 1
-    const val TAB_MOON: Int = 2
     const val TAB_AR: Int = 3
     const val TAB_HOME: Int = 4
 
     /** Allow-list. Any tab not listed here is excluded, so a new tab stays excluded until it is reviewed. */
-    private val ELIGIBLE_TABS: Set<Int> = setOf(TAB_LAB, TAB_SATELLITES, TAB_MOON, TAB_HOME)
+    private val ELIGIBLE_TABS: Set<Int> = setOf(TAB_LAB, TAB_SATELLITES, TAB_HOME)
 
     fun isEligibleTab(selectedTab: Int): Boolean = selectedTab in ELIGIBLE_TABS
 

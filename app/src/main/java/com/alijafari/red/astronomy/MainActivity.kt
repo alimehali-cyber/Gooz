@@ -82,7 +82,10 @@ class MainActivity : ComponentActivity() {
             viewModel.selectTab(1) // Satellites tab
             viewModel.selectSatelliteById(targetObjId)
         } else if (targetObjId == "moon" || targetObjId == "planet_moon") {
-            viewModel.selectTab(2) // Moon tab
+            // There is no Moon tab any more: the Moon lives on Home as a card, so a lunar notification
+            // lands on Home and opens the Moon's detail sheet from there.
+            viewModel.selectTab(4) // Home tab
+            viewModel.openObjectDetailById("moon")
         } else {
             val celObj = com.alijafari.red.astronomy.data.catalog.AstronomyCatalog.getById(targetObjId)
             if (celObj != null) {
@@ -203,7 +206,6 @@ class MainActivity : ComponentActivity() {
                                         val pageTitle = when (uiState.selectedTab) {
                                             0 -> if (isFa) "آزمایشگاه" else "Lab"
                                             1 -> if (isFa) "ماهواره‌ها" else "Satellites"
-                                            2 -> if (isFa) "ماه" else "Moon"
                                             else -> ""
                                         }
 
@@ -267,15 +269,12 @@ class MainActivity : ComponentActivity() {
                                             label = "TabSwitch"
                                         ) { tab ->
                                             when (tab) {
+                                                // Root tab 2 is retired: the Moon screen became a card on Home.
                                                 0 -> LabScreen(
                                                     uiState = uiState,
                                                     viewModel = viewModel
                                                 )
                                                 1 -> ISSScreen(
-                                                    uiState = uiState,
-                                                    viewModel = viewModel
-                                                )
-                                                2 -> MoonScreen(
                                                     uiState = uiState,
                                                     viewModel = viewModel
                                                 )

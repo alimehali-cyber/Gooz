@@ -52,7 +52,6 @@ fun FloatingBottomBar(
     val navItems = listOf(
         NavItem(R.string.nav_home, Icons.Outlined.Home, Icons.Outlined.Home, 4, "nav_item_home"),
         NavItem(R.string.nav_arsky, Icons.Outlined.Explore, Icons.Outlined.Explore, 3, "nav_item_arsky"),
-        NavItem(R.string.nav_moon, Icons.Outlined.DarkMode, Icons.Outlined.DarkMode, 2, "nav_item_moon"),
         NavItem(R.string.nav_satellites, Icons.Outlined.SatelliteAlt, Icons.Outlined.SatelliteAlt, 1, "nav_item_satellites"),
         NavItem(R.string.nav_lab, Icons.Outlined.Science, Icons.Outlined.Science, 0, "nav_item_lab")
     )

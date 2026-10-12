@@ -60,8 +60,8 @@ class LiveSkyIsolationTest {
         assertTrue("immersive Lab features must be read from ImmersiveScreenState", backdrop.contains("ImmersiveScreenState.active"))
         val policy = source("com/alijafari/red/astronomy/ui/backdrop/LiveSkyPolicy.kt")
         assertTrue(
-            "the allow-list must stay exactly Lab, Satellites, Moon and Home (AR is excluded)",
-            policy.contains("setOf(TAB_LAB, TAB_SATELLITES, TAB_MOON, TAB_HOME)")
+            "the allow-list must stay exactly Lab, Satellites and Home (AR and the retired Moon index are excluded)",
+            policy.contains("setOf(TAB_LAB, TAB_SATELLITES, TAB_HOME)")
         )
     }
 

@@ -1,6 +1,12 @@
 package com.alijafari.red.astronomy.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -40,9 +48,18 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
 import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
+import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
+
+/**
+ * The Moon card is a square whose corner radius is deliberately very heavy, so the radius itself reads
+ * as the card's shape. The render is inset to [MoonRenderFillFraction] of the card, which keeps the
+ * corners visible instead of being covered by the lunar disc.
+ */
+private val MoonCardCornerRadius = 56.dp
+private const val MoonRenderFillFraction = 0.78f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,8 +131,15 @@ fun HomeScreen(
                 .thenByDescending { it.second.altitudeDeg })
     }
 
-    // Astronomy Predictive Search State
+    // Astronomy Predictive Search State. The search lives in a header action and opens as an overlay,
+    // so this only tracks the query plus whether the overlay is currently open.
     var searchQuery by remember { mutableStateOf("") }
+    var isSearchOpen by remember { mutableStateOf(false) }
+    val closeSkySearch = {
+        isSearchOpen = false
+        searchQuery = ""
+    }
+    BackHandler(enabled = isSearchOpen) { closeSkySearch() }
     var selectedEclipseResult by remember { mutableStateOf<EclipseEngine.EclipseResult?>(null) }
 
     val (solarEclipse, lunarEclipse) = remember(
@@ -162,340 +186,467 @@ fun HomeScreen(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("home_screen_column"),
-        contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
-        verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
-    ) {
-        // 0. HOME HEADER — Centered RED Title, Contextual Location Pill & Essential Actions
-        item {
-            val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-            val latHem = if (uiState.userLocation.latitude >= 0.0) "N" else "S"
-            val lonHem = if (uiState.userLocation.longitude >= 0.0) "E" else "W"
-            val coordsRaw = String.format(
-                java.util.Locale.US,
-                "%.2f°%s, %.2f°%s",
-                kotlin.math.abs(uiState.userLocation.latitude),
-                latHem,
-                kotlin.math.abs(uiState.userLocation.longitude),
-                lonHem
-            )
-            val coordsText = if (isFa) coordsRaw.toPersianDigits() else coordsRaw
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("home_screen_column"),
+            contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
+            verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
+        ) {
+            // 0. HOME HEADER — Centered RED Title, Contextual Location Pill & Essential Actions
+            item {
+                val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
+                val latHem = if (uiState.userLocation.latitude >= 0.0) "N" else "S"
+                val lonHem = if (uiState.userLocation.longitude >= 0.0) "E" else "W"
+                val coordsRaw = String.format(
+                    java.util.Locale.US,
+                    "%.2f°%s, %.2f°%s",
+                    kotlin.math.abs(uiState.userLocation.latitude),
+                    latHem,
+                    kotlin.math.abs(uiState.userLocation.longitude),
+                    lonHem
+                )
+                val coordsText = if (isFa) coordsRaw.toPersianDigits() else coordsRaw
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs)
-                    .testTag("home_red_header"),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
-            ) {
-                    // Top Action Bar with Centered "RED"
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Favorites bookmark action (Start)
-                        IconButton(
-                            onClick = { viewModel.setShowFavoritesDialog(true) },
-                            modifier = Modifier
-                                .align(Alignment.CenterStart)
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .testTag("top_favorites_button")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs)
+                        .testTag("home_red_header"),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
+                ) {
+                        // Top Action Bar with Centered "RED"
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.BookmarkBorder,
-                                contentDescription = stringResource(R.string.favorites_and_history),
-                                tint = RedTheme.colors.textPrimary,
-                                modifier = Modifier.size(RedIconSize.sm)
-                            )
-                        }
+                            // Favorites bookmark action (Start)
+                            IconButton(
+                                onClick = { viewModel.setShowFavoritesDialog(true) },
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .testTag("top_favorites_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.BookmarkBorder,
+                                    contentDescription = stringResource(R.string.favorites_and_history),
+                                    tint = RedTheme.colors.textPrimary,
+                                    modifier = Modifier.size(RedIconSize.sm)
+                                )
+                            }
 
-                        // Centered brand title
-                        Text(
-                            text = if (isFa) "زیگ" else "ZIG",
-                            style = TextStyle(
-                                fontFamily = LocalAppFontFamily.current,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                letterSpacing = if (isFa) 0.sp else 3.sp
-                            ),
-                            color = RedTheme.colors.textPrimary,
-                            modifier = Modifier.testTag("home_red_title")
-                        )
-
-                        // Settings action (End)
-                        IconButton(
-                            onClick = { viewModel.setShowSettingsDialog(true) },
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .testTag("top_settings_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Settings,
-                                contentDescription = stringResource(R.string.settings),
-                                tint = RedTheme.colors.textPrimary,
-                                modifier = Modifier.size(RedIconSize.sm)
-                            )
-                        }
-                    }
-
-                    // Understated, quiet location selector beneath RED
-                    Surface(
-                        onClick = { viewModel.setShowLocationSelector(true) },
-                        shape = RoundedCornerShape(RedCornerRadius.pill),
-                        color = RedTheme.colors.surfaceElevated.copy(alpha = 0.7f),
-                        border = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
-                        modifier = Modifier.testTag("home_location_selector_button")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.LocationOn,
-                                contentDescription = "Location",
-                                tint = RedTheme.colors.accentRed,
-                                modifier = Modifier.size(13.dp)
-                            )
+                            // Centered brand title
                             Text(
-                                text = locationName,
-                                style = RedTypographyTokens.bodySecondary.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp
+                                text = if (isFa) "زیگ" else "ZIG",
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                    letterSpacing = if (isFa) 0.sp else 3.sp
                                 ),
-                                color = RedTheme.colors.textPrimary
+                                color = RedTheme.colors.textPrimary,
+                                modifier = Modifier.testTag("home_red_title")
                             )
-                            Text(
-                                text = "•",
-                                style = RedTypographyTokens.caption,
-                                color = RedTheme.colors.textTertiary
-                            )
-                            Text(
-                                text = coordsText,
-                                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                color = RedTheme.colors.textSecondary
-                            )
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = "Change Location",
-                                tint = RedTheme.colors.textTertiary,
-                                modifier = Modifier.size(14.dp)
-                            )
+
+                            // Essential actions (End): the Sky Search action opens the search overlay,
+                            // Settings opens the settings sheet.
+                            Row(
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { isSearchOpen = true },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .testTag("top_search_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Search,
+                                        contentDescription = if (isFa) "جستجوی اجرام آسمان" else "Search the sky",
+                                        tint = RedTheme.colors.textPrimary,
+                                        modifier = Modifier.size(RedIconSize.sm)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { viewModel.setShowSettingsDialog(true) },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .testTag("top_settings_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Settings,
+                                        contentDescription = stringResource(R.string.settings),
+                                        tint = RedTheme.colors.textPrimary,
+                                        modifier = Modifier.size(RedIconSize.sm)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Understated, quiet location selector beneath RED
+                        Surface(
+                            onClick = { viewModel.setShowLocationSelector(true) },
+                            shape = RoundedCornerShape(RedCornerRadius.pill),
+                            color = RedTheme.colors.surfaceElevated.copy(alpha = 0.7f),
+                            border = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
+                            modifier = Modifier.testTag("home_location_selector_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.LocationOn,
+                                    contentDescription = "Location",
+                                    tint = RedTheme.colors.accentRed,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = locationName,
+                                    style = RedTypographyTokens.bodySecondary.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.sp
+                                    ),
+                                    color = RedTheme.colors.textPrimary
+                                )
+                                Text(
+                                    text = "•",
+                                    style = RedTypographyTokens.caption,
+                                    color = RedTheme.colors.textTertiary
+                                )
+                                Text(
+                                    text = coordsText,
+                                    style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                                    color = RedTheme.colors.textSecondary
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Change Location",
+                                    tint = RedTheme.colors.textTertiary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                 }
-            }
-        // 1. HERO SKY CANVAS — Level 1: Hero Content
-        item {
-            HeroSkyCanvas(
-                uiState = uiState,
-                viewModel = viewModel,
-                modifier = Modifier.testTag("home_header_card")
-            )
-        }
-
-        // 2. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
-        item {
-            val tonightEvents = remember(uiState.userLocation, jd, isFa) {
-                WhatsUpTonightEngine.calculateTonightEvents(
-                    jd = jd,
-                    userLatDeg = uiState.userLocation.latitude,
-                    userLonDeg = uiState.userLocation.longitude,
-                    isFa = isFa
-                )
-            }
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-            ) {
-                RedSectionHeader(
-                    title = if (isFa) "امشب در آسمان" else "What's Up Tonight",
-                    subtitle = if (isFa) "رویدادهای شاخص نجومی برای مختصات شما"
-                    else "Key celestial events for your coordinates"
-                )
-
-                if (tonightEvents.isEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.lg),
-                        color = RedTheme.colors.surfaceElevated,
-                        border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                        modifier = Modifier.fillMaxWidth()
+            // 1. MOON CARD — the Moon render on its own square, heavily rounded card. This is the whole
+            //    of the retired Moon screen: the live render, and nothing else.
+            item {
+                Surface(
+                    shape = RoundedCornerShape(MoonCardCornerRadius),
+                    color = RedTheme.colors.surfaceElevated,
+                    border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .testTag("home_moon_card")
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = if (isFa) "امشب رویداد شاخصی ثبت نشده است." else "No major celestial events tonight.",
-                            style = RedTypographyTokens.bodySecondary,
-                            color = RedTheme.colors.textSecondary,
-                            modifier = Modifier.padding(RedSpacing.lg)
+                        MoonPhaseRender(
+                            moonData = moonData,
+                            sunHoriz = sunHoriz,
+                            latitude = uiState.userLocation.latitude,
+                            modifier = Modifier.fillMaxSize(MoonRenderFillFraction)
                         )
                     }
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.xl),
-                        color = RedTheme.colors.surfaceElevated,
-                        border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("home_highlights_card")
-                    ) {
-                        Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
-                            tonightEvents.take(5).forEachIndexed { idx, event ->
-                                TonightEventRow(
-                                    event = event,
-                                    isTopRanked = idx == 0,
-                                    isFa = isFa,
-                                    onClick = {
-                                        when {
-                                            event.id.startsWith("solar_") -> selectedEclipseResult = solarEclipse
-                                            event.id.startsWith("lunar_") -> selectedEclipseResult = lunarEclipse
-                                            else -> event.targetObject?.let { obj ->
-                                                viewModel.openObjectDetail(obj)
+                }
+            }
+
+            // 2. HERO SKY CANVAS — Level 1: Hero Content
+            item {
+                HeroSkyCanvas(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    modifier = Modifier.testTag("home_header_card")
+                )
+            }
+
+            // 3. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
+            item {
+                val tonightEvents = remember(uiState.userLocation, jd, isFa) {
+                    WhatsUpTonightEngine.calculateTonightEvents(
+                        jd = jd,
+                        userLatDeg = uiState.userLocation.latitude,
+                        userLonDeg = uiState.userLocation.longitude,
+                        isFa = isFa
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                ) {
+                    RedSectionHeader(
+                        title = if (isFa) "امشب در آسمان" else "What's Up Tonight",
+                        subtitle = if (isFa) "رویدادهای شاخص نجومی برای مختصات شما"
+                        else "Key celestial events for your coordinates"
+                    )
+
+                    if (tonightEvents.isEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(RedCornerRadius.lg),
+                            color = RedTheme.colors.surfaceElevated,
+                            border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isFa) "امشب رویداد شاخصی ثبت نشده است." else "No major celestial events tonight.",
+                                style = RedTypographyTokens.bodySecondary,
+                                color = RedTheme.colors.textSecondary,
+                                modifier = Modifier.padding(RedSpacing.lg)
+                            )
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(RedCornerRadius.xl),
+                            color = RedTheme.colors.surfaceElevated,
+                            border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("home_highlights_card")
+                        ) {
+                            Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
+                                tonightEvents.take(5).forEachIndexed { idx, event ->
+                                    TonightEventRow(
+                                        event = event,
+                                        isTopRanked = idx == 0,
+                                        isFa = isFa,
+                                        onClick = {
+                                            when {
+                                                event.id.startsWith("solar_") -> selectedEclipseResult = solarEclipse
+                                                event.id.startsWith("lunar_") -> selectedEclipseResult = lunarEclipse
+                                                else -> event.targetObject?.let { obj ->
+                                                    viewModel.openObjectDetail(obj)
+                                                }
                                             }
                                         }
+                                    )
+                                    if (idx < minOf(4, tonightEvents.size - 1)) {
+                                        RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
                                     }
-                                )
-                                if (idx < minOf(4, tonightEvents.size - 1)) {
-                                    RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        // 3. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
-        item {
-            val (primaryEclipse, secondaryEclipse) = if (solarEclipse.localPeakTimeMs <= lunarEclipse.localPeakTimeMs) {
-                solarEclipse to lunarEclipse
-            } else {
-                lunarEclipse to solarEclipse
-            }
+            // 4. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
+            item {
+                val (primaryEclipse, secondaryEclipse) = if (solarEclipse.localPeakTimeMs <= lunarEclipse.localPeakTimeMs) {
+                    solarEclipse to lunarEclipse
+                } else {
+                    lunarEclipse to solarEclipse
+                }
 
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-            ) {
-                RedSectionHeader(
-                    title = if (isFa) "گرفتگی‌های نجومی" else "Upcoming Eclipses",
-                    subtitle = if (isFa) "محاسبه دقیق کسوف و خسوف بر اساس موقعیت شما"
-                    else "Calculated precisely for your location"
-                )
-
-                Surface(
-                    shape = RoundedCornerShape(RedCornerRadius.xl),
-                    color = RedTheme.colors.surfaceElevated,
-                    border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("home_next_eclipses_card")
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
-                    Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
-                        // Nearest / Primary Eclipse (chronologically first)
-                        EclipseItemRow(
-                            isSolar = primaryEclipse.event.isSolar,
-                            isPrimary = true,
-                            title = if (isFa) primaryEclipse.event.nameFa else primaryEclipse.event.nameEn,
-                            dateStr = if (isFa) primaryEclipse.formattedDateFa else primaryEclipse.formattedDateEn,
-                            visibilityInfo = if (isFa) primaryEclipse.localVisibilityTextFa else primaryEclipse.localVisibilityTextEn,
-                            isLocallyVisible = primaryEclipse.isLocallyVisible,
-                            isFa = isFa,
-                            onClick = { selectedEclipseResult = primaryEclipse }
-                        )
+                    RedSectionHeader(
+                        title = if (isFa) "گرفتگی‌های نجومی" else "Upcoming Eclipses",
+                        subtitle = if (isFa) "محاسبه دقیق کسوف و خسوف بر اساس موقعیت شما"
+                        else "Calculated precisely for your location"
+                    )
 
-                        RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
+                    Surface(
+                        shape = RoundedCornerShape(RedCornerRadius.xl),
+                        color = RedTheme.colors.surfaceElevated,
+                        border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("home_next_eclipses_card")
+                    ) {
+                        Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
+                            // Nearest / Primary Eclipse (chronologically first)
+                            EclipseItemRow(
+                                isSolar = primaryEclipse.event.isSolar,
+                                isPrimary = true,
+                                title = if (isFa) primaryEclipse.event.nameFa else primaryEclipse.event.nameEn,
+                                dateStr = if (isFa) primaryEclipse.formattedDateFa else primaryEclipse.formattedDateEn,
+                                visibilityInfo = if (isFa) primaryEclipse.localVisibilityTextFa else primaryEclipse.localVisibilityTextEn,
+                                isLocallyVisible = primaryEclipse.isLocallyVisible,
+                                isFa = isFa,
+                                onClick = { selectedEclipseResult = primaryEclipse }
+                            )
 
-                        // Secondary Eclipse (chronologically second)
-                        EclipseItemRow(
-                            isSolar = secondaryEclipse.event.isSolar,
-                            isPrimary = false,
-                            title = if (isFa) secondaryEclipse.event.nameFa else secondaryEclipse.event.nameEn,
-                            dateStr = if (isFa) secondaryEclipse.formattedDateFa else secondaryEclipse.formattedDateEn,
-                            visibilityInfo = if (isFa) secondaryEclipse.localVisibilityTextFa else secondaryEclipse.localVisibilityTextEn,
-                            isLocallyVisible = secondaryEclipse.isLocallyVisible,
-                            isFa = isFa,
-                            onClick = { selectedEclipseResult = secondaryEclipse }
-                        )
+                            RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
+
+                            // Secondary Eclipse (chronologically second)
+                            EclipseItemRow(
+                                isSolar = secondaryEclipse.event.isSolar,
+                                isPrimary = false,
+                                title = if (isFa) secondaryEclipse.event.nameFa else secondaryEclipse.event.nameEn,
+                                dateStr = if (isFa) secondaryEclipse.formattedDateFa else secondaryEclipse.formattedDateEn,
+                                visibilityInfo = if (isFa) secondaryEclipse.localVisibilityTextFa else secondaryEclipse.localVisibilityTextEn,
+                                isLocallyVisible = secondaryEclipse.isLocallyVisible,
+                                isFa = isFa,
+                                onClick = { selectedEclipseResult = secondaryEclipse }
+                            )
+                        }
                     }
                 }
             }
+
+            // Bottom spacing to completely clear the floating bottom navigation bar
+            item {
+                Spacer(modifier = Modifier.height(112.dp))
+            }
         }
 
-        // 4. INTERACTIVE ASTRONOMY SEARCH — Level 3: Search & Exploration
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+        // 5. SKY SEARCH OVERLAY — opened by the search action in the header above. It floats over the
+        // feed instead of scrolling with it, so the search bar always sits at the very top of the screen.
+        AnimatedVisibility(
+            visible = isSearchOpen,
+            enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { -it / 6 },
+            exit = fadeOut(tween(140)) + slideOutVertically(tween(180)) { -it / 6 }
+        ) {
+            SkySearchOverlay(
+                searchQuery = searchQuery,
+                onQueryChange = { searchQuery = it },
+                results = filteredSearchResults,
+                isFa = isFa,
+                uiState = uiState,
+                viewModel = viewModel,
+                moonData = moonData,
+                jd = jd,
+                onDismiss = { closeSkySearch() }
+            )
+        }
+    }
+}
+
+/**
+ * Full-screen Sky Search overlay.
+ *
+ * The search used to be a section inside the Home feed. It now opens from the search action in the
+ * header, so the bar always sits at the very top of the screen next to Settings. The dimmed feed is a
+ * sibling of the panel rather than a parent, so a tap outside the panel closes the search while taps
+ * inside it are never swallowed.
+ */
+@Composable
+private fun SkySearchOverlay(
+    searchQuery: String,
+    onQueryChange: (String) -> Unit,
+    results: List<Triple<CelestialObject, CoordinateEngine.Horizontal, ObservabilityEngine.ObservabilityResult>>,
+    isFa: Boolean,
+    uiState: MainUiState,
+    viewModel: MainViewModel,
+    moonData: MoonEngine.MoonData,
+    jd: Double,
+    onDismiss: () -> Unit
+) {
+    // The bar is the reason the overlay exists, so it takes focus as soon as it is composed.
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    val displayedPredictiveItems = remember(results) { results.take(6) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("home_astronomy_search_overlay")
+    ) {
+        // Scrim: taps on the dimmed feed dismiss the search.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                )
+                .testTag("home_astronomy_search_scrim")
+        )
+
+        // Inset by the keyboard so the results stay reachable while the field is focused.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Surface(
+                shape = RoundedCornerShape(RedCornerRadius.xl),
+                color = RedTheme.colors.surfaceElevated,
+                border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(RedSpacing.md)
+                    .fillMaxWidth()
+                    .testTag("home_astronomy_search_card")
             ) {
-                RedSectionHeader(
-                    title = if (isFa) "جستجوی اجرام آسمان" else "Interactive Sky Search",
-                    subtitle = if (isFa) "کاوش سیارات، ستارگان، صور فلکی و سحابی‌ها"
-                    else "Search planets, stars, constellations & deep sky"
-                )
-
-                OutlinedTextField(
-                    textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("home_astronomy_search_input"),
-                    placeholder = {
-                        Text(
-                            text = if (isFa) "نام سیاره، ستاره، سحابی..." else "Search planets, stars, nebulae...",
-                            style = RedTypographyTokens.bodySecondary,
-                            color = RedTheme.colors.textTertiary
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = null,
-                            tint = RedTheme.colors.accentRed,
-                            modifier = Modifier.size(RedIconSize.sm)
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Clear",
-                                    tint = RedTheme.colors.textSecondary,
-                                    modifier = Modifier.size(RedIconSize.sm)
-                                )
+                Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
+                    OutlinedTextField(
+                        textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
+                        value = searchQuery,
+                        onValueChange = onQueryChange,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = RedSpacing.sm)
+                            .focusRequester(focusRequester)
+                            .testTag("home_astronomy_search_input"),
+                        placeholder = {
+                            Text(
+                                text = if (isFa) "نام سیاره، ستاره، سحابی..." else "Search planets, stars, nebulae...",
+                                style = RedTypographyTokens.bodySecondary,
+                                color = RedTheme.colors.textTertiary
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = null,
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(RedIconSize.sm)
+                            )
+                        },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { onQueryChange("") }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = if (isFa) "پاک کردن" else "Clear",
+                                            tint = RedTheme.colors.textSecondary,
+                                            modifier = Modifier.size(RedIconSize.sm)
+                                        )
+                                    }
+                                }
+                                IconButton(onClick = onDismiss) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                                        contentDescription = if (isFa) "بستن جستجو" else "Close search",
+                                        tint = RedTheme.colors.textSecondary,
+                                        modifier = Modifier.size(RedIconSize.md)
+                                    )
+                                }
                             }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(RedCornerRadius.lg),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = RedTheme.colors.accentRed,
-                        unfocusedBorderColor = RedTheme.colors.border,
-                        focusedContainerColor = RedTheme.colors.surfaceElevated,
-                        unfocusedContainerColor = RedTheme.colors.surfaceElevated
-                    )
-                )
-
-                val displayedPredictiveItems = remember(filteredSearchResults) {
-                    filteredSearchResults.take(6)
-                }
-
-                if (displayedPredictiveItems.isEmpty()) {
-                    Surface(
+                        },
+                        singleLine = true,
                         shape = RoundedCornerShape(RedCornerRadius.lg),
-                        color = RedTheme.colors.surfaceElevated,
-                        border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RedTheme.colors.accentRed,
+                            unfocusedBorderColor = RedTheme.colors.border,
+                            focusedContainerColor = RedTheme.colors.surfaceElevated,
+                            unfocusedContainerColor = RedTheme.colors.surfaceElevated
+                        )
+                    )
+
+                    if (displayedPredictiveItems.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -508,17 +659,8 @@ fun HomeScreen(
                                 color = RedTheme.colors.textTertiary
                             )
                         }
-                    }
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.xl),
-                        color = RedTheme.colors.surfaceElevated,
-                        border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("home_astronomy_search_card")
-                    ) {
-                        Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
+                    } else {
+                        Column(modifier = Modifier.padding(top = RedSpacing.xs)) {
                             displayedPredictiveItems.forEachIndexed { idx, (obj, horiz, obs) ->
                                 val riseSetStr = remember(obj, moonData, uiState.userLocation, jd, isFa) {
                                     if (obj.id == "moon") {
@@ -603,11 +745,6 @@ fun HomeScreen(
                     }
                 }
             }
-        }
-
-        // Bottom spacing to completely clear the floating bottom navigation bar
-        item {
-            Spacer(modifier = Modifier.height(112.dp))
         }
     }
 }

@@ -18,7 +18,6 @@ class LiveSkyPolicyTest {
         // These values mirror FloatingBottomBar's targetTabIndex and MainActivity's `when (tab)`.
         assertEquals(0, LiveSkyPolicy.TAB_LAB)
         assertEquals(1, LiveSkyPolicy.TAB_SATELLITES)
-        assertEquals(2, LiveSkyPolicy.TAB_MOON)
         assertEquals(3, LiveSkyPolicy.TAB_AR)
         assertEquals(4, LiveSkyPolicy.TAB_HOME)
     }
@@ -39,7 +38,6 @@ class LiveSkyPolicyTest {
     fun enabledShowsOnEligibleRootTabs() {
         val eligible = listOf(
             LiveSkyPolicy.TAB_HOME,
-            LiveSkyPolicy.TAB_MOON,
             LiveSkyPolicy.TAB_SATELLITES,
             LiveSkyPolicy.TAB_LAB
         )
@@ -66,5 +64,12 @@ class LiveSkyPolicyTest {
     fun unknownTabsStayExcludedUntilReviewed() {
         assertFalse(LiveSkyPolicy.isBackdropVisible(enabled = true, selectedTab = 5, immersiveActive = false))
         assertFalse(LiveSkyPolicy.isBackdropVisible(enabled = true, selectedTab = -1, immersiveActive = false))
+    }
+
+    @Test
+    fun theRetiredMoonTabIndexStaysExcluded() {
+        // Index 2 was the Moon tab. The Moon screen became a card on Home, and the index is not reused.
+        assertFalse(LiveSkyPolicy.isEligibleTab(2))
+        assertFalse(LiveSkyPolicy.isBackdropVisible(enabled = true, selectedTab = 2, immersiveActive = false))
     }
 }
