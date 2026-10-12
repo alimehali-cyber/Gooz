@@ -463,7 +463,7 @@ fun TimeDilationCalculatorScreen(
                                             }
                                         }
                                     },
-                                    shape = RoundedCornerShape(RedCornerRadius.md),
+                                    shape = RoundedCornerShape(RedCornerRadius.window),
                                     color = RedTheme.colors.surfaceElevated,
                                     border = BorderStroke(1.dp, RedTheme.colors.border)
                                 ) {
@@ -513,7 +513,7 @@ fun TimeDilationCalculatorScreen(
                         // Superluminal / Light Speed Warnings
                         if (journeyResult.isSuperluminal) {
                             Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = RoundedCornerShape(RedCornerRadius.window),
                                 color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
                                 border = BorderStroke(1.dp, RedTheme.colors.accentRed)
                             ) {
@@ -537,7 +537,7 @@ fun TimeDilationCalculatorScreen(
                             }
                         } else if (journeyResult.isSpeedOfLight) {
                             Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = RoundedCornerShape(RedCornerRadius.window),
                                 color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
                                 border = BorderStroke(1.dp, RedTheme.colors.accentRed)
                             ) {
@@ -635,7 +635,7 @@ fun TimeDilationCalculatorScreen(
                             // Acceleration breakdown display
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = RoundedCornerShape(RedCornerRadius.window),
                                 color = RedTheme.colors.surfaceElevated,
                                 border = BorderStroke(1.dp, RedTheme.colors.border)
                             ) {
@@ -785,7 +785,7 @@ fun TimeDilationCalculatorScreen(
                             // Summary metrics grid
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = RoundedCornerShape(RedCornerRadius.window),
                                 color = RedTheme.colors.surfaceElevated,
                                 border = BorderStroke(1.dp, RedTheme.colors.border)
                             ) {
@@ -920,7 +920,7 @@ fun TimeDilationCalculatorScreen(
                     )
 
                     Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        shape = RoundedCornerShape(RedCornerRadius.window),
                         color = RedTheme.colors.surfaceElevated,
                         border = BorderStroke(1.dp, RedTheme.colors.border)
                     ) {
@@ -1134,7 +1134,7 @@ private fun ObjectSearchModal(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("search_dialog_item_${obj.id}"),
-                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        shape = RoundedCornerShape(RedCornerRadius.window),
                         color = RedTheme.colors.surfaceElevated,
                         border = BorderStroke(1.dp, RedTheme.colors.border)
                     ) {

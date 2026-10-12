@@ -60,8 +60,6 @@ import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
 import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
-import java.util.Calendar
-import kotlin.math.roundToInt
 
 /**
  * The Moon render is inset inside its square card, which leaves the date line room below it and keeps the
@@ -158,9 +156,6 @@ fun HomeScreen(
     DisposableEffect(Unit) {
         onDispose { viewModel.setMoonDayOffset(0f) }
     }
-
-    // Fullscreen landscape sky viewer, opened by the button on the sky card.
-    var isSkyFullscreen by remember { mutableStateOf(false) }
 
     // Astronomy Predictive Search State. The search lives in a header action and opens as an overlay,
     // so this only tracks the query plus whether the overlay is currently open.
@@ -388,7 +383,7 @@ fun HomeScreen(
                             viewModel = viewModel,
                             moonData = moonCardData,
                             sunHoriz = moonCardSunHoriz,
-                            dayOffset = uiState.moonDayOffset,
+                            jd = moonCardJd,
                             onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
                             modifier = Modifier.size(cardSize)
                         )
@@ -396,7 +391,7 @@ fun HomeScreen(
                         SkyCanvasCard(
                             uiState = uiState,
                             viewModel = viewModel,
-                            onExpand = { isSkyFullscreen = true },
+                            onExpand = { viewModel.setShowSkyViewer(true) },
                             modifier = Modifier.size(cardSize)
                         )
                     }
@@ -556,12 +551,13 @@ fun HomeScreen(
             )
         }
 
-        // 5. FULLSCREEN SKY VIEWER — the same sky canvas, landscape and edge to edge.
-        if (isSkyFullscreen) {
+        // 5. FULLSCREEN SKY VIEWER — the same sky canvas, landscape and edge to edge. The open flag is
+        //    ViewModel state so the landscape rotation cannot close it (see MainUiState.showSkyViewer).
+        if (uiState.showSkyViewer) {
             FullscreenSkyViewer(
                 uiState = uiState,
                 viewModel = viewModel,
-                onDismiss = { isSkyFullscreen = false }
+                onDismiss = { viewModel.setShowSkyViewer(false) }
             )
         }
     }
@@ -1014,17 +1010,17 @@ private fun MoonPhaseCard(
     viewModel: MainViewModel,
     moonData: MoonEngine.MoonData,
     sunHoriz: CoordinateEngine.Horizontal,
-    dayOffset: Float,
+    jd: Double,
     onScrubDays: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    val dayOffsetInt = dayOffset.roundToInt()
 
-    val dateText = remember(dayOffsetInt, uiState.calendarSystem, isFa) {
-        val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE)
-        cal.add(Calendar.DAY_OF_YEAR, dayOffsetInt)
-        TimeEngine.formatDate(cal.timeInMillis, uiState.calendarSystem, isFa).let {
+    // The label follows the same instant the render is drawn for — the app's effective time (Time Machine
+    // included) plus the scrub offset — never the wall clock. Otherwise a simulated night would draw one
+    // Moon under a label for another date.
+    val dateText = remember(jd, uiState.calendarSystem, isFa) {
+        TimeEngine.formatDate(AstroTime.fromJd(jd).utcMs, uiState.calendarSystem, isFa).let {
             if (isFa) it.toPersianDigits() else it
         }
     }
@@ -1123,7 +1119,7 @@ private fun FullscreenSkyViewer(
 
     DisposableEffect(activity) {
         val previousOrientation = activity?.requestedOrientation
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose {
             activity?.requestedOrientation =
                 previousOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED

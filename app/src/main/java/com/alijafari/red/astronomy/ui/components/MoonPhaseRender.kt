@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
@@ -32,6 +33,17 @@ import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
 import kotlin.math.abs
+
+/**
+ * The photographic plate frames the Moon with a black starfield: the lunar disc itself covers only the
+ * central ~83% of the 1024px square (measured across the eight cardinal and diagonal directions), and the
+ * remaining band is that black background. Drawn edge-to-edge under a circular clip it would leave a dark
+ * ring around the Moon — the same black disc the old screen used to hide behind its painted shadow. The
+ * plate is therefore zoomed by the reciprocal of that fraction, so the disc's limb lands exactly on the
+ * clip circle and nothing but the Moon is drawn.
+ */
+private const val MoonPlateDiscFraction = 0.83f
+private const val MoonPlateZoom = 1f / MoonPlateDiscFraction
 
 /**
  * The photographic Moon render: the full-Moon plate, the live phase terminator and limb darkening.
@@ -95,7 +107,9 @@ fun MoonPhaseRender(
                 painter = painterResource(id = R.drawable.img_full_moon_photo_1785673146290),
                 contentDescription = moonData.phaseNameFa,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(MoonPlateZoom)
             )
 
             // Dynamic Lunar Phase Cut-Out

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.alijafari.red.astronomy.astro_engine.AstroTime
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
 import com.alijafari.red.astronomy.astro_engine.SunEngine
@@ -40,7 +41,6 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import com.kyant.backdrop.Backdrop
-import java.util.Calendar
 import kotlin.math.roundToInt
 
 /**
@@ -56,6 +56,7 @@ import kotlin.math.roundToInt
 @Composable
 fun MoonDetailWindow(
     backdrop: Backdrop?,
+    baseTimeMs: Long,
     uiState: MainUiState,
     viewModel: MainViewModel,
     onDismiss: () -> Unit
@@ -63,7 +64,7 @@ fun MoonDetailWindow(
     val isFa = uiState.language == AppLanguage.PERSIAN
     val dayOffsetInt = uiState.moonDayOffset.roundToInt()
 
-    val baseJd = remember { TimeEngine.getJulianDate() }
+    val baseJd = remember(baseTimeMs) { TimeEngine.getJulianDate(baseTimeMs) }
     val currentJd = baseJd + uiState.moonDayOffset.toDouble()
 
     val moonData = remember(currentJd, uiState.userLocation) {
@@ -82,11 +83,9 @@ fun MoonDetailWindow(
 
     val upcomingPhases = remember(baseJd) { MoonEngine.getUpcomingMajorPhases(baseJd) }
 
-    val selectedCalendar = remember(dayOffsetInt) {
-        val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE)
-        cal.add(Calendar.DAY_OF_YEAR, dayOffsetInt)
-        cal
-    }
+    // Same rule as the card: the date line is read off the instant being rendered, so Time Machine
+    // simulation and the day scrub both move it.
+    val selectedTimeMs = remember(currentJd) { AstroTime.fromJd(currentJd).utcMs }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -177,7 +176,7 @@ fun MoonDetailWindow(
                             )
                         }
 
-                        val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
+                        val dateStr = TimeEngine.formatDate(selectedTimeMs, uiState.calendarSystem, isFa).let {
                             if (isFa) it.toPersianDigits() else it
                         }
                         val offsetBadge = when {

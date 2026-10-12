@@ -39,6 +39,14 @@ data class MainUiState(
     val isDetailFavorite: Boolean = false,
     val showFavoritesDialog: Boolean = false,
     val showMoonWindow: Boolean = false,
+
+    /**
+     * The fullscreen sky viewer. This lives in the ViewModel rather than in HomeScreen's own state
+     * because opening it locks the activity to landscape, and the app declares no `configChanges`, so
+     * that rotation recreates the activity: composition-local state would be lost and the viewer would
+     * slam shut the moment it opened.
+     */
+    val showSkyViewer: Boolean = false,
     /**
      * Lunar day offset in days (-30..+30) driven by dragging the Moon render. The Home moon card and the
      * Moon window read the same value, so scrubbing one moves the other.
@@ -563,6 +571,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowMoonWindow(show: Boolean) {
         _uiState.update { it.copy(showMoonWindow = show) }
+    }
+
+    /** Opens or closes the fullscreen sky viewer. */
+    fun setShowSkyViewer(show: Boolean) {
+        _uiState.update { if (it.showSkyViewer == show) it else it.copy(showSkyViewer = show) }
     }
 
     /** Scrub the Moon in days. Clamped to the same +/-30 day window the Moon screen always used. */

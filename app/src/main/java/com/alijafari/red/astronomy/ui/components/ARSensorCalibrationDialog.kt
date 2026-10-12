@@ -206,7 +206,7 @@ fun ARSensorCalibrationDialog(
                     exit = fadeOut() + shrinkVertically()
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        shape = RoundedCornerShape(RedCornerRadius.window),
                         color = StatusGood.copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, StatusGood.copy(alpha = 0.6f)),
                         modifier = Modifier
@@ -344,7 +344,7 @@ private fun LiveSensorQualityBadge(
     }
 
     Surface(
-        shape = RoundedCornerShape(RedCornerRadius.md),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = info.statusColor.copy(alpha = 0.12f),
         border = BorderStroke(1.dp, info.statusColor.copy(alpha = 0.35f)),
         modifier = Modifier

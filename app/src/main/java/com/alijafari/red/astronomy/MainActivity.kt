@@ -366,6 +366,7 @@ class MainActivity : ComponentActivity() {
                         if (uiState.showMoonWindow) {
                             MoonDetailWindow(
                                 backdrop = backdrop,
+                                baseTimeMs = currentEffectiveTimeMs,
                                 uiState = uiState,
                                 viewModel = viewModel,
                                 onDismiss = { viewModel.setShowMoonWindow(false) }

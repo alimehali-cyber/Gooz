@@ -730,7 +730,7 @@ fun SettingsDialog(
                         BORTLE_CLASSES.forEach { info ->
                             val isSelected = uiState.bortleClass == info.classNumber
                             Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.sm),
+                                shape = RoundedCornerShape(RedCornerRadius.window),
                                 color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
                                 border = BorderStroke(
                                     0.5.dp,
@@ -920,7 +920,7 @@ private fun ExpandableSettingsSection(
     )
 
     Surface(
-        shape = RoundedCornerShape(RedCornerRadius.md),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = RedTheme.colors.surfaceGrouped,
         border = BorderStroke(
             1.dp,
@@ -1019,7 +1019,7 @@ private fun SettingsOptionRow(
     subtitle: String? = null
 ) {
     Surface(
-        shape = RoundedCornerShape(RedCornerRadius.sm),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
         border = BorderStroke(
             0.5.dp,

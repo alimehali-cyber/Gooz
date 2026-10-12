@@ -290,7 +290,7 @@ fun LocationSelectorDialog(
                                         )
                                     }
                                 },
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = RoundedCornerShape(RedCornerRadius.window),
                                 style = LiquidGlassDefaults.LocationCard,
                                 glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.40f else 0.50f),
                                 glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
@@ -458,7 +458,7 @@ fun LocationSelectorDialog(
                                     .fillMaxWidth()
                                     .testTag("manual_coordinates_card"),
                                 backdrop = backdrop,
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = RoundedCornerShape(RedCornerRadius.window),
                                 style = LiquidGlassDefaults.LocationCard,
                                 glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
                                 glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
@@ -724,7 +724,7 @@ private fun CityItemCard(
             .testTag("city_card_${city.id}"),
         backdrop = backdrop,
         onClick = onSelect,
-        shape = RoundedCornerShape(RedCornerRadius.md),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         style = LiquidGlassDefaults.LocationCard,
         glassTint = cardGlassTint,
         glassBorder = cardBorder,

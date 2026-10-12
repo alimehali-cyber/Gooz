@@ -75,6 +75,12 @@ val LocalLiquidGlassEnabled = staticCompositionLocalOf { true }
 val LocalLiquidGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 
 /**
+ * How much of the theme's own surface a real-glass card lays under its content so the text on it keeps
+ * its contrast over an unknown backdrop. Low enough to stay glass, high enough to hold the ink.
+ */
+private const val LEGIBILITY_PLATE_ALPHA = 0.34f
+
+/**
  * User-configurable Liquid Glass optical characteristics.
  * Persisted in SharedPreferences and dynamically applied across all liquid glass surfaces.
  */
@@ -121,9 +127,9 @@ fun liquidGlassTintColor(
  * Text colors that stay legible on top of glass, whatever the theme, the backdrop or the tint setting.
  *
  * Glass is translucent, so a fixed text color can end up on top of a bright day sky in a dark theme or
- * on top of a heavy white tint in a light one. This resolves the effective card color (surface token,
- * the clarity frost, then the white tint) and picks near-black or near-white text from its luminance,
- * so contrast never depends on the caller guessing.
+ * on top of a heavy white tint in a light one. This resolves the effective card color (the theme surface
+ * the legibility plate holds in place, plus the user's white tint) and picks near-black or near-white
+ * text from its luminance, so contrast never depends on the caller guessing.
  */
 @Immutable
 data class GlassTextColors(
@@ -140,8 +146,6 @@ fun liquidGlassTextColors(
     clearGlass: Boolean = false
 ): GlassTextColors {
     val surface = RedTheme.colors.surfaceElevated
-    // The frost the clarity slider adds, then the user's white tint on top of it.
-    val frost = if (config.clarity < 0.99f) ((1.0f - config.clarity) * 0.45f).coerceIn(0f, 1f) else 0f
     val tint = if (clearGlass) 0f else (tintAlpha ?: config.tintAlpha).coerceIn(0f, 1f)
 
     fun over(base: Color, overlay: Color, fraction: Float): Color = Color(
@@ -151,7 +155,10 @@ fun liquidGlassTextColors(
         alpha = 1f
     )
 
-    val effective = over(over(surface, surface, frost), Color.White, tint)
+    // The card this ink will sit on: the theme surface token (which the legibility plate in
+    // [liquidGlass] keeps dominant even over real glass) plus the user's white tint on top of it. The
+    // clarity frost adds the same surface token at partial alpha, so it cannot move this estimate.
+    val effective = over(surface, Color.White, tint)
     val luminance = 0.299f * effective.red + 0.587f * effective.green + 0.114f * effective.blue
     val ink = if (luminance > 0.55f) Color(0xFF080A12) else Color(0xFFF8FAFF)
     return GlassTextColors(
@@ -286,6 +293,14 @@ fun Modifier.liquidGlass(
     val config = LocalLiquidGlassConfig.current
     val isGlassActive = enabled && config.enabled && isLiquidGlassSupported() && backdrop != null
 
+    // Legibility plate. Real glass samples pixels this surface cannot know — a bright day sky behind a
+    // dark-theme card would leave light text on a bright plate. A partly transparent wash of the theme's
+    // own surface keeps the card's effective color near the token that [liquidGlassTextColors] resolves
+    // the text against, so contrast survives any backdrop. Surfaces that must stay optically pure
+    // (`clearGlass`, i.e. the Sky Canvas card) opt out and stay fully clear.
+    val legibilityPlate =
+        if (clearGlass) Color.Transparent else RedTheme.colors.surfaceElevated.copy(alpha = LEGIBILITY_PLATE_ALPHA)
+
     // One tint decision for both render paths: an explicit `glassTint` wins, a surface that must stay
     // optically pure (`clearGlass`) wears none, and everything else takes the soft white tint from Settings.
     val activeTint = when {
@@ -339,6 +354,7 @@ fun Modifier.liquidGlass(
                 innerShadow = if (activeInnerShadow > 0.dp) { { InnerShadow(radius = activeInnerShadow) } } else null
             )
             .then(if (clarityFrostedColor != Color.Transparent) Modifier.background(clarityFrostedColor, shape) else Modifier)
+            .then(if (legibilityPlate != Color.Transparent) Modifier.background(legibilityPlate, shape) else Modifier)
             .then(if (activeTint != Color.Transparent) Modifier.background(activeTint, shape) else Modifier)
             .then(if (glassBorder != null) Modifier.border(glassBorder, shape) else Modifier)
             .clip(shape)
