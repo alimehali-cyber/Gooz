@@ -219,18 +219,20 @@ private fun LabFeatureCard(
     isFa: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(RedCornerRadius.xl))
             .clickable(enabled = feature.isAvailable, onClick = onClick)
             .testTag("lab_feature_card_${feature.name.lowercase()}"),
         shape = RoundedCornerShape(RedCornerRadius.xl),
-        color = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
-        border = BorderStroke(
+        fallbackColor = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
+        fallbackBorder = BorderStroke(
             width = 1.dp,
             color = if (feature.isAvailable) RedTheme.colors.border else RedTheme.colors.border.copy(alpha = 0.5f)
-        )
+        ),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Row(
             modifier = Modifier.padding(RedSpacing.lg),

@@ -233,11 +233,13 @@ fun SatelliteDetailScreen(
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
             // 1. Hero Status Card
-            Surface(
+            LiquidGlassSurface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(RedCornerRadius.window),
-                color = Color(0xFF0F172A),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                fallbackColor = Color(0xFF0F172A),
+                fallbackBorder = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                style = LiquidGlassDefaults.Card,
+                fallbackShadowElevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -314,11 +316,13 @@ fun SatelliteDetailScreen(
 
             val currentPasses = passes
             if (currentPasses == null) {
-                Surface(
+                LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(RedCornerRadius.window),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
                     Text(
                         text = if (isFa) "در حال محاسبه گذرهای ماهواره..." else "Calculating satellite passes...",
@@ -328,11 +332,13 @@ fun SatelliteDetailScreen(
                     )
                 }
             } else if (currentPasses.isEmpty()) {
-                Surface(
+                LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(RedCornerRadius.window),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
                     Text(
                         text = if (isFa) "هیچ گذر قابل مشهودی مطابق با معیار علمی برای موقعیت شما در ۷ روز آینده یافت نشد."
@@ -387,11 +393,13 @@ fun SatelliteDetailScreen(
 
             val launchText = if (satelliteItem.launchDate.isNotBlank()) satelliteItem.launchDate else "1998"
 
-            Surface(
+            LiquidGlassSurface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(RedCornerRadius.window),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                style = LiquidGlassDefaults.Card,
+                fallbackShadowElevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -494,11 +502,13 @@ fun SatelliteDetailScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            Surface(
+            LiquidGlassSurface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(RedCornerRadius.window),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.25f))
+                fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.25f)),
+                style = LiquidGlassDefaults.Card,
+                fallbackShadowElevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -577,11 +587,13 @@ private fun NextPassTimelineProgressBar(
         else -> 1f
     }
 
-    Surface(
+    LiquidGlassSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.35f))
+        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        fallbackBorder = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.35f)),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -741,11 +753,13 @@ fun DetailedVisiblePassCard(
     val magStr = String.format(Locale.US, "%.1f", pass.estimatedMagnitude)
     val maxElevStr = String.format(Locale.US, "%.0f°", pass.maxElevationDeg)
 
-    Surface(
+    LiquidGlassSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f))
+        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        fallbackBorder = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f)),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),

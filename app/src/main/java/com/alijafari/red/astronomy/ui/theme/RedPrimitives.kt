@@ -71,23 +71,17 @@ fun RedCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val clickModifier = if (onClick != null) {
-        Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(color = RedTheme.colors.accentRed),
-            onClick = onClick
-        )
-    } else {
-        Modifier
-    }
-
-    Surface(
-        modifier = modifier
-            .clip(shape)
-            .then(clickModifier),
+    // Both card primitives are liquid glass. They render through the same fallback path as every other
+    // card when no backdrop is reachable, so a `RedCard` call site gets the glass material, the user's
+    // tint and the contrast-safe ink without knowing any of it exists.
+    LiquidGlassSurface(
+        modifier = modifier,
         shape = shape,
-        color = backgroundColor,
-        border = BorderStroke(borderWidth, borderColor)
+        style = LiquidGlassDefaults.Card,
+        fallbackColor = backgroundColor,
+        fallbackBorder = BorderStroke(borderWidth, borderColor),
+        fallbackShadowElevation = RedElevation.none,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier.padding(contentPadding),
@@ -111,24 +105,14 @@ fun RedElevatedCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val clickModifier = if (onClick != null) {
-        Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(color = RedTheme.colors.accentRed),
-            onClick = onClick
-        )
-    } else {
-        Modifier
-    }
-
-    Surface(
-        modifier = modifier
-            .clip(shape)
-            .then(clickModifier),
+    LiquidGlassSurface(
+        modifier = modifier,
         shape = shape,
-        color = backgroundColor,
-        shadowElevation = shadowElevation,
-        border = BorderStroke(borderWidth, borderColor)
+        style = LiquidGlassDefaults.Card,
+        fallbackColor = backgroundColor,
+        fallbackBorder = BorderStroke(borderWidth, borderColor),
+        fallbackShadowElevation = shadowElevation,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier.padding(contentPadding),

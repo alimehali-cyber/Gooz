@@ -28,6 +28,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
+import com.alijafari.red.astronomy.ui.theme.RedElevation
 import com.alijafari.red.astronomy.ui.theme.StatusExcellent
 import com.alijafari.red.astronomy.ui.theme.StatusGood
 import com.alijafari.red.astronomy.ui.theme.StatusWarning
@@ -49,7 +52,7 @@ fun EclipseDetailModal(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        LiquidGlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .wrapContentHeight()
@@ -61,8 +64,9 @@ fun EclipseDetailModal(
                     shape = RoundedCornerShape(RedCornerRadius.window)
                 )
                 .testTag("eclipse_detail_dialog"),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            fallbackColor = MaterialTheme.colorScheme.surface,
+            style = LiquidGlassDefaults.Card,
+            fallbackShadowElevation = RedElevation.none,
         ) {
             Column(
                 modifier = Modifier
@@ -130,13 +134,71 @@ fun EclipseDetailModal(
                 val bannerBorder = if (result.isLocallyVisible) StatusExcellent.copy(alpha = 0.5f) else StatusWarning.copy(alpha = 0.5f)
                 val bannerTextColor = if (result.isLocallyVisible) StatusExcellent else StatusWarning
 
-                Card(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(RedCornerRadius.window),
-                    colors = CardDefaults.cardColors(containerColor = bannerBg),
+                    fallbackColor = bannerBg,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, bannerBorder, RoundedCornerShape(RedCornerRadius.window))
+                        .border(1.dp, bannerBorder, RoundedCornerShape(RedCornerRadius.window)),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    tint = bannerTextColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (result.isLocallyVisible) {
+                                        if (isFa) "قابل رصد از موقعیت شما" else "Visible from your Location"
+                                    } else {
+                                        if (isFa) "عدم رصد مستقیم در موقعیت شما" else "Not Directly Visible"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = bannerTextColor
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(bannerTextColor.copy(alpha = 0.2f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                val remainingStr = when {
+                                    detailedInfo.daysRemaining <= 0 -> if (isFa) "امروز / هم‌اکنون" else "Today / Active"
+                                    isFa -> "${detailedInfo.daysRemaining} روز مانده".toPersianDigits()
+                                    else -> "${detailedInfo.daysRemaining}d away"
+                                }
+                                Text(
+                                    text = remainingStr,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = bannerTextColor
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = if (isFa) result.localVisibilityTextFa else result.localVisibilityTextEn,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     Column(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -206,11 +268,86 @@ fun EclipseDetailModal(
                 val peakDisplay = if (isFa) detailedInfo.localPeakTimeStr.toPersianDigits() else detailedInfo.localPeakTimeStr
                 val endDisplay = if (isFa) detailedInfo.localEndTimeStr.toPersianDigits() else detailedInfo.localEndTimeStr
 
-                Card(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(RedCornerRadius.window),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
+                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            TimingItem(
+                                label = if (isFa) "شروع گرفتگی:" else "Eclipse Start:",
+                                time = startDisplay
+                            )
+                            TimingItem(
+                                label = if (isFa) "اوج گرفتگی (پیک):" else "Maximum Peak:",
+                                time = peakDisplay,
+                                isHighlight = true
+                            )
+                            TimingItem(
+                                label = if (isFa) "پایان گرفتگی:" else "Eclipse End:",
+                                time = endDisplay
+                            )
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = if (isFa) {
+                                    "مدت قابل رصد در موقعیت شما: ${detailedInfo.durationTextFa}"
+                                } else {
+                                    "Local Observable Duration: ${detailedInfo.durationTextEn}"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (event.durationTotalSeconds > 0 &&
+                            (event.type == EclipseEngine.EclipseType.TOTAL_SOLAR ||
+                                event.type == EclipseEngine.EclipseType.ANNULAR_SOLAR ||
+                                event.type == EclipseEngine.EclipseType.TOTAL_LUNAR)
+                        ) {
+                            val totMin = event.durationTotalSeconds / 60
+                            val totSec = event.durationTotalSeconds % 60
+                            val centralDurLabel = when (event.type) {
+                                EclipseEngine.EclipseType.ANNULAR_SOLAR -> if (isFa) {
+                                    "مدت حلقه آتش در اوج جهانی: ${totMin} دقیقه و ${totSec} ثانیه".toPersianDigits()
+                                } else {
+                                    "Max Annularity Duration: ${totMin}m ${totSec}s"
+                                }
+                                else -> if (isFa) {
+                                    "مدت گرفتگی کامل در اوج جهانی: ${totMin} دقیقه و ${totSec} ثانیه".toPersianDigits()
+                                } else {
+                                    "Max Totality Duration: ${totMin}m ${totSec}s"
+                                }
+                            }
+                            Text(
+                                text = centralDurLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Column(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -300,11 +437,59 @@ fun EclipseDetailModal(
                 val displayPercent = if (isPenumbralLunar) penumbralPercent else detailedInfo.obscurationPercent
                 val barColor = if (isPenumbralLunar) StatusGood else MaterialTheme.colorScheme.primary
 
-                Card(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(RedCornerRadius.window),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
+                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isPenumbralLunar) {
+                                    if (isFa) "پوشش نیم‌سایه (۰٪ سایه تاریک):" else "Penumbral Shading (0% Umbral):"
+                                } else {
+                                    if (isFa) "درصد پوشش گرفتگی:" else "Local Obscuration:"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            val obscurationStr = if (isFa) "%$displayPercent".toPersianDigits() else "$displayPercent%"
+                            Text(
+                                text = obscurationStr,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = barColor
+                            )
+                        }
+
+                        LinearProgressIndicator(
+                            progress = (displayPercent / 100f).coerceIn(0f, 1f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = barColor,
+                            trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val altStr = if (isFa) "ارتفاع: ${detailedInfo.targetAltDeg} درجه".toPersianDigits() else "Alt: ${detailedInfo.targetAltDeg}°"
+                            val azStr = if (isFa) "سمت: ${detailedInfo.targetAzDeg} درجه".toPersianDigits() else "Az: ${detailedInfo.targetAzDeg}°"
+                            Text(text = altStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = azStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                     Column(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -400,11 +585,30 @@ fun EclipseDetailModal(
                 }
 
                 // Safety Guidelines
-                Card(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(RedCornerRadius.window),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
+                    fallbackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = if (isFa) detailedInfo.safetyGuideFa else detailedInfo.safetyGuideEn,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     Row(
                         modifier = Modifier.padding(12.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),

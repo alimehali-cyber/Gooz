@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
+import com.alijafari.red.astronomy.ui.theme.RedElevation
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import java.util.Calendar
 
@@ -97,10 +100,12 @@ fun JalaliDatePickerDialog(
                     color = RedTheme.colors.textPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                Surface(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(12.dp),
-                    color = RedTheme.colors.accentRed.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f))
+                    fallbackColor = RedTheme.colors.accentRed.copy(alpha = 0.15f),
+                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f)),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
                     Text(
                         text = "${TimeEngine.formatPersianNumbers(selectedDay.toString())} ${PERSIAN_MONTHS_FA[(selectedMonth - 1).coerceIn(0, 11)]} ${TimeEngine.formatPersianNumbers(selectedYear.toString())}",

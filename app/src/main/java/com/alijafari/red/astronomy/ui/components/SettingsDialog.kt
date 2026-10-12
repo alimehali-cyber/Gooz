@@ -729,16 +729,18 @@ fun SettingsDialog(
                     ) {
                         BORTLE_CLASSES.forEach { info ->
                             val isSelected = uiState.bortleClass == info.classNumber
-                            Surface(
+                            LiquidGlassSurface(
                                 shape = RoundedCornerShape(RedCornerRadius.window),
-                                color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
-                                border = BorderStroke(
+                                fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
+                                fallbackBorder = BorderStroke(
                                     0.5.dp,
                                     if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border.copy(alpha = 0.2f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { viewModel.setBortleClass(info.classNumber) }
+                                    .clickable { viewModel.setBortleClass(info.classNumber) },
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -919,16 +921,18 @@ private fun ExpandableSettingsSection(
         label = "expand_rotation"
     )
 
-    Surface(
+    LiquidGlassSurface(
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = RedTheme.colors.surfaceGrouped,
-        border = BorderStroke(
+        fallbackColor = RedTheme.colors.surfaceGrouped,
+        fallbackBorder = BorderStroke(
             1.dp,
             if (isExpanded) RedTheme.colors.accentRed.copy(alpha = 0.35f) else RedTheme.colors.border
         ),
         modifier = modifier
             .fillMaxWidth()
-            .testTag(testTag)
+            .testTag(testTag),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header Row (Clickable)
@@ -1018,16 +1022,18 @@ private fun SettingsOptionRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null
 ) {
-    Surface(
+    LiquidGlassSurface(
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
-        border = BorderStroke(
+        fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
+        fallbackBorder = BorderStroke(
             0.5.dp,
             if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border.copy(alpha = 0.2f)
         ),
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Row(
             modifier = Modifier

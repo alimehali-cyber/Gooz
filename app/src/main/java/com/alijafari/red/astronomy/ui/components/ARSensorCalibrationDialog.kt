@@ -71,7 +71,7 @@ fun ARSensorCalibrationDialog(
         contentAlignment = Alignment.Center
     ) {
         // Main dialog surface (intercepts clicks so interior touches don't dismiss)
-        Surface(
+        LiquidGlassSurface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .clickable(
@@ -81,12 +81,13 @@ fun ARSensorCalibrationDialog(
                 )
                 .testTag("ar_sensor_calibration_dialog"),
             shape = RoundedCornerShape(RedCornerRadius.xxl),
-            color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
-            border = BorderStroke(
+            fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
+            fallbackBorder = BorderStroke(
                 1.dp,
                 if (isAdequate) StatusGood.copy(alpha = 0.6f) else RedTheme.colors.border
             ),
-            shadowElevation = 16.dp
+            fallbackShadowElevation = 16.dp,
+            style = LiquidGlassDefaults.Card,
         ) {
             Column(
                 modifier = Modifier
@@ -205,13 +206,15 @@ fun ARSensorCalibrationDialog(
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically()
                 ) {
-                    Surface(
+                    LiquidGlassSurface(
                         shape = RoundedCornerShape(RedCornerRadius.window),
-                        color = StatusGood.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, StatusGood.copy(alpha = 0.6f)),
+                        fallbackColor = StatusGood.copy(alpha = 0.15f),
+                        fallbackBorder = BorderStroke(1.dp, StatusGood.copy(alpha = 0.6f)),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("ar_sensor_calibration_success_banner")
+                            .testTag("ar_sensor_calibration_success_banner"),
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -343,13 +346,15 @@ private fun LiveSensorQualityBadge(
         CalibrationState.UNCALIBRATED -> SensorQualityInfo("در حال تشخیص...", "Uncalibrated", Color(0xFF94A3B8), 1)
     }
 
-    Surface(
+    LiquidGlassSurface(
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = info.statusColor.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, info.statusColor.copy(alpha = 0.35f)),
+        fallbackColor = info.statusColor.copy(alpha = 0.12f),
+        fallbackBorder = BorderStroke(1.dp, info.statusColor.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("ar_sensor_calibration_status_badge")
+            .testTag("ar_sensor_calibration_status_badge"),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Row(
             modifier = Modifier

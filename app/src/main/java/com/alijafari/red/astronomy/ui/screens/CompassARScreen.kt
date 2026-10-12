@@ -2979,11 +2979,13 @@ fun CompassARScreen(
                                 var showDetailsAccordion by remember { mutableStateOf(false) }
                                 val overallColor = arHealthColor(overallHealth.level)
 
-                                Surface(
+                                LiquidGlassSurface(
                                     shape = RoundedCornerShape(RedCornerRadius.window),
-                                    color = overallColor.copy(alpha = 0.12f),
-                                    border = BorderStroke(1.dp, overallColor.copy(alpha = 0.4f)),
-                                    modifier = Modifier.fillMaxWidth()
+                                    fallbackColor = overallColor.copy(alpha = 0.12f),
+                                    fallbackBorder = BorderStroke(1.dp, overallColor.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = LiquidGlassDefaults.Card,
+                                    fallbackShadowElevation = RedElevation.none,
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Row(
@@ -3093,11 +3095,13 @@ fun CompassARScreen(
                                 }
 
                                 // Guided 1-Point Alignment Action Card
-                                Surface(
+                                LiquidGlassSurface(
                                     shape = RoundedCornerShape(RedCornerRadius.window),
-                                    color = RedTheme.colors.surfaceElevated,
-                                    border = BorderStroke(1.dp, RedTheme.colors.border),
-                                    modifier = Modifier.fillMaxWidth()
+                                    fallbackColor = RedTheme.colors.surfaceElevated,
+                                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = LiquidGlassDefaults.Card,
+                                    fallbackShadowElevation = RedElevation.none,
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(12.dp),
@@ -3389,14 +3393,16 @@ fun CompassARScreen(
 
         // Layer 7: Minimal "Object found" Confirmation Banner
         if (finderData?.isArrived == true && !isAlignmentMode) {
-            Surface(
+            LiquidGlassSurface(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(y = (-140).dp)
                     .testTag("ar_object_found_banner"),
                 shape = RoundedCornerShape(RedCornerRadius.window),
-                color = Color(0xDD0D1B2A),
-                border = BorderStroke(1.dp, Color(0xFF4CAF50))
+                fallbackColor = Color(0xDD0D1B2A),
+                fallbackBorder = BorderStroke(1.dp, Color(0xFF4CAF50)),
+                style = LiquidGlassDefaults.Card,
+                fallbackShadowElevation = RedElevation.none,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -3431,12 +3437,13 @@ fun CompassARScreen(
         ) {
             val applied = alignmentConfirmationDeg ?: 0f
             val offStr = String.format("%+.1f°", applied)
-            Surface(
+            LiquidGlassSurface(
                 shape = RoundedCornerShape(RedCornerRadius.window),
-                color = Color(0xDD0D1B2A),
-                border = BorderStroke(1.dp, StatusGood),
-                shadowElevation = 12.dp,
-                modifier = Modifier.testTag("alignment_confirmation_pill")
+                fallbackColor = Color(0xDD0D1B2A),
+                fallbackBorder = BorderStroke(1.dp, StatusGood),
+                fallbackShadowElevation = 12.dp,
+                modifier = Modifier.testTag("alignment_confirmation_pill"),
+                style = LiquidGlassDefaults.Card,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -3590,12 +3597,13 @@ private fun PermissionBlockedBanner(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = Color(0xDD1A0B12),
-        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.7f)),
-        shadowElevation = 12.dp
+        fallbackColor = Color(0xDD1A0B12),
+        fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.7f)),
+        fallbackShadowElevation = 12.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -3621,12 +3629,13 @@ private fun PermissionBlockedBanner(
 
 @Composable
 private fun MagneticInterferenceBanner(text: String, modifier: Modifier = Modifier) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = Color(0xDD2A1800),
-        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
-        shadowElevation = 12.dp
+        fallbackColor = Color(0xDD2A1800),
+        fallbackBorder = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
+        fallbackShadowElevation = 12.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -3654,12 +3663,13 @@ private fun RecalibrationSuggestionBanner(
     onAction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = Color.Black.copy(alpha = 0.78f),
-        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.55f)),
-        shadowElevation = 10.dp
+        fallbackColor = Color.Black.copy(alpha = 0.78f),
+        fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.55f)),
+        fallbackShadowElevation = 10.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -3715,12 +3725,13 @@ private fun ClusterSelectionMenu(
     onSelect: (CelestialObject) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(RedCornerRadius.window),
-        color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
-        border = BorderStroke(1.dp, RedTheme.colors.border),
-        shadowElevation = 12.dp
+        fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
+        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+        fallbackShadowElevation = 12.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(

@@ -420,11 +420,13 @@ fun HomeScreen(
                     )
 
                     if (tonightEvents.isEmpty()) {
-                        Surface(
+                        LiquidGlassSurface(
                             shape = RoundedCornerShape(RedCornerRadius.lg),
-                            color = RedTheme.colors.surfaceElevated,
-                            border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                            modifier = Modifier.fillMaxWidth()
+                            fallbackColor = RedTheme.colors.surfaceElevated,
+                            fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
+                            modifier = Modifier.fillMaxWidth(),
+                            style = LiquidGlassDefaults.Card,
+                            fallbackShadowElevation = RedElevation.none,
                         ) {
                             Text(
                                 text = if (isFa) "امشب رویداد شاخصی ثبت نشده است." else "No major celestial events tonight.",
@@ -434,13 +436,15 @@ fun HomeScreen(
                             )
                         }
                     } else {
-                        Surface(
+                        LiquidGlassSurface(
                             shape = RoundedCornerShape(RedCornerRadius.xl),
-                            color = RedTheme.colors.surfaceElevated,
-                            border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                            fallbackColor = RedTheme.colors.surfaceElevated,
+                            fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("home_highlights_card")
+                                .testTag("home_highlights_card"),
+                            style = LiquidGlassDefaults.Card,
+                            fallbackShadowElevation = RedElevation.none,
                         ) {
                             Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
                                 tonightEvents.take(5).forEachIndexed { idx, event ->
@@ -486,13 +490,15 @@ fun HomeScreen(
                         else "Calculated precisely for your location"
                     )
 
-                    Surface(
+                    LiquidGlassSurface(
                         shape = RoundedCornerShape(RedCornerRadius.xl),
-                        color = RedTheme.colors.surfaceElevated,
-                        border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                        fallbackColor = RedTheme.colors.surfaceElevated,
+                        fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("home_next_eclipses_card")
+                            .testTag("home_next_eclipses_card"),
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
                         Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
                             // Nearest / Primary Eclipse (chronologically first)

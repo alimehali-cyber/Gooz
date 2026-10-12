@@ -34,33 +34,26 @@ import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
 import kotlin.math.abs
 
-/**
- * The photographic plate frames the Moon with a black starfield: the lunar disc itself covers only the
- * central ~83% of the 1024px square (measured across the eight cardinal and diagonal directions), and the
- * remaining band is that black background. Drawn edge-to-edge under a circular clip it would leave a dark
- * ring around the Moon — the same black disc the old screen used to hide behind its painted shadow. The
- * plate is therefore zoomed by the reciprocal of that fraction, so the disc's limb lands exactly on the
- * clip circle and nothing but the Moon is drawn.
- */
-private const val MoonPlateDiscFraction = 0.83f
-private const val MoonPlateZoom = 1f / MoonPlateDiscFraction
+/** The colour the night side dims toward — the same near-black space tone the limb gradient uses. */
+private val MoonNightColor = Color(0xFF05050D)
 
 /**
- * The photographic Moon render: the full-Moon plate, the live phase terminator and limb darkening.
- *
- * The unlit side is *erased*, not painted black — the render is drawn into an offscreen layer and the
- * terminator path is composited through [BlendMode.Clear], so the dark side is genuinely transparent and
- * whatever the render sits on (a glass card, a window) shows through. There is no black disc behind the
- * Moon. The same sixteen feathered steps that used to soften the painted shadow now soften the edge of
- * the cut-out, so the terminator stays soft instead of snapping.
- *
- * Pure presentation on purpose: no date navigator, no captions, no gesture handling. Callers own the
- * chrome and the input, which is what lets the Home card and the Moon window share one render.
- *
- * The terminator orientation comes from the Sun/Moon geometry through
- * [CoordinateEngine.calculateMoonLimbScreenAngleDeg], and the disc is flipped for southern latitudes.
- * The very slow ±1.5° wobble is the idle animation the Moon screen always had.
+ * The plate frames the Moon with black starfield: the lunar disc itself covers only the central ~82% of
+ * the 1024px square. The zoom is the reciprocal of that, plus a hair of overshoot so the very limb — the
+ * darkest part of the photograph — is what gets clipped, never the starfield behind it.
  */
+private const val MoonPlateDiscFraction = 0.82f
+private const val MoonPlateZoom = 1.03f / MoonPlateDiscFraction
+
+/**
+ * How bright the Moon's night side stays. Earthshine really is that faint, and keeping a tenth of the
+ * plate's texture (rather than none) is what stops the unlit half from turning into either a black disc
+ * or a white hole in the card.
+ */
+private const val MoonNightSideBrightness = 0.11f
+
+/** Sixteen overlapping passes reach [MoonNightSideBrightness] where they all overlap: 1 - b^(1/16). */
+private const val MoonNightStepAlpha = 0.129f
 @Composable
 fun MoonPhaseRender(
     moonData: MoonEngine.MoonData,
@@ -121,10 +114,10 @@ fun MoonPhaseRender(
                 val ill = moonData.illuminationPercent / 100.0
 
                 if (ill < 0.98) {
-                    // Sixteen overlapping partial erases: fully transparent at the core of the dark side,
-                    // feathered across the terminator.
+                    // Sixteen overlapping partial dims: the core of the night side settles at
+                    // MoonNightSideBrightness, feathered across the terminator.
                     val numSteps = 16
-                    val stepAlpha = 0.22f
+                    val stepAlpha = MoonNightStepAlpha
                     val feather = radius * 0.08f
 
                     for (step in 0 until numSteps) {
@@ -149,15 +142,15 @@ fun MoonPhaseRender(
                         rotate(limbScreenAngleDeg, center) {
                             drawPath(
                                 path = shadowPath,
-                                color = Color.Transparent,
+                                color = MoonNightColor,
                                 alpha = stepAlpha,
-                                blendMode = BlendMode.Clear
+                                blendMode = BlendMode.SrcAtop
                             )
                         }
                     }
                 }
 
-                // Ambient Edge Limb Darkening — SrcAtop keeps it on the Moon and off the transparent side.
+                // Ambient Edge Limb Darkening — SrcAtop keeps it on the Moon and off the plate's edge.
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(

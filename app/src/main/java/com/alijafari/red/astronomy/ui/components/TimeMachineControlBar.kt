@@ -89,10 +89,12 @@ fun TimeMachineControlBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Mode Indicator Badge
-                    Surface(
+                    LiquidGlassSurface(
                         shape = RoundedCornerShape(RedCornerRadius.window),
-                        color = if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else StatusGood.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary else StatusGood)
+                        fallbackColor = if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else StatusGood.copy(alpha = 0.15f),
+                        fallbackBorder = BorderStroke(1.dp, if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary else StatusGood),
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -176,13 +178,15 @@ fun TimeMachineControlBar(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // 📅 Date Pill Button
-                            Surface(
+                            LiquidGlassSurface(
                                 shape = RoundedCornerShape(RedCornerRadius.window),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 modifier = Modifier
                                     .clickable { showDatePicker = true }
-                                    .testTag("tm_date_btn")
+                                    .testTag("tm_date_btn"),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -195,13 +199,15 @@ fun TimeMachineControlBar(
                             }
 
                             // 🕒 Time Pill Button
-                            Surface(
+                            LiquidGlassSurface(
                                 shape = RoundedCornerShape(RedCornerRadius.window),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 modifier = Modifier
                                     .clickable { showTimePicker = true }
-                                    .testTag("tm_time_btn")
+                                    .testTag("tm_time_btn"),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -214,10 +220,10 @@ fun TimeMachineControlBar(
                             }
 
                             // ▶ / ⏸ Play/Pause Pill Button
-                            Surface(
+                            LiquidGlassSurface(
                                 shape = RoundedCornerShape(RedCornerRadius.window),
-                                color = if (state.isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                fallbackColor = if (state.isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                 modifier = Modifier
                                     .clickable {
                                         if (state.mode == TimeMachineMode.LIVE) {
@@ -225,7 +231,9 @@ fun TimeMachineControlBar(
                                         }
                                         onTogglePlay()
                                     }
-                                    .testTag("tm_play_pause_btn")
+                                    .testTag("tm_play_pause_btn"),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -248,13 +256,15 @@ fun TimeMachineControlBar(
 
                             // ⚡ Speed Pill Button
                             Box {
-                                Surface(
+                                LiquidGlassSurface(
                                     shape = RoundedCornerShape(RedCornerRadius.window),
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                     modifier = Modifier
                                         .clickable { showSpeedMenu = true }
-                                        .testTag("tm_speed_btn")
+                                        .testTag("tm_speed_btn"),
+                                    style = LiquidGlassDefaults.Card,
+                                    fallbackShadowElevation = RedElevation.none,
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -320,13 +330,15 @@ fun TimeMachineControlBar(
                             }
 
                             // 🔴 LIVE Reset Button
-                            Surface(
+                            LiquidGlassSurface(
                                 shape = RoundedCornerShape(RedCornerRadius.window),
-                                color = if (state.mode == TimeMachineMode.LIVE) StatusGood.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, if (state.mode == TimeMachineMode.LIVE) StatusGood else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                fallbackColor = if (state.mode == TimeMachineMode.LIVE) StatusGood.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                                fallbackBorder = BorderStroke(1.dp, if (state.mode == TimeMachineMode.LIVE) StatusGood else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 modifier = Modifier
                                     .clickable { onReturnToLive() }
-                                    .testTag("tm_live_btn")
+                                    .testTag("tm_live_btn"),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -575,13 +587,15 @@ fun TimeMachineControlBar(
                         color = RedTheme.colors.textSecondary
                     )
 
-                    Surface(
+                    LiquidGlassSurface(
                         shape = RoundedCornerShape(RedCornerRadius.window),
-                        color = RedTheme.colors.surfaceVariant,
-                        border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
+                        fallbackColor = RedTheme.colors.surfaceVariant,
+                        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showBirthDatePicker = true }
+                            .clickable { showBirthDatePicker = true },
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
@@ -752,17 +766,19 @@ fun TimeMachineControlBar(
                                 val occDateStr = TimeEngine.formatDate(occ.timestampMs, calendarSystem, isFa)
                                 val occTimeStr = TimeEngine.formatTime24h(occ.timestampMs, isFa)
 
-                                Surface(
+                                LiquidGlassSurface(
                                     shape = RoundedCornerShape(RedCornerRadius.window),
-                                    color = RedTheme.colors.surfaceVariant,
-                                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                                    fallbackColor = RedTheme.colors.surfaceVariant,
+                                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
                                             onSimulatedTimeChange(occ.timestampMs, occ.title, false)
                                             showOccasionsModal = false
                                         }
-                                        .testTag("occasion_item_${occ.id}")
+                                        .testTag("occasion_item_${occ.id}"),
+                                    style = LiquidGlassDefaults.Card,
+                                    fallbackShadowElevation = RedElevation.none,
                                 ) {
                                     Row(
                                         modifier = Modifier
