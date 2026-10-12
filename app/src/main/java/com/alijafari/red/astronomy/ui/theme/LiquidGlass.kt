@@ -48,7 +48,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -85,10 +87,79 @@ data class LiquidGlassConfig(
     val refractionAmountDp: Float = 28f, // 0 to 60 dp (refraction warping)
     val chromaticAberration: Boolean = true,
     val hasHighlight: Boolean = true,
-    val hasShadow: Boolean = true
-)
+    val hasShadow: Boolean = true,
+    /**
+     * Strength of the soft white tint every glass card wears (0.0 = none, 1.0 = opaque white).
+     * The default is deliberately faint: it lifts a card off the sky without hiding it.
+     * Surfaces that must stay optically pure opt out through `clearGlass`.
+     */
+    val tintAlpha: Float = DEFAULT_TINT_ALPHA
+) {
+    companion object {
+        /** The "very soft, slight white tint" the design system ships with. */
+        const val DEFAULT_TINT_ALPHA: Float = 0.07f
+    }
+}
 
 val LocalLiquidGlassConfig = staticCompositionLocalOf { LiquidGlassConfig() }
+
+/**
+ * The soft white tint a glass surface wears, straight from Settings.
+ * Returns [Color.Transparent] at zero so callers can skip the draw entirely.
+ */
+@Composable
+@ReadOnlyComposable
+fun liquidGlassTintColor(
+    alphaOverride: Float? = null,
+    config: LiquidGlassConfig = LocalLiquidGlassConfig.current
+): Color {
+    val alpha = (alphaOverride ?: config.tintAlpha).coerceIn(0f, 1f)
+    return if (alpha <= 0.001f) Color.Transparent else Color.White.copy(alpha = alpha)
+}
+
+/**
+ * Text colors that stay legible on top of glass, whatever the theme, the backdrop or the tint setting.
+ *
+ * Glass is translucent, so a fixed text color can end up on top of a bright day sky in a dark theme or
+ * on top of a heavy white tint in a light one. This resolves the effective card color (surface token,
+ * the clarity frost, then the white tint) and picks near-black or near-white text from its luminance,
+ * so contrast never depends on the caller guessing.
+ */
+@Immutable
+data class GlassTextColors(
+    val primary: Color,
+    val secondary: Color,
+    val tertiary: Color
+)
+
+@Composable
+@ReadOnlyComposable
+fun liquidGlassTextColors(
+    config: LiquidGlassConfig = LocalLiquidGlassConfig.current,
+    tintAlpha: Float? = null,
+    clearGlass: Boolean = false
+): GlassTextColors {
+    val surface = RedTheme.colors.surfaceElevated
+    // The frost the clarity slider adds, then the user's white tint on top of it.
+    val frost = if (config.clarity < 0.99f) ((1.0f - config.clarity) * 0.45f).coerceIn(0f, 1f) else 0f
+    val tint = if (clearGlass) 0f else (tintAlpha ?: config.tintAlpha).coerceIn(0f, 1f)
+
+    fun over(base: Color, overlay: Color, fraction: Float): Color = Color(
+        red = base.red + (overlay.red - base.red) * fraction,
+        green = base.green + (overlay.green - base.green) * fraction,
+        blue = base.blue + (overlay.blue - base.blue) * fraction,
+        alpha = 1f
+    )
+
+    val effective = over(over(surface, surface, frost), Color.White, tint)
+    val luminance = 0.299f * effective.red + 0.587f * effective.green + 0.114f * effective.blue
+    val ink = if (luminance > 0.55f) Color(0xFF080A12) else Color(0xFFF8FAFF)
+    return GlassTextColors(
+        primary = ink,
+        secondary = ink.copy(alpha = 0.74f),
+        tertiary = ink.copy(alpha = 0.56f)
+    )
+}
 
 /**
  * Android version capability check for native Backdrop shaders.
@@ -202,17 +273,26 @@ object LiquidGlassDefaults {
 @Composable
 fun Modifier.liquidGlass(
     backdrop: Backdrop? = LocalLiquidGlassBackdrop.current,
-    shape: Shape = RoundedCornerShape(32.dp),
+    shape: Shape = RoundedCornerShape(RedCornerRadius.window),
     style: LiquidGlassStyle = LiquidGlassDefaults.NavigationBar,
     fallbackColor: Color = RedTheme.colors.surfaceElevated,
     fallbackBorder: BorderStroke = BorderStroke(1.dp, RedTheme.colors.border),
     fallbackShadowElevation: Dp = RedElevation.floating,
     glassTint: Color = Color.Transparent,
     glassBorder: BorderStroke? = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
+    clearGlass: Boolean = false,
     enabled: Boolean = LocalLiquidGlassEnabled.current
 ): Modifier {
     val config = LocalLiquidGlassConfig.current
     val isGlassActive = enabled && config.enabled && isLiquidGlassSupported() && backdrop != null
+
+    // One tint decision for both render paths: an explicit `glassTint` wins, a surface that must stay
+    // optically pure (`clearGlass`) wears none, and everything else takes the soft white tint from Settings.
+    val activeTint = when {
+        glassTint != Color.Transparent -> glassTint
+        clearGlass -> Color.Transparent
+        else -> liquidGlassTintColor(config = config)
+    }
 
     return if (isGlassActive) {
         // Dynamic blur radius
@@ -259,13 +339,14 @@ fun Modifier.liquidGlass(
                 innerShadow = if (activeInnerShadow > 0.dp) { { InnerShadow(radius = activeInnerShadow) } } else null
             )
             .then(if (clarityFrostedColor != Color.Transparent) Modifier.background(clarityFrostedColor, shape) else Modifier)
-            .then(if (glassTint != Color.Transparent) Modifier.background(glassTint, shape) else Modifier)
+            .then(if (activeTint != Color.Transparent) Modifier.background(activeTint, shape) else Modifier)
             .then(if (glassBorder != null) Modifier.border(glassBorder, shape) else Modifier)
             .clip(shape)
     } else {
         this
             .then(if (fallbackShadowElevation > 0.dp) Modifier.shadow(fallbackShadowElevation, shape) else Modifier)
             .background(fallbackColor, shape)
+            .then(if (activeTint != Color.Transparent) Modifier.background(activeTint, shape) else Modifier)
             .border(fallbackBorder, shape)
             .clip(shape)
     }
@@ -280,12 +361,13 @@ fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = LocalLiquidGlassBackdrop.current,
     style: LiquidGlassStyle = LiquidGlassDefaults.Card,
-    shape: Shape = RoundedCornerShape(RedCornerRadius.xl),
+    shape: Shape = RoundedCornerShape(RedCornerRadius.window),
     fallbackColor: Color = RedTheme.colors.surfaceElevated,
     fallbackBorder: BorderStroke = BorderStroke(1.dp, RedTheme.colors.border),
     fallbackShadowElevation: Dp = RedElevation.floating,
     glassTint: Color = Color.Transparent,
     glassBorder: BorderStroke? = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
+    clearGlass: Boolean = false,
     enabled: Boolean = LocalLiquidGlassEnabled.current,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     onClick: (() -> Unit)? = null,
@@ -297,6 +379,17 @@ fun LiquidGlassSurface(
         targetValue = if (isPressed && onClick != null) 0.97f else 1.0f,
         animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
         label = "LiquidGlassPress"
+    )
+
+    // Readability is solved once, here, instead of at every call site: the token set this surface hands
+    // down carries text colors resolved against the glass it is actually drawn on (surface + frost + the
+    // user's tint). Every child that reads RedTheme.colors.textPrimary/Secondary/Tertiary — section
+    // headers, badges, metric rows — inherits a contrast-safe color without knowing glass exists.
+    val glassText = liquidGlassTextColors(clearGlass = clearGlass)
+    val surfaceColors = RedTheme.colors.copy(
+        textPrimary = glassText.primary,
+        textSecondary = glassText.secondary,
+        textTertiary = glassText.tertiary
     )
 
     Box(
@@ -311,6 +404,7 @@ fun LiquidGlassSurface(
                 fallbackShadowElevation = fallbackShadowElevation,
                 glassTint = glassTint,
                 glassBorder = glassBorder,
+                clearGlass = clearGlass,
                 enabled = enabled
             )
             .then(
@@ -325,7 +419,9 @@ fun LiquidGlassSurface(
                 }
             )
     ) {
-        content()
+        CompositionLocalProvider(LocalRedColors provides surfaceColors) {
+            content()
+        }
     }
 }
 

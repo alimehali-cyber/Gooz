@@ -235,7 +235,7 @@ fun SatelliteDetailScreen(
             // 1. Hero Status Card
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 color = Color(0xFF0F172A),
                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
             ) {
@@ -389,7 +389,7 @@ fun SatelliteDetailScreen(
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             ) {
@@ -496,7 +496,7 @@ fun SatelliteDetailScreen(
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                 border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.25f))
             ) {
@@ -579,7 +579,7 @@ private fun NextPassTimelineProgressBar(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.35f))
     ) {
@@ -743,7 +743,7 @@ fun DetailedVisiblePassCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f))
     ) {

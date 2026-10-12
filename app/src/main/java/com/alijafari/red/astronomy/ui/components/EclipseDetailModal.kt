@@ -27,6 +27,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
 import com.alijafari.red.astronomy.domain.AppLanguage
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.StatusExcellent
 import com.alijafari.red.astronomy.ui.theme.StatusGood
 import com.alijafari.red.astronomy.ui.theme.StatusWarning
@@ -53,11 +54,11 @@ fun EclipseDetailModal(
                 .fillMaxWidth(0.92f)
                 .wrapContentHeight()
                 .padding(vertical = 16.dp)
-                .clip(RoundedCornerShape(28.dp))
+                .clip(RoundedCornerShape(RedCornerRadius.window))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(28.dp)
+                    shape = RoundedCornerShape(RedCornerRadius.window)
                 )
                 .testTag("eclipse_detail_dialog"),
             color = MaterialTheme.colorScheme.surface,
@@ -130,11 +131,11 @@ fun EclipseDetailModal(
                 val bannerTextColor = if (result.isLocallyVisible) StatusExcellent else StatusWarning
 
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(RedCornerRadius.window),
                     colors = CardDefaults.cardColors(containerColor = bannerBg),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, bannerBorder, RoundedCornerShape(16.dp))
+                        .border(1.dp, bannerBorder, RoundedCornerShape(RedCornerRadius.window))
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
@@ -206,7 +207,7 @@ fun EclipseDetailModal(
                 val endDisplay = if (isFa) detailedInfo.localEndTimeStr.toPersianDigits() else detailedInfo.localEndTimeStr
 
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(RedCornerRadius.window),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -300,7 +301,7 @@ fun EclipseDetailModal(
                 val barColor = if (isPenumbralLunar) StatusGood else MaterialTheme.colorScheme.primary
 
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(RedCornerRadius.window),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -400,7 +401,7 @@ fun EclipseDetailModal(
 
                 // Safety Guidelines
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(RedCornerRadius.window),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {

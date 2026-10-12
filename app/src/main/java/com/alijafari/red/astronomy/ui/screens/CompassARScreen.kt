@@ -2336,7 +2336,7 @@ fun CompassARScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = 60.dp),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(RedCornerRadius.window),
                     style = LiquidGlassDefaults.Card,
                     fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.95f),
                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border)
@@ -2374,7 +2374,7 @@ fun CompassARScreen(
                     selectedTarget = null
                     viewModel.clearTargetObject()
                 },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Pill,
                 fallbackColor = Color(0xCC1A1F36),
                 fallbackBorder = BorderStroke(1.dp, Color(0x88FF5252)),
@@ -2980,7 +2980,7 @@ fun CompassARScreen(
                                 val overallColor = arHealthColor(overallHealth.level)
 
                                 Surface(
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = RoundedCornerShape(RedCornerRadius.window),
                                     color = overallColor.copy(alpha = 0.12f),
                                     border = BorderStroke(1.dp, overallColor.copy(alpha = 0.4f)),
                                     modifier = Modifier.fillMaxWidth()
@@ -3094,7 +3094,7 @@ fun CompassARScreen(
 
                                 // Guided 1-Point Alignment Action Card
                                 Surface(
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = RoundedCornerShape(RedCornerRadius.window),
                                     color = RedTheme.colors.surfaceElevated,
                                     border = BorderStroke(1.dp, RedTheme.colors.border),
                                     modifier = Modifier.fillMaxWidth()
@@ -3271,7 +3271,7 @@ fun CompassARScreen(
                                 tappedObject = null
                                 viewModel.openObjectDetail(obj)
                             },
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(RedCornerRadius.window),
                         style = LiquidGlassDefaults.Card,
                         fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
                         fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.6f)),
@@ -3394,7 +3394,7 @@ fun CompassARScreen(
                     .align(Alignment.Center)
                     .offset(y = (-140).dp)
                     .testTag("ar_object_found_banner"),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 color = Color(0xDD0D1B2A),
                 border = BorderStroke(1.dp, Color(0xFF4CAF50))
             ) {
@@ -3432,7 +3432,7 @@ fun CompassARScreen(
             val applied = alignmentConfirmationDeg ?: 0f
             val offStr = String.format("%+.1f°", applied)
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 color = Color(0xDD0D1B2A),
                 border = BorderStroke(1.dp, StatusGood),
                 shadowElevation = 12.dp,
@@ -3592,7 +3592,7 @@ private fun PermissionBlockedBanner(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = Color(0xDD1A0B12),
         border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.7f)),
         shadowElevation = 12.dp
@@ -3623,7 +3623,7 @@ private fun PermissionBlockedBanner(
 private fun MagneticInterferenceBanner(text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = Color(0xDD2A1800),
         border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
         shadowElevation = 12.dp
@@ -3656,7 +3656,7 @@ private fun RecalibrationSuggestionBanner(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = Color.Black.copy(alpha = 0.78f),
         border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.55f)),
         shadowElevation = 10.dp
@@ -3717,7 +3717,7 @@ private fun ClusterSelectionMenu(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
         border = BorderStroke(1.dp, RedTheme.colors.border),
         shadowElevation = 12.dp
@@ -3891,7 +3891,7 @@ private fun AlignmentModeOverlay(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             LiquidGlassSurface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Card,
                 fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.92f),
                 fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
@@ -3961,7 +3961,7 @@ private fun AlignmentModeOverlay(
             val targetName = selectedTarget?.let { if (isFa) it.nameFa else it.nameEn } ?: ""
             val arrowsOn = guidance?.arrowsVisible == true
             LiquidGlassSurface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Pill,
                 fallbackColor = Color.Black.copy(alpha = 0.75f),
                 fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))

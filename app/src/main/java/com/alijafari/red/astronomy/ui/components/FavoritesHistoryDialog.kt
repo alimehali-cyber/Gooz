@@ -20,6 +20,7 @@ import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.AccentPrimary
 
 @Composable
@@ -81,7 +82,7 @@ fun FavoritesHistoryDialog(
                         ) {
                             items(favoriteObjects) { obj ->
                                 Card(
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(RedCornerRadius.window),
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                                 ) {
                                     Row(
@@ -133,7 +134,7 @@ fun FavoritesHistoryDialog(
                         ) {
                             items(uiState.observationLogs) { log ->
                                 Card(
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(RedCornerRadius.window),
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                                 ) {
                                     Row(

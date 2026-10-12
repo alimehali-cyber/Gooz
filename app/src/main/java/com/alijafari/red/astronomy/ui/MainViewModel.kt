@@ -38,6 +38,12 @@ data class MainUiState(
     val selectedObjectForDetail: CelestialObject? = null,
     val isDetailFavorite: Boolean = false,
     val showFavoritesDialog: Boolean = false,
+    val showMoonWindow: Boolean = false,
+    /**
+     * Lunar day offset in days (-30..+30) driven by dragging the Moon render. The Home moon card and the
+     * Moon window read the same value, so scrubbing one moves the other.
+     */
+    val moonDayOffset: Float = 0f,
     val showSettingsDialog: Boolean = false,
     val showLocationSelector: Boolean = false,
     val showObservationLogDialog: Boolean = false,
@@ -92,7 +98,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refractionAmountDp = prefs.getFloat("liquid_glass_refraction_amount", 28.0f),
                 chromaticAberration = prefs.getBoolean("liquid_glass_chromatic_aberration", true),
                 hasHighlight = prefs.getBoolean("liquid_glass_highlight", true),
-                hasShadow = prefs.getBoolean("liquid_glass_shadow", true)
+                hasShadow = prefs.getBoolean("liquid_glass_shadow", true),
+                tintAlpha = prefs.getFloat(
+                    "liquid_glass_tint_alpha",
+                    LiquidGlassConfig.DEFAULT_TINT_ALPHA
+                )
             ),
             language = try {
                 AppLanguage.valueOf(prefs.getString("app_language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name)
@@ -263,6 +273,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putBoolean("liquid_glass_chromatic_aberration", config.chromaticAberration)
             .putBoolean("liquid_glass_highlight", config.hasHighlight)
             .putBoolean("liquid_glass_shadow", config.hasShadow)
+            .putFloat("liquid_glass_tint_alpha", config.tintAlpha)
             .apply()
         _uiState.update { it.copy(liquidGlassConfig = config, isLiquidGlassEnabled = config.enabled) }
     }
@@ -548,6 +559,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowFavoritesDialog(show: Boolean) {
         _uiState.update { it.copy(showFavoritesDialog = show) }
+    }
+
+    fun setShowMoonWindow(show: Boolean) {
+        _uiState.update { it.copy(showMoonWindow = show) }
+    }
+
+    /** Scrub the Moon in days. Clamped to the same +/-30 day window the Moon screen always used. */
+    fun setMoonDayOffset(offsetDays: Float) {
+        val clamped = offsetDays.coerceIn(-30f, 30f)
+        _uiState.update { if (it.moonDayOffset == clamped) it else it.copy(moonDayOffset = clamped) }
+    }
+
+    /**
+     * Relative scrub for drag gestures. The delta is applied to the state the store actually holds, not to
+     * the snapshot the last recomposition captured — drag events outpace frames, and stacking them on a
+     * stale base would swallow motion and make the Moon lag the finger.
+     */
+    fun nudgeMoonDayOffset(deltaDays: Float) {
+        _uiState.update {
+            val clamped = (it.moonDayOffset + deltaDays).coerceIn(-30f, 30f)
+            if (it.moonDayOffset == clamped) it else it.copy(moonDayOffset = clamped)
+        }
     }
 
     fun setShowSettingsDialog(show: Boolean) {

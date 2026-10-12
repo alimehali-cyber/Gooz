@@ -34,10 +34,17 @@ object RedCornerRadius {
     val none: Dp = 0.dp
     val xs: Dp = 6.dp       // Small badges, tags
     val sm: Dp = 10.dp      // Inner items, nested chips, small controls
-    val md: Dp = 14.dp      // Standard buttons, small cards, text inputs
-    val lg: Dp = 18.dp      // Primary cards, list grouped containers
-    val xl: Dp = 22.dp      // Hero cards, sheet dialogs
-    val xxl: Dp = 28.dp     // Floating bars, modals
+    val md: Dp = 14.dp      // Standard buttons, text inputs, nested section blocks
+    /**
+     * The one radius every card and window in the app wears — the Home moon card set the standard.
+     * [lg], [xl] and [xxl] are aliases of it so the three historical "container" steps of the scale
+     * cannot drift apart again: a card is a card, whichever token the call site happens to use.
+     * Small controls above keep their own radii, so the concentric hierarchy still reads.
+     */
+    val window: Dp = 56.dp
+    val lg: Dp = window     // Primary cards, list grouped containers
+    val xl: Dp = window     // Hero cards, sheet dialogs
+    val xxl: Dp = window    // Floating bars, modals
     val pill: Dp = 999.dp   // Capsule / pill buttons
     val full: Dp = 999.dp   // Fully rounded
 }

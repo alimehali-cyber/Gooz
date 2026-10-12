@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.FitScreen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +43,10 @@ import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaStatus
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.liquidGlass
 import com.alijafari.red.astronomy.util.toPersianDigits
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,12 +71,21 @@ data class SelectedCelestialInfo(
     val typeName: String? = null
 )
 
+/**
+ * The interactive sky canvas: the shared sky renderer, tap-to-identify and finger time travel.
+ *
+ * The caller owns the size. It renders as a small square card on Home ([compact] = true, no pills) and
+ * fills the screen in the landscape sky viewer. [onExpand] adds the small expand affordance that opens
+ * that fullscreen viewer.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeroSkyCanvas(
     uiState: MainUiState,
     viewModel: MainViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    onExpand: (() -> Unit)? = null
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
     val coroutineScope = rememberCoroutineScope()
@@ -195,9 +209,7 @@ fun HeroSkyCanvas(
 
     BoxWithConstraints(
         modifier = modifier
-            .fillMaxWidth()
-            .height(320.dp)
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(RedCornerRadius.window))
             .testTag("hero_sky_canvas_container")
             .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
@@ -347,7 +359,7 @@ fun HeroSkyCanvas(
                 state = skyPanoramaState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(28.dp)),
+                    .clip(RoundedCornerShape(RedCornerRadius.window)),
                 onStatusChanged = { status -> panoramaReady = status == SkyPanoramaStatus.READY }
             )
         }
@@ -414,7 +426,9 @@ fun HeroSkyCanvas(
         }
 
         // --- FLOATING SELECTED CELESTIAL OBJECT NAME PILL ---
-        selectedCelestial?.let { sel ->
+        // The compact card is too small for the pill, so it stays exclusive to the fullscreen viewer.
+        val pillTarget = if (compact) null else selectedCelestial
+        pillTarget?.let { sel ->
             val canvasW = constraints.maxWidth.toFloat()
             val canvasH = constraints.maxHeight.toFloat()
             val livePos = when {
@@ -445,7 +459,7 @@ fun HeroSkyCanvas(
                         viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
                     }
                 },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(RedCornerRadius.window),
                 color = Color(0xEE0F172A),
                 border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.7f)),
                 shadowElevation = 8.dp,
@@ -517,93 +531,126 @@ fun HeroSkyCanvas(
             Color(0xFF2DD4BF)
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Stationary Current / Simulated Time pill
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0x66000000),
-                border = BorderStroke(
-                    width = if (isTimeOffsetActive) 0.8.dp else 0.5.dp,
-                    color = if (isTimeOffsetActive) accentDotColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.25f)
-                ),
-                modifier = Modifier.testTag("time_travel_bubble")
+        // The compact card shows the sky only; the time and date pills need the room.
+        if (!compact) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                // Stationary Current / Simulated Time pill
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0x66000000),
+                    border = BorderStroke(
+                        width = if (isTimeOffsetActive) 0.8.dp else 0.5.dp,
+                        color = if (isTimeOffsetActive) accentDotColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.25f)
+                    ),
+                    modifier = Modifier.testTag("time_travel_bubble")
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .clip(CircleShape)
-                            .background(accentDotColor)
-                    )
-                    if (isTimeOffsetActive) {
-                        Text(
-                            text = timeText,
-                            style = TextStyle(
-                                fontFamily = LocalAppFontFamily.current,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = Color(0xFFF9FAFB)
-                            )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(accentDotColor)
                         )
-                        if (offsetText.isNotEmpty()) {
+                        if (isTimeOffsetActive) {
                             Text(
-                                text = "($offsetText)",
+                                text = timeText,
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFF9FAFB)
+                                )
+                            )
+                            if (offsetText.isNotEmpty()) {
+                                Text(
+                                    text = "($offsetText)",
+                                    style = TextStyle(
+                                        fontFamily = LocalAppFontFamily.current,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFFE2E8F0)
+                                    )
+                                )
+                            }
+                        } else {
+                            val livePrefix = if (uiState.timeMachineState.mode == TimeMachineMode.SIMULATION) {
+                                if (isFa) "شبیه‌سازی" else "Simulated"
+                            } else {
+                                if (isFa) "آسمان زنده" else "Live sky"
+                            }
+                            Text(
+                                text = "$livePrefix • $timeText",
                                 style = TextStyle(
                                     fontFamily = LocalAppFontFamily.current,
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 10.sp,
-                                    color = Color(0xFFE2E8F0)
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFF9FAFB)
                                 )
                             )
                         }
-                    } else {
-                        val livePrefix = if (uiState.timeMachineState.mode == TimeMachineMode.SIMULATION) {
-                            if (isFa) "شبیه‌سازی" else "Simulated"
-                        } else {
-                            if (isFa) "آسمان زنده" else "Live sky"
-                        }
-                        Text(
-                            text = "$livePrefix • $timeText",
-                            style = TextStyle(
-                                fontFamily = LocalAppFontFamily.current,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 11.sp,
-                                color = Color(0xFFF9FAFB)
-                            )
-                        )
                     }
                 }
-            }
 
-            // Minimalistic Date pill
-            val formattedDate = TimeEngine.formatDate(simulatedTimeMs, uiState.calendarSystem, isFa, userTimeZone).let {
-                if (isFa) it.toPersianDigits() else it
-            }
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0x66000000),
-                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
-            ) {
-                Text(
-                    text = formattedDate,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = TextStyle(
-                        fontFamily = LocalAppFontFamily.current,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp,
-                        color = Color(0xFFF9FAFB)
+                // Minimalistic Date pill
+                val formattedDate = TimeEngine.formatDate(simulatedTimeMs, uiState.calendarSystem, isFa, userTimeZone).let {
+                    if (isFa) it.toPersianDigits() else it
+                }
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0x66000000),
+                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
+                ) {
+                    Text(
+                        text = formattedDate,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = TextStyle(
+                            fontFamily = LocalAppFontFamily.current,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            color = Color(0xFFF9FAFB)
+                        )
                     )
+                }
+            }
+        }
+
+        // --- EXPAND AFFORDANCE: opens the fullscreen landscape sky viewer ---
+        if (onExpand != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(34.dp)
+                    // Clear glass over a dark scrim: the affordance has to read on a noon sky and on a
+                    // moonless one alike, so it never takes the white card tint.
+                    .liquidGlass(
+                        shape = CircleShape,
+                        style = LiquidGlassDefaults.Pill,
+                        clearGlass = true,
+                        fallbackColor = Color.Black.copy(alpha = 0.38f),
+                        fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
+                        glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
+                    )
+                    .clickable(onClick = onExpand)
+                    .testTag("sky_canvas_expand_button"),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.FitScreen,
+                    contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open the sky fullscreen",
+                    tint = Color(0xFFF8FAFF),
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }

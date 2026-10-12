@@ -44,6 +44,7 @@ import com.alijafari.red.astronomy.ui.backdrop.LiveSkyBackdrop
 import com.alijafari.red.astronomy.ui.backdrop.PhotoBackdrop
 import com.alijafari.red.astronomy.ui.components.FavoritesHistoryDialog
 import com.alijafari.red.astronomy.ui.components.LocationSelectorDialog
+import com.alijafari.red.astronomy.ui.components.MoonDetailWindow
 import com.alijafari.red.astronomy.ui.components.ObjectDetailModal
 import com.alijafari.red.astronomy.ui.components.SafeAppLogo
 import com.alijafari.red.astronomy.ui.components.SettingsDialog
@@ -83,9 +84,9 @@ class MainActivity : ComponentActivity() {
             viewModel.selectSatelliteById(targetObjId)
         } else if (targetObjId == "moon" || targetObjId == "planet_moon") {
             // There is no Moon tab any more: the Moon lives on Home as a card, so a lunar notification
-            // lands on Home and opens the Moon's detail sheet from there.
+            // lands on Home and opens the Moon window from there.
             viewModel.selectTab(4) // Home tab
-            viewModel.openObjectDetailById("moon")
+            viewModel.setShowMoonWindow(true)
         } else {
             val celObj = com.alijafari.red.astronomy.data.catalog.AstronomyCatalog.getById(targetObjId)
             if (celObj != null) {
@@ -359,6 +360,15 @@ class MainActivity : ComponentActivity() {
                                 uiState = uiState,
                                 viewModel = viewModel,
                                 onDismiss = { viewModel.setShowFavoritesDialog(false) }
+                            )
+                        }
+
+                        if (uiState.showMoonWindow) {
+                            MoonDetailWindow(
+                                backdrop = backdrop,
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onDismiss = { viewModel.setShowMoonWindow(false) }
                             )
                         }
 

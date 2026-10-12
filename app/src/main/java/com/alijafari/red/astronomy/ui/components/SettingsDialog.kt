@@ -451,7 +451,39 @@ fun SettingsDialog(
                             )
                         }
 
-                        // 2. Refraction Depth
+                        // 2. Glass Tint — the soft white film every glass card wears.
+                        //    The Sky Canvas card is exempt: it stays optically pure at any setting.
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (isFa) "ته‌رنگ سفید شیشه (Glass Tint)" else "Glass Tint",
+                                    style = RedTypographyTokens.caption,
+                                    color = RedTheme.colors.textPrimary
+                                )
+                                Text(
+                                    text = "${(glassConfig.tintAlpha * 100).toInt()}%",
+                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                    color = RedTheme.colors.accentRed
+                                )
+                            }
+                            RedSlider(
+                                value = glassConfig.tintAlpha,
+                                onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintAlpha = it)) },
+                                valueRange = 0.0f..0.4f,
+                                modifier = Modifier.testTag("liquid_glass_tint_slider")
+                            )
+                            Text(
+                                text = if (isFa) "یک لایه سفید بسیار ملایم روی کارت‌های شیشه‌ای؛ کارت آسمان همیشه شفاف می‌ماند."
+                                else "A very soft white film on the glass cards. The Sky Canvas card always stays clear.",
+                                style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
+                                color = RedTheme.colors.textTertiary
+                            )
+                        }
+
+                        // 3. Refraction Depth
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -476,7 +508,7 @@ fun SettingsDialog(
                             )
                         }
 
-                        // 3. Refraction Warping ("خمش و پراش نور" wording)
+                        // 4. Refraction Warping ("خمش و پراش نور" wording)
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -501,7 +533,7 @@ fun SettingsDialog(
                             )
                         }
 
-                        // 4. Gaussian Blur Radius
+                        // 5. Gaussian Blur Radius
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),

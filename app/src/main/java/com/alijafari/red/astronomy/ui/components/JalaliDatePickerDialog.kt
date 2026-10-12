@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import java.util.Calendar
 
@@ -84,7 +85,7 @@ fun JalaliDatePickerDialog(
         onDismissRequest = onDismissRequest,
         modifier = Modifier.testTag("jalali_date_picker_dialog"),
         containerColor = RedTheme.colors.surfaceElevated,
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(RedCornerRadius.window),
         title = {
             Column(
                 modifier = Modifier.fillMaxWidth(),

@@ -19,8 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -34,14 +36,18 @@ import kotlin.math.abs
 /**
  * The photographic Moon render: the full-Moon plate, the live phase terminator and limb darkening.
  *
- * This is the render the retired Moon screen used to own, lifted out unchanged so the Home screen can
- * host it inside a card. It is deliberately pure presentation:
- *  - no date navigator, no phase caption, no ephemeris text — the caller owns any chrome around it;
- *  - no gesture handling, so it can sit inside a card without stealing the parent's input.
+ * The unlit side is *erased*, not painted black — the render is drawn into an offscreen layer and the
+ * terminator path is composited through [BlendMode.Clear], so the dark side is genuinely transparent and
+ * whatever the render sits on (a glass card, a window) shows through. There is no black disc behind the
+ * Moon. The same sixteen feathered steps that used to soften the painted shadow now soften the edge of
+ * the cut-out, so the terminator stays soft instead of snapping.
+ *
+ * Pure presentation on purpose: no date navigator, no captions, no gesture handling. Callers own the
+ * chrome and the input, which is what lets the Home card and the Moon window share one render.
  *
  * The terminator orientation comes from the Sun/Moon geometry through
- * [CoordinateEngine.calculateMoonLimbScreenAngleDeg], and the disc is flipped for southern latitudes,
- * exactly as it was on the Moon screen. The very slow ±1.5° wobble is the same idle animation.
+ * [CoordinateEngine.calculateMoonLimbScreenAngleDeg], and the disc is flipped for southern latitudes.
+ * The very slow ±1.5° wobble is the idle animation the Moon screen always had.
  */
 @Composable
 fun MoonPhaseRender(
@@ -74,12 +80,13 @@ fun MoonPhaseRender(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        // Realistic Moon image + Phase Canvas Shader
+        // One offscreen layer for plate + shadow, so BlendMode.Clear erases the Moon and nothing behind it.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
                 .graphicsLayer {
+                    compositingStrategy = CompositingStrategy.Offscreen
                     rotationZ = if (latitude < 0) 180f + rotationAngle else rotationAngle
                 }
         ) {
@@ -91,7 +98,7 @@ fun MoonPhaseRender(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Dynamic Lunar Phase Shadow Overlay
+            // Dynamic Lunar Phase Cut-Out
             Canvas(modifier = Modifier.fillMaxSize()) {
                 if (size.width <= 0f || size.height <= 0f) return@Canvas
                 val radius = size.minDimension / 2f
@@ -100,9 +107,10 @@ fun MoonPhaseRender(
                 val ill = moonData.illuminationPercent / 100.0
 
                 if (ill < 0.98) {
-                    val targetShadowAlpha = 0.965f
+                    // Sixteen overlapping partial erases: fully transparent at the core of the dark side,
+                    // feathered across the terminator.
                     val numSteps = 16
-                    val stepAlpha = targetShadowAlpha / numSteps
+                    val stepAlpha = 0.22f
                     val feather = radius * 0.08f
 
                     for (step in 0 until numSteps) {
@@ -127,13 +135,15 @@ fun MoonPhaseRender(
                         rotate(limbScreenAngleDeg, center) {
                             drawPath(
                                 path = shadowPath,
-                                color = Color(0xFF030307).copy(alpha = stepAlpha)
+                                color = Color.Transparent,
+                                alpha = stepAlpha,
+                                blendMode = BlendMode.Clear
                             )
                         }
                     }
                 }
 
-                // Ambient Edge Limb Darkening
+                // Ambient Edge Limb Darkening — SrcAtop keeps it on the Moon and off the transparent side.
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
@@ -144,7 +154,8 @@ fun MoonPhaseRender(
                         radius = radius
                     ),
                     radius = radius,
-                    center = center
+                    center = center,
+                    blendMode = BlendMode.SrcAtop
                 )
             }
         }

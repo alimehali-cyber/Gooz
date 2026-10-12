@@ -11,6 +11,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -40,6 +43,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
@@ -52,14 +61,13 @@ import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
+import kotlin.math.roundToInt
 
 /**
- * The Moon card is a square whose corner radius is deliberately very heavy, so the radius itself reads
- * as the card's shape. The render is inset to [MoonRenderFillFraction] of the card, which keeps the
- * corners visible instead of being covered by the lunar disc.
+ * The Moon render is inset inside its square card, which leaves the date line room below it and keeps the
+ * card's heavy corners visible instead of being covered by the lunar disc.
  */
-private val MoonCardCornerRadius = 56.dp
-private const val MoonRenderFillFraction = 0.78f
+private const val MoonRenderFillFraction = 0.68f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,6 +138,29 @@ fun HomeScreen(
             .sortedWith(compareByDescending<Triple<CelestialObject, CoordinateEngine.Horizontal, ObservabilityEngine.ObservabilityResult>> { it.third.scorePercent }
                 .thenByDescending { it.second.altitudeDeg })
     }
+
+    // The Moon card and the Moon window scrub through one shared day offset owned by the ViewModel, so
+    // dragging either one moves both. Leaving Home resets it, exactly as the Moon screen used to reset
+    // when you navigated away from it.
+    val moonCardJd = jd + uiState.moonDayOffset
+    val moonCardData = remember(moonCardJd, uiState.userLocation) {
+        MoonEngine.calculateMoon(moonCardJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+    }
+    val moonCardSunHoriz = remember(moonCardJd, uiState.userLocation) {
+        val scrubSun = SunEngine.calculatePosition(moonCardJd)
+        val scrubLast = TimeEngine.getLAST(moonCardJd, uiState.userLocation.longitude)
+        CoordinateEngine.equatorialToHorizontal(
+            equatorial = CoordinateEngine.Equatorial(scrubSun.raDeg, scrubSun.decDeg),
+            lastDeg = scrubLast,
+            latitudeDeg = uiState.userLocation.latitude
+        )
+    }
+    DisposableEffect(Unit) {
+        onDispose { viewModel.setMoonDayOffset(0f) }
+    }
+
+    // Fullscreen landscape sky viewer, opened by the button on the sky card.
+    var isSkyFullscreen by remember { mutableStateOf(false) }
 
     // Astronomy Predictive Search State. The search lives in a header action and opens as an overlay,
     // so this only tracks the query plus whether the overlay is currently open.
@@ -338,42 +369,41 @@ fun HomeScreen(
                         }
                     }
                 }
-            // 1. MOON CARD — the Moon render on its own square, heavily rounded card. This is the whole
-            //    of the retired Moon screen: the live render, and nothing else.
+            // 1. MOON + SKY CARDS — the two hero cards side by side, directly under the location selector.
+            //    Both are glass squares wearing the one card radius. Tapping the Moon card opens the Moon
+            //    window; the sky card's own button opens the fullscreen landscape sky.
             item {
-                Surface(
-                    shape = RoundedCornerShape(MoonCardCornerRadius),
-                    color = RedTheme.colors.surfaceElevated,
-                    border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .testTag("home_moon_card")
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val cardGap = RedSpacing.md
+                    val cardSize = ((maxWidth - cardGap) / 2).coerceAtLeast(120.dp)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("home_hero_cards_row"),
+                        horizontalArrangement = Arrangement.spacedBy(cardGap)
                     ) {
-                        MoonPhaseRender(
-                            moonData = moonData,
-                            sunHoriz = sunHoriz,
-                            latitude = uiState.userLocation.latitude,
-                            modifier = Modifier.fillMaxSize(MoonRenderFillFraction)
+                        MoonPhaseCard(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            moonData = moonCardData,
+                            sunHoriz = moonCardSunHoriz,
+                            dayOffset = uiState.moonDayOffset,
+                            onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
+                            modifier = Modifier.size(cardSize)
+                        )
+
+                        SkyCanvasCard(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            onExpand = { isSkyFullscreen = true },
+                            modifier = Modifier.size(cardSize)
                         )
                     }
                 }
             }
 
-            // 2. HERO SKY CANVAS — Level 1: Hero Content
-            item {
-                HeroSkyCanvas(
-                    uiState = uiState,
-                    viewModel = viewModel,
-                    modifier = Modifier.testTag("home_header_card")
-                )
-            }
-
-            // 3. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
+            // 2. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
             item {
                 val tonightEvents = remember(uiState.userLocation, jd, isFa) {
                     WhatsUpTonightEngine.calculateTonightEvents(
@@ -443,7 +473,7 @@ fun HomeScreen(
                 }
             }
 
-            // 4. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
+            // 3. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
             item {
                 val (primaryEclipse, secondaryEclipse) = if (solarEclipse.localPeakTimeMs <= lunarEclipse.localPeakTimeMs) {
                     solarEclipse to lunarEclipse
@@ -506,7 +536,7 @@ fun HomeScreen(
             }
         }
 
-        // 5. SKY SEARCH OVERLAY — opened by the search action in the header above. It floats over the
+        // 4. SKY SEARCH OVERLAY — opened by the search action in the header above. It floats over the
         // feed instead of scrolling with it, so the search bar always sits at the very top of the screen.
         AnimatedVisibility(
             visible = isSearchOpen,
@@ -523,6 +553,15 @@ fun HomeScreen(
                 moonData = moonData,
                 jd = jd,
                 onDismiss = { closeSkySearch() }
+            )
+        }
+
+        // 5. FULLSCREEN SKY VIEWER — the same sky canvas, landscape and edge to edge.
+        if (isSkyFullscreen) {
+            FullscreenSkyViewer(
+                uiState = uiState,
+                viewModel = viewModel,
+                onDismiss = { isSkyFullscreen = false }
             )
         }
     }
@@ -579,10 +618,10 @@ private fun SkySearchOverlay(
                 .imePadding(),
             contentAlignment = Alignment.TopCenter
         ) {
-            Surface(
-                shape = RoundedCornerShape(RedCornerRadius.xl),
-                color = RedTheme.colors.surfaceElevated,
-                border = BorderStroke(0.75.dp, RedTheme.colors.border),
+            LiquidGlassSurface(
+                shape = RoundedCornerShape(RedCornerRadius.window),
+                style = LiquidGlassDefaults.Window,
+                fallbackColor = RedTheme.colors.surfaceElevated,
                 modifier = Modifier
                     .statusBarsPadding()
                     .padding(RedSpacing.md)
@@ -960,4 +999,189 @@ private fun TonightEventRow(
             }
         }
     }
+}
+
+/**
+ * The Moon card: a glass square carrying only the render and the date it is drawn for.
+ *
+ * Drag the Moon to scrub days — the same ±30 day gesture the Moon screen had — and tap the card to open
+ * the Moon window with everything else. The render's dark side is transparent, so no black disc sits
+ * behind the Moon; the card's glass shows straight through it.
+ */
+@Composable
+private fun MoonPhaseCard(
+    uiState: MainUiState,
+    viewModel: MainViewModel,
+    moonData: MoonEngine.MoonData,
+    sunHoriz: CoordinateEngine.Horizontal,
+    dayOffset: Float,
+    onScrubDays: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isFa = uiState.language == AppLanguage.PERSIAN
+    val dayOffsetInt = dayOffset.roundToInt()
+
+    val dateText = remember(dayOffsetInt, uiState.calendarSystem, isFa) {
+        val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE)
+        cal.add(Calendar.DAY_OF_YEAR, dayOffsetInt)
+        TimeEngine.formatDate(cal.timeInMillis, uiState.calendarSystem, isFa).let {
+            if (isFa) it.toPersianDigits() else it
+        }
+    }
+
+    LiquidGlassSurface(
+        modifier = modifier.testTag("home_moon_card"),
+        shape = RoundedCornerShape(RedCornerRadius.window),
+        style = LiquidGlassDefaults.Card,
+        fallbackColor = RedTheme.colors.surfaceElevated,
+        onClick = { viewModel.setShowMoonWindow(true) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(RedSpacing.sm),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(MoonRenderFillFraction)
+                    .aspectRatio(1f)
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures { change, dragAmount ->
+                            change.consume()
+                            onScrubDays(dragAmount / 16f)
+                        }
+                    }
+                    .testTag("home_moon_card_render"),
+                contentAlignment = Alignment.Center
+            ) {
+                MoonPhaseRender(
+                    moonData = moonData,
+                    sunHoriz = sunHoriz,
+                    latitude = uiState.userLocation.latitude,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(RedSpacing.sm))
+
+            Text(
+                text = dateText,
+                style = RedTypographyTokens.caption.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp
+                ),
+                color = RedTheme.colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * The Sky Canvas card. The one surface in the app that never wears the soft white tint: the sky has to be
+ * read through it, so it stays optically pure whatever the tint setting says.
+ */
+@Composable
+private fun SkyCanvasCard(
+    uiState: MainUiState,
+    viewModel: MainViewModel,
+    onExpand: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LiquidGlassSurface(
+        modifier = modifier.testTag("home_sky_card"),
+        shape = RoundedCornerShape(RedCornerRadius.window),
+        style = LiquidGlassDefaults.Card,
+        clearGlass = true,
+        fallbackColor = RedTheme.colors.surfaceElevated
+    ) {
+        HeroSkyCanvas(
+            uiState = uiState,
+            viewModel = viewModel,
+            modifier = Modifier.fillMaxSize(),
+            compact = true,
+            onExpand = onExpand
+        )
+    }
+}
+
+/**
+ * The fullscreen sky viewer: the same [HeroSkyCanvas], horizontal and edge to edge, with its pills back.
+ * Landscape is locked only while this is open, and the previous orientation is restored on the way out.
+ */
+@Composable
+private fun FullscreenSkyViewer(
+    uiState: MainUiState,
+    viewModel: MainViewModel,
+    onDismiss: () -> Unit
+) {
+    val isFa = uiState.language == AppLanguage.PERSIAN
+    val activity = LocalContext.current.findActivity()
+
+    DisposableEffect(activity) {
+        val previousOrientation = activity?.requestedOrientation
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        onDispose {
+            activity?.requestedOrientation =
+                previousOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+    BackHandler { onDismiss() }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .testTag("sky_canvas_fullscreen")
+        ) {
+            HeroSkyCanvas(
+                uiState = uiState,
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(RedSpacing.md)
+                    .size(38.dp)
+                    .liquidGlass(
+                        shape = CircleShape,
+                        style = LiquidGlassDefaults.Pill,
+                        clearGlass = true,
+                        fallbackColor = Color.Black.copy(alpha = 0.38f),
+                        fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
+                        glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
+                    )
+                    .clickable(onClick = onDismiss)
+                    .testTag("sky_canvas_fullscreen_close"),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = if (isFa) "بستن نمای تمام‌صفحه" else "Close fullscreen sky",
+                    tint = Color(0xFFF8FAFF),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+/** Walks a possibly wrapped [Context] up to the [Activity] that owns it, or null if there is none. */
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
 }
