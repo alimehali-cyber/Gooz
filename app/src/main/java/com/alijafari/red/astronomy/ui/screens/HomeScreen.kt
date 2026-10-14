@@ -86,9 +86,11 @@ private const val MOON_REFRESH_MS = 60_000L
 private const val CATALOG_REFRESH_MS = 60_000L
 
 /**
- * EclipseEngine.getNextEclipses samples ~421 solar and ~121 lunar ephemeris evaluations per
- * call, synchronously during composition. The next eclipse only changes every few months, so
- * an hourly cadence is already generous.
+ * EclipseEngine.getNextEclipseSeries resolves the next 3 solar and next 3 lunar eclipses.
+ * Each solar eclipse costs ~421 ephemeris evaluations (a 7 h scan at 1-minute steps, refined
+ * to 10 s) and each lunar eclipse ~121, so one call is roughly 1260 solar + 360 lunar
+ * evaluations — about 3x the cost of resolving a single eclipse of each kind. The eclipses
+ * on offer only change every few months, so an hourly cadence is already generous.
  */
 private const val ECLIPSE_REFRESH_MS = 3_600_000L
 
@@ -247,26 +249,38 @@ fun HomeScreen(
     BackHandler(enabled = isSearchOpen) { closeSkySearch() }
     var selectedEclipseResult by remember { mutableStateOf<EclipseEngine.EclipseResult?>(null) }
 
-    // The eclipse search samples ~421 solar + ~121 lunar ephemeris evaluations per
-    // call, synchronously during composition. It is keyed on eclipseKeyMs so it runs
-    // at most once per ECLIPSE_REFRESH_MS rather than once per tick.
+    // The eclipse search resolves 3 solar + 3 lunar eclipses synchronously during
+    // composition (~1260 + ~360 ephemeris evaluations). It is keyed on eclipseKeyMs so
+    // it runs at most once per ECLIPSE_REFRESH_MS rather than once per tick.
     // NOTE: WhatsUpTonightEngine below performs a second, identical search. Removing
     // that duplicate needs an API change to pass the result in, so it is left as-is
     // here and recorded as follow-up work.
-    val (solarEclipse, lunarEclipse) = remember(
+    val (nextSolarEclipses, nextLunarEclipses) = remember(
         uiState.userLocation,
         eclipseKeyMs,
         uiState.calendarSystem
     ) {
-        EclipseEngine.getNextEclipses(
+        EclipseEngine.getNextEclipseSeries(
             nowMs = eclipseKeyMs,
             userLatDeg = uiState.userLocation.latitude,
             userLonDeg = uiState.userLocation.longitude,
             elevationM = uiState.userLocation.elevationMeters,
             timezoneId = uiState.userLocation.timezoneId,
-            calendarSystem = uiState.calendarSystem
+            calendarSystem = uiState.calendarSystem,
+            count = 3
         )
     }
+
+    // Which eclipse family the "Upcoming Eclipses" card is listing. It defaults to
+    // whichever family has the soonest event at the user's location, and flips when
+    // the Solar/Lunar chips below (or a "Tonight" eclipse row) are tapped.
+    var eclipseKindIsSolar by remember {
+        mutableStateOf(
+            (nextSolarEclipses.firstOrNull()?.localPeakTimeMs ?: Long.MAX_VALUE) <=
+                (nextLunarEclipses.firstOrNull()?.localPeakTimeMs ?: Long.MAX_VALUE)
+        )
+    }
+    val listedEclipses = if (eclipseKindIsSolar) nextSolarEclipses else nextLunarEclipses
 
     val filteredSearchResults = remember(searchQuery, sortedObjectsWithObs) {
         val q = searchQuery.trim().lowercase()
@@ -539,8 +553,14 @@ fun HomeScreen(
                                         isFa = isFa,
                                         onClick = {
                                             when {
-                                                event.id.startsWith("solar_") -> selectedEclipseResult = solarEclipse
-                                                event.id.startsWith("lunar_") -> selectedEclipseResult = lunarEclipse
+                                                event.id.startsWith("solar_") -> {
+                                                    eclipseKindIsSolar = true
+                                                    selectedEclipseResult = nextSolarEclipses.firstOrNull()
+                                                }
+                                                event.id.startsWith("lunar_") -> {
+                                                    eclipseKindIsSolar = false
+                                                    selectedEclipseResult = nextLunarEclipses.firstOrNull()
+                                                }
                                                 else -> event.targetObject?.let { obj ->
                                                     viewModel.openObjectDetail(obj)
                                                 }
@@ -559,12 +579,6 @@ fun HomeScreen(
 
             // 3. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
             item {
-                val (primaryEclipse, secondaryEclipse) = if (solarEclipse.localPeakTimeMs <= lunarEclipse.localPeakTimeMs) {
-                    solarEclipse to lunarEclipse
-                } else {
-                    lunarEclipse to solarEclipse
-                }
-
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
@@ -586,31 +600,44 @@ fun HomeScreen(
                         fallbackShadowElevation = RedElevation.none,
                     ) {
                         Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
-                            // Nearest / Primary Eclipse (chronologically first)
-                            EclipseItemRow(
-                                isSolar = primaryEclipse.event.isSolar,
-                                isPrimary = true,
-                                title = if (isFa) primaryEclipse.event.nameFa else primaryEclipse.event.nameEn,
-                                dateStr = if (isFa) primaryEclipse.formattedDateFa else primaryEclipse.formattedDateEn,
-                                visibilityInfo = if (isFa) primaryEclipse.localVisibilityTextFa else primaryEclipse.localVisibilityTextEn,
-                                isLocallyVisible = primaryEclipse.isLocallyVisible,
-                                isFa = isFa,
-                                onClick = { selectedEclipseResult = primaryEclipse }
-                            )
+                            // Solar / Lunar selector — each family lists its own next 3 eclipses,
+                            // every one of them evaluated for the user's location.
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs),
+                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                            ) {
+                                EclipseFamilyChip(
+                                    selected = eclipseKindIsSolar,
+                                    onClick = { eclipseKindIsSolar = true },
+                                    label = if (isFa) "☀️ خورشیدگرفتگی" else "☀️ Solar",
+                                    modifier = Modifier.testTag("eclipse_family_solar")
+                                )
+                                EclipseFamilyChip(
+                                    selected = !eclipseKindIsSolar,
+                                    onClick = { eclipseKindIsSolar = false },
+                                    label = if (isFa) "🌙 ماه‌گرفتگی" else "🌙 Lunar",
+                                    modifier = Modifier.testTag("eclipse_family_lunar")
+                                )
+                            }
 
-                            RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
-
-                            // Secondary Eclipse (chronologically second)
-                            EclipseItemRow(
-                                isSolar = secondaryEclipse.event.isSolar,
-                                isPrimary = false,
-                                title = if (isFa) secondaryEclipse.event.nameFa else secondaryEclipse.event.nameEn,
-                                dateStr = if (isFa) secondaryEclipse.formattedDateFa else secondaryEclipse.formattedDateEn,
-                                visibilityInfo = if (isFa) secondaryEclipse.localVisibilityTextFa else secondaryEclipse.localVisibilityTextEn,
-                                isLocallyVisible = secondaryEclipse.isLocallyVisible,
-                                isFa = isFa,
-                                onClick = { selectedEclipseResult = secondaryEclipse }
-                            )
+                            // The next 3 eclipses of the selected family, chronological.
+                            listedEclipses.forEachIndexed { idx, eclipse ->
+                                if (idx > 0) {
+                                    RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
+                                }
+                                EclipseItemRow(
+                                    isSolar = eclipse.event.isSolar,
+                                    isPrimary = idx == 0,
+                                    title = if (isFa) eclipse.event.nameFa else eclipse.event.nameEn,
+                                    dateStr = if (isFa) eclipse.formattedDateFa else eclipse.formattedDateEn,
+                                    visibilityInfo = if (isFa) eclipse.localVisibilityTextFa else eclipse.localVisibilityTextEn,
+                                    isLocallyVisible = eclipse.isLocallyVisible,
+                                    isFa = isFa,
+                                    onClick = { selectedEclipseResult = eclipse }
+                                )
+                            }
                         }
                     }
                 }
@@ -906,6 +933,39 @@ private fun CelestialObjectIcon(
         contentDescription = null,
         tint = tint,
         modifier = modifier
+    )
+}
+
+/**
+ * Solar / Lunar selector chip for the "Upcoming Eclipses" card.
+ *
+ * Uses the app's red accent for the selected family so the chip reads as part of the
+ * same visual language as [EclipseItemRow]'s primary-row icon.
+ */
+@Composable
+private fun EclipseFamilyChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Medium)
+            )
+        },
+        modifier = modifier,
+        shape = CircleShape,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = RedTheme.colors.surfaceGrouped,
+            labelColor = RedTheme.colors.textSecondary,
+            selectedContainerColor = RedTheme.colors.accentRed.copy(alpha = 0.16f),
+            selectedLabelColor = RedTheme.colors.accentRed
+        )
     )
 }
 

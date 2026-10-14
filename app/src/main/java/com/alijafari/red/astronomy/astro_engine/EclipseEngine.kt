@@ -109,12 +109,18 @@ class EclipseEngine {
         val descriptionEn: String,
         val descriptionFa: String,
         val isSolar: Boolean,
-        val penumbralStartMs: Long = maximumMs - 7200000L,
-        val umbralStartMs: Long = maximumMs - 3600000L,
-        val totalityStartMs: Long = maximumMs - 900000L,
-        val totalityEndMs: Long = maximumMs + 900000L,
-        val umbralEndMs: Long = maximumMs + 3600000L,
-        val penumbralEndMs: Long = maximumMs + 7200000L
+        // Lunar contact times P1/U1/U2/U3/U4/P4. Every canonical *lunar* entry sets
+        // these explicitly from the NASA catalogue durations, and the dynamic
+        // (Meeus) search sets them too.
+        // They default to `maximumMs` rather than to invented offsets: a solar
+        // eclipse has no penumbral/umbral phases, so a solar entry must never
+        // carry fabricated contacts. Only the lunar code path reads these fields.
+        val penumbralStartMs: Long = maximumMs,
+        val umbralStartMs: Long = maximumMs,
+        val totalityStartMs: Long = maximumMs,
+        val totalityEndMs: Long = maximumMs,
+        val umbralEndMs: Long = maximumMs,
+        val penumbralEndMs: Long = maximumMs
     ) {
         val id: String get() = "${if (isSolar) "solar" else "lunar"}_$maximumMs"
         val dateUtcMs: Long get() = maximumMs
@@ -166,12 +172,31 @@ class EclipseEngine {
 
     private val lunarSolar = LunarSolarEngine()
 
-    // NASA / Fred Espenak authoritative canon of eclipses (2024 to 2030) with exact UTC timestamps
+    /**
+     * NASA / Fred Espenak (GSFC) canon of eclipses, 2024 to 2040.
+     *
+     * Sources — every number below is copied from, or derived from, these catalogues:
+     *   - Five Millennium Catalog of Solar Eclipses: 2001 to 2100
+     *     https://eclipse.gsfc.nasa.gov/SEcat5/SE2001-2100.html
+     *   - Five Millennium Catalog of Lunar Eclipses: 2001 to 2100
+     *     https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html
+     *   - Solar/Lunar Eclipse decade tables 2021-2030 and 2031-2040
+     *
+     * `maximumMs` is the UTC instant of greatest eclipse (catalogue TD minus Delta-T).
+     * `magnitude` is the NASA global magnitude: for solar eclipses the fraction of the
+     * Sun's diameter obscured, for umbral/partial/total lunar eclipses the umbral
+     * magnitude, and for PENUMBRAL_LUNAR the penumbral magnitude.
+     * `durationTotalSeconds` is the central duration for total/annular/hybrid solar
+     * eclipses, the total-phase duration for total lunar eclipses, and 0 otherwise.
+     * Lunar contacts P1..P4 are derived from the catalogue's penumbral / partial /
+     * total durations; solar entries carry no global contacts (they are computed
+     * topocentrically for the observer instead — see evaluateSolarEclipseLocal).
+     */
     private val canonicalEclipses = listOf(
         EclipseEvent(
             type = EclipseType.PENUMBRAL_LUNAR,
             maximumMs = 1711350780000L, // 2024-03-25 07:13 UTC
-            magnitude = 0.956,
+            magnitude = 0.9557,
             saros = 113,
             gamma = 1.0609,
             nameEn = "Penumbral Lunar Eclipse",
@@ -182,12 +207,12 @@ class EclipseEngine {
             descriptionEn = "A deep penumbral lunar eclipse where 95.6% of the Moon disk passed through Earth's penumbral shadow.",
             descriptionFa = "خسوف عمیق نیم‌سایه‌ای که طی آن ۹۵.۶٪ قرص ماه وارد نیم‌سایه زمین شد.",
             isSolar = false,
-            penumbralStartMs = 1711342380000L, // 04:53 UTC
-            umbralStartMs = 1711350780000L,
-            totalityStartMs = 1711350780000L,
-            totalityEndMs = 1711350780000L,
-            umbralEndMs = 1711350780000L,
-            penumbralEndMs = 1711359120000L // 09:32 UTC
+            penumbralStartMs = 1711342407000L, // 04:53 UTC
+            umbralStartMs = 1711350780000L, // 07:13 UTC
+            totalityStartMs = 1711350780000L, // 07:13 UTC
+            totalityEndMs = 1711350780000L, // 07:13 UTC
+            umbralEndMs = 1711350780000L, // 07:13 UTC
+            penumbralEndMs = 1711359153000L // 09:32 UTC
         ),
         EclipseEvent(
             type = EclipseType.TOTAL_SOLAR,
@@ -212,18 +237,18 @@ class EclipseEngine {
             gamma = -0.9792,
             nameEn = "Partial Lunar Eclipse",
             nameFa = "خسوف جزئی",
-            durationTotalSeconds = 3780,
+            durationTotalSeconds = 0,
             maxTotalityRegionEn = "Americas, Europe, Africa, Middle East, Western Asia",
             maxTotalityRegionFa = "آمریکا، اروپا، آفریقا، خاورمیانه و غرب آسیا",
             descriptionEn = "A shallow partial lunar eclipse with 8.5% of the Moon in Earth's dark umbral shadow.",
             descriptionFa = "خسوف جزئی با ورود ۸.۵٪ از قرص ماه به بخش تاریک سایه زمین.",
             isSolar = false,
-            penumbralStartMs = 1726620060000L, // 00:41 UTC
-            umbralStartMs = 1726625580000L, // 02:13 UTC
-            totalityStartMs = 1726627440000L,
-            totalityEndMs = 1726627440000L,
-            umbralEndMs = 1726629360000L, // 03:16 UTC
-            penumbralEndMs = 1726634820000L // 04:47 UTC
+            penumbralStartMs = 1726620051000L, // 00:40 UTC
+            umbralStartMs = 1726625556000L, // 02:12 UTC
+            totalityStartMs = 1726627440000L, // 02:44 UTC
+            totalityEndMs = 1726627440000L, // 02:44 UTC
+            umbralEndMs = 1726629324000L, // 03:15 UTC
+            penumbralEndMs = 1726634829000L // 04:47 UTC
         ),
         EclipseEvent(
             type = EclipseType.ANNULAR_SOLAR,
@@ -245,26 +270,26 @@ class EclipseEngine {
             maximumMs = 1741935540000L, // 2025-03-14 06:59 UTC
             magnitude = 1.1784,
             saros = 123,
-            gamma = 0.3485,
+            gamma = 0.3484,
             nameEn = "Total Lunar Eclipse (Blood Moon)",
             nameFa = "خسوف کامل (ماه سرخ)",
-            durationTotalSeconds = 3900,
+            durationTotalSeconds = 3924,
             maxTotalityRegionEn = "Americas, Pacific, Atlantic, Western Europe, Western Africa",
             maxTotalityRegionFa = "قاره آمریکا، اقیانوس آرام، غرب اروپا و غرب آفریقا",
             descriptionEn = "A total lunar eclipse lasting 65 minutes of totality turning the Moon copper-red.",
             descriptionFa = "ماه گرفتگی کامل به مدت ۶۵ دقیقه که طی آن قرص ماه به رنگ سرخ مسی درمی‌آید.",
             isSolar = false,
-            penumbralStartMs = 1741924620000L, // 03:57 UTC
-            umbralStartMs = 1741928940000L, // 05:09 UTC
-            totalityStartMs = 1741933560000L, // 06:26 UTC
-            totalityEndMs = 1741937460000L, // 07:31 UTC
-            umbralEndMs = 1741942080000L, // 08:48 UTC
-            penumbralEndMs = 1741946400000L // 10:00 UTC
+            penumbralStartMs = 1741924662000L, // 03:57 UTC
+            umbralStartMs = 1741928991000L, // 05:09 UTC
+            totalityStartMs = 1741933578000L, // 06:26 UTC
+            totalityEndMs = 1741937502000L, // 07:31 UTC
+            umbralEndMs = 1741942089000L, // 08:48 UTC
+            penumbralEndMs = 1741946418000L // 10:00 UTC
         ),
         EclipseEvent(
             type = EclipseType.PARTIAL_SOLAR,
             maximumMs = 1743245280000L, // 2025-03-29 10:48 UTC
-            magnitude = 0.9358,
+            magnitude = 0.9376,
             saros = 149,
             gamma = 1.0405,
             nameEn = "Partial Solar Eclipse",
@@ -284,23 +309,23 @@ class EclipseEngine {
             gamma = -0.2752,
             nameEn = "Total Lunar Eclipse (Blood Moon)",
             nameFa = "خسوف کامل (ماه خونین)",
-            durationTotalSeconds = 4920,
+            durationTotalSeconds = 4926,
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia, Middle East, Iran",
             maxTotalityRegionFa = "اروپا، آفریقا، سراسر آسیا، استرالیا، خاورمیانه و ایران",
             descriptionEn = "A spectacular total lunar eclipse with 82 minutes of totality, wonderfully visible from Europe, Africa, Asia, and Iran.",
             descriptionFa = "خسوف کامل تماشایی با ۸۲ دقیقه گرفت کامل که در سراسر ایران، خاورمیانه، اروپا و آسیا عالی دیده می‌شود.",
             isSolar = false,
-            penumbralStartMs = 1757258880000L, // 15:28 UTC
-            umbralStartMs = 1757262420000L, // 16:27 UTC
-            totalityStartMs = 1757266200000L, // 17:30 UTC
-            totalityEndMs = 1757271120000L, // 18:52 UTC
-            umbralEndMs = 1757274960000L, // 19:56 UTC
-            penumbralEndMs = 1757278500000L // 20:55 UTC
+            penumbralStartMs = 1757258919000L, // 15:28 UTC
+            umbralStartMs = 1757262438000L, // 16:27 UTC
+            totalityStartMs = 1757266257000L, // 17:30 UTC
+            totalityEndMs = 1757271183000L, // 18:53 UTC
+            umbralEndMs = 1757275002000L, // 19:56 UTC
+            penumbralEndMs = 1757278521000L // 20:55 UTC
         ),
         EclipseEvent(
             type = EclipseType.PARTIAL_SOLAR,
             maximumMs = 1758483720000L, // 2025-09-21 19:42 UTC
-            magnitude = 0.8550,
+            magnitude = 0.855,
             saros = 154,
             gamma = -1.0651,
             nameEn = "Partial Solar Eclipse",
@@ -315,9 +340,9 @@ class EclipseEngine {
         EclipseEvent(
             type = EclipseType.ANNULAR_SOLAR,
             maximumMs = 1771330380000L, // 2026-02-17 12:13 UTC
-            magnitude = 0.9630,
+            magnitude = 0.963,
             saros = 121,
-            gamma = -0.9738,
+            gamma = -0.9743,
             nameEn = "Annular Solar Eclipse",
             nameFa = "خورشیدگرفتگی حلقوی",
             durationTotalSeconds = 140,
@@ -335,18 +360,18 @@ class EclipseEngine {
             gamma = -0.3765,
             nameEn = "Total Lunar Eclipse (Blood Moon)",
             nameFa = "خسوف کامل (ماه سرخ)",
-            durationTotalSeconds = 3540,
+            durationTotalSeconds = 3498,
             maxTotalityRegionEn = "Asia, Australia, Pacific, Americas",
             maxTotalityRegionFa = "شرق آسیا، استرالیا، اقیانوس آرام و قاره آمریکا",
             descriptionEn = "Total lunar eclipse with 59 minutes of totality visible across East Asia, Australia, and the Americas.",
             descriptionFa = "خسوف کامل با ۵۹ دقیقه گرفتگی کامل در شرق آسیا، استرالیا و آمریکا.",
             isSolar = false,
-            penumbralStartMs = 1772527440000L, // 08:44 UTC
-            umbralStartMs = 1772531400000L, // 09:50 UTC
-            totalityStartMs = 1772535840000L, // 11:04 UTC
-            totalityEndMs = 1772539380000L, // 12:03 UTC
-            umbralEndMs = 1772543820000L, // 13:17 UTC
-            penumbralEndMs = 1772547780000L // 14:23 UTC
+            penumbralStartMs = 1772527482000L, // 08:44 UTC
+            umbralStartMs = 1772531424000L, // 09:50 UTC
+            totalityStartMs = 1772535891000L, // 11:04 UTC
+            totalityEndMs = 1772539389000L, // 12:03 UTC
+            umbralEndMs = 1772543856000L, // 13:17 UTC
+            penumbralEndMs = 1772547798000L // 14:23 UTC
         ),
         EclipseEvent(
             type = EclipseType.TOTAL_SOLAR,
@@ -371,18 +396,18 @@ class EclipseEngine {
             gamma = 0.4964,
             nameEn = "Partial Lunar Eclipse",
             nameFa = "خسوف جزئی عمیق",
-            durationTotalSeconds = 11880,
+            durationTotalSeconds = 0,
             maxTotalityRegionEn = "Americas, Europe, Africa, Middle East, Western Asia",
             maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا، خاورمیانه و غرب آسیا",
             descriptionEn = "A very deep partial lunar eclipse with 93% of the Moon covered by Earth's dark umbra.",
             descriptionFa = "خسوف جزئی بسیار عمیق که در آن ۹۳٪ قرص ماه در سایه تاریک زمین قرار می‌گیرد.",
             isSolar = false,
-            penumbralStartMs = 1787880240000L, // 01:24 UTC
-            umbralStartMs = 1787884440000L, // 02:34 UTC
-            totalityStartMs = 1787890380000L,
-            totalityEndMs = 1787890380000L,
-            umbralEndMs = 1787896320000L, // 05:52 UTC
-            penumbralEndMs = 1787900520000L // 07:02 UTC
+            penumbralStartMs = 1787880246000L, // 01:24 UTC
+            umbralStartMs = 1787884437000L, // 02:33 UTC
+            totalityStartMs = 1787890380000L, // 04:13 UTC
+            totalityEndMs = 1787890380000L, // 04:13 UTC
+            umbralEndMs = 1787896323000L, // 05:52 UTC
+            penumbralEndMs = 1787900514000L // 07:01 UTC
         ),
         EclipseEvent(
             type = EclipseType.ANNULAR_SOLAR,
@@ -402,7 +427,7 @@ class EclipseEngine {
         EclipseEvent(
             type = EclipseType.PENUMBRAL_LUNAR,
             maximumMs = 1803165180000L, // 2027-02-20 23:13 UTC
-            magnitude = 0.952,
+            magnitude = 0.9266,
             saros = 143,
             gamma = -1.048,
             nameEn = "Penumbral Lunar Eclipse",
@@ -413,17 +438,38 @@ class EclipseEngine {
             descriptionEn = "A deep penumbral eclipse visible across Europe, Africa, Iran, and the Middle East.",
             descriptionFa = "خسوف نیم‌سایه‌ای قابل رویت در سراسر ایران، خاورمیانه، اروپا و آفریقا.",
             isSolar = false,
-            penumbralStartMs = 1803157920000L, // 21:12 UTC
-            umbralStartMs = 1803165180000L,
-            totalityStartMs = 1803165180000L,
-            totalityEndMs = 1803165180000L,
-            umbralEndMs = 1803165180000L,
-            penumbralEndMs = 1803172380000L // 01:13 UTC (+1d)
+            penumbralStartMs = 1803157950000L, // 21:12 UTC
+            umbralStartMs = 1803165180000L, // 23:13 UTC
+            totalityStartMs = 1803165180000L, // 23:13 UTC
+            totalityEndMs = 1803165180000L, // 23:13 UTC
+            umbralEndMs = 1803165180000L, // 23:13 UTC
+            penumbralEndMs = 1803172410000L // 01:13 UTC (+1d)
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 1815926573000L, // 2027-07-18 16:02 UTC
+            magnitude = 0.0014,
+            saros = 110,
+            gamma = -1.5758,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Southeast Asia, Australia, Pacific",
+            maxTotalityRegionFa = "جنوب شرق آسیا، استرالیا و اقیانوس آرام",
+            descriptionEn = "A penumbral lunar eclipse. 0.1% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۰.۱ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 1815926219000L, // 15:56 UTC
+            umbralStartMs = 1815926573000L, // 16:02 UTC
+            totalityStartMs = 1815926573000L, // 16:02 UTC
+            totalityEndMs = 1815926573000L, // 16:02 UTC
+            umbralEndMs = 1815926573000L, // 16:02 UTC
+            penumbralEndMs = 1815926927000L // 16:08 UTC
         ),
         EclipseEvent(
             type = EclipseType.TOTAL_SOLAR,
             maximumMs = 1817201220000L, // 2027-08-02 10:07 UTC
-            magnitude = 1.0790,
+            magnitude = 1.079,
             saros = 136,
             gamma = 0.1421,
             nameEn = "Great Eclipse of the Century (Total Solar Eclipse)",
@@ -438,7 +484,7 @@ class EclipseEngine {
         EclipseEvent(
             type = EclipseType.PENUMBRAL_LUNAR,
             maximumMs = 1818486840000L, // 2027-08-17 07:14 UTC
-            magnitude = 0.546,
+            magnitude = 0.5456,
             saros = 148,
             gamma = 1.2797,
             nameEn = "Penumbral Lunar Eclipse",
@@ -449,33 +495,33 @@ class EclipseEngine {
             descriptionEn = "A minor penumbral eclipse visible across the Pacific rim and Americas.",
             descriptionFa = "خسوف نیم‌سایه‌ای در حاشیه اقیانوس آرام و قاره آمریکا.",
             isSolar = false,
-            penumbralStartMs = 1818480240000L, // 05:24 UTC
-            umbralStartMs = 1818486840000L,
-            totalityStartMs = 1818486840000L,
-            totalityEndMs = 1818486840000L,
-            umbralEndMs = 1818486840000L,
-            penumbralEndMs = 1818493440000L // 09:04 UTC
+            penumbralStartMs = 1818480282000L, // 05:24 UTC
+            umbralStartMs = 1818486840000L, // 07:14 UTC
+            totalityStartMs = 1818486840000L, // 07:14 UTC
+            totalityEndMs = 1818486840000L, // 07:14 UTC
+            umbralEndMs = 1818486840000L, // 07:14 UTC
+            penumbralEndMs = 1818493398000L // 09:03 UTC
         ),
         EclipseEvent(
             type = EclipseType.PARTIAL_LUNAR,
             maximumMs = 1831263180000L, // 2028-01-12 04:13 UTC
-            magnitude = 0.066,
+            magnitude = 0.0662,
             saros = 115,
             gamma = 0.9817,
             nameEn = "Partial Lunar Eclipse",
             nameFa = "خسوف جزئی",
-            durationTotalSeconds = 3360,
+            durationTotalSeconds = 0,
             maxTotalityRegionEn = "Americas, Europe, Africa, Middle East",
             maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و غرب خاورمیانه",
             descriptionEn = "A shallow partial lunar eclipse with 6.6% umbral grazing at the Moon's northern limb.",
             descriptionFa = "خسوف جزئی کم‌عمق با ورود ۶.۶٪ از لبه ماه به سایه تاریک زمین.",
             isSolar = false,
-            penumbralStartMs = 1831255620000L, // 02:07 UTC
+            penumbralStartMs = 1831255659000L, // 02:07 UTC
             umbralStartMs = 1831261500000L, // 03:45 UTC
-            totalityStartMs = 1831263180000L,
-            totalityEndMs = 1831263180000L,
+            totalityStartMs = 1831263180000L, // 04:13 UTC
+            totalityEndMs = 1831263180000L, // 04:13 UTC
             umbralEndMs = 1831264860000L, // 04:41 UTC
-            penumbralEndMs = 1831270740000L // 06:19 UTC
+            penumbralEndMs = 1831270701000L // 06:18 UTC
         ),
         EclipseEvent(
             type = EclipseType.ANNULAR_SOLAR,
@@ -497,26 +543,26 @@ class EclipseEngine {
             maximumMs = 1846520400000L, // 2028-07-06 18:20 UTC
             magnitude = 0.3892,
             saros = 120,
-            gamma = -0.7936,
+            gamma = -0.7903,
             nameEn = "Partial Lunar Eclipse",
             nameFa = "خسوف جزئی",
-            durationTotalSeconds = 8400,
+            durationTotalSeconds = 0,
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia, Middle East, Iran",
             maxTotalityRegionFa = "اروپا، آفریقا، آسیا، استرالیا، خاورمیانه و ایران",
             descriptionEn = "A partial lunar eclipse covering 39% of the Moon's diameter, well visible across Iran and the Middle East.",
             descriptionFa = "خسوف جزئی با پوشش ۳۹٪ از قطر ماه که در سراسر ایران و خاورمیانه به خوبی قابل رصد است.",
             isSolar = false,
-            penumbralStartMs = 1846511040000L, // 15:44 UTC
-            umbralStartMs = 1846516200000L, // 17:10 UTC
-            totalityStartMs = 1846520400000L,
-            totalityEndMs = 1846520400000L,
-            umbralEndMs = 1846524600000L, // 19:30 UTC
-            penumbralEndMs = 1846529760000L // 20:56 UTC
+            penumbralStartMs = 1846511082000L, // 15:44 UTC
+            umbralStartMs = 1846516155000L, // 17:09 UTC
+            totalityStartMs = 1846520400000L, // 18:20 UTC
+            totalityEndMs = 1846520400000L, // 18:20 UTC
+            umbralEndMs = 1846524645000L, // 19:30 UTC
+            penumbralEndMs = 1846529718000L // 20:55 UTC
         ),
         EclipseEvent(
             type = EclipseType.TOTAL_SOLAR,
             maximumMs = 1847847360000L, // 2028-07-22 02:56 UTC
-            magnitude = 1.0556,
+            magnitude = 1.056,
             saros = 146,
             gamma = -0.6056,
             nameEn = "Total Solar Eclipse (Great Australian Eclipse)",
@@ -531,23 +577,23 @@ class EclipseEngine {
         EclipseEvent(
             type = EclipseType.TOTAL_LUNAR,
             maximumMs = 1861894320000L, // 2028-12-31 16:52 UTC
-            magnitude = 1.2461,
+            magnitude = 1.2463,
             saros = 125,
             gamma = 0.3258,
             nameEn = "New Year's Eve Total Lunar Eclipse (Blood Moon)",
             nameFa = "خسوف کامل شب سال نو (ماه خونین)",
-            durationTotalSeconds = 4320,
+            durationTotalSeconds = 4278,
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia, Middle East, Iran",
             maxTotalityRegionFa = "اروپا، آفریقا، سراسر آسیا، استرالیا، خاورمیانه و ایران",
             descriptionEn = "A breathtaking total lunar eclipse on New Year's Eve 2028 with 72 minutes of totality, completely visible from Iran and the Middle East.",
             descriptionFa = "خسوف کامل رویایی در شب سال نو ۲۰۲۸ با ۷۲ دقیقه گرفتگی کامل و رصد بی‌نقص در سراسر ایران و خاورمیانه.",
             isSolar = false,
-            penumbralStartMs = 1861884240000L, // 14:04 UTC
-            umbralStartMs = 1861888020000L, // 15:07 UTC
-            totalityStartMs = 1861892160000L, // 16:16 UTC
-            totalityEndMs = 1861896480000L, // 17:28 UTC
-            umbralEndMs = 1861900620000L, // 18:37 UTC
-            penumbralEndMs = 1861904400000L // 19:40 UTC
+            penumbralStartMs = 1861884234000L, // 14:03 UTC
+            umbralStartMs = 1861888056000L, // 15:07 UTC
+            totalityStartMs = 1861892181000L, // 16:16 UTC
+            totalityEndMs = 1861896459000L, // 17:27 UTC
+            umbralEndMs = 1861900584000L, // 18:36 UTC
+            penumbralEndMs = 1861904406000L // 19:40 UTC
         ),
         EclipseEvent(
             type = EclipseType.PARTIAL_SOLAR,
@@ -587,18 +633,18 @@ class EclipseEngine {
             gamma = 0.0124,
             nameEn = "Central Total Lunar Eclipse (Deep Blood Moon)",
             nameFa = "خسوف کامل مرکزی (ماه خونین بسیار عمیق)",
-            durationTotalSeconds = 6120,
+            durationTotalSeconds = 6114,
             maxTotalityRegionEn = "Americas, Europe, Africa, Western Middle East",
             maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و غرب خاورمیانه",
             descriptionEn = "One of the longest and deepest total lunar eclipses of the century with 102 minutes of totality as the Moon passes dead-center through Earth's shadow.",
             descriptionFa = "یکی از طولانی‌ترین و عمیق‌ترین خسوف‌های کامل قرن با ۱۰۲ دقیقه گرفت کامل و عبور ماه از مرکز سایه زمین.",
             isSolar = false,
-            penumbralStartMs = 1877128560000L, // 00:36 UTC
-            umbralStartMs = 1877132040000L, // 01:34 UTC
-            totalityStartMs = 1877135520000L, // 02:32 UTC
-            totalityEndMs = 1877141640000L, // 04:14 UTC
-            umbralEndMs = 1877145120000L, // 05:12 UTC
-            penumbralEndMs = 1877148600000L // 06:10 UTC
+            penumbralStartMs = 1877128467000L, // 00:34 UTC
+            umbralStartMs = 1877131935000L, // 01:32 UTC
+            totalityStartMs = 1877135463000L, // 02:31 UTC
+            totalityEndMs = 1877141577000L, // 04:12 UTC
+            umbralEndMs = 1877145105000L, // 05:11 UTC
+            penumbralEndMs = 1877148573000L // 06:09 UTC
         ),
         EclipseEvent(
             type = EclipseType.PARTIAL_SOLAR,
@@ -638,18 +684,18 @@ class EclipseEngine {
             gamma = -0.3811,
             nameEn = "Winter Solstice Total Lunar Eclipse (Blood Moon)",
             nameFa = "خسوف کامل شب یلدا (ماه خونین)",
-            durationTotalSeconds = 3240,
+            durationTotalSeconds = 3222,
             maxTotalityRegionEn = "Europe, Africa, Asia, Middle East, Iran, Americas",
             maxTotalityRegionFa = "سراسر ایران، خاورمیانه، اروپا، آفریقا، آسیا و آمریکا",
             descriptionEn = "A remarkable Yalda / Winter Solstice total lunar eclipse with 54 minutes of totality high in the midnight sky across Iran, the Middle East, and Europe.",
             descriptionFa = "خسوف کامل تماشایی در شب یلدا با ۵۴ دقیقه گرفت کامل در اوج آسمان نیمه‌شب ایران، خاورمیانه و اروپا.",
             isSolar = false,
-            penumbralStartMs = 1892490240000L, // 19:44 UTC
-            umbralStartMs = 1892494560000L, // 20:56 UTC
-            totalityStartMs = 1892499300000L, // 22:15 UTC
-            totalityEndMs = 1892502540000L, // 23:09 UTC
-            umbralEndMs = 1892507280000L, // 00:28 UTC (+1d)
-            penumbralEndMs = 1892511600000L // 01:40 UTC (+1d)
+            penumbralStartMs = 1892490180000L, // 19:43 UTC
+            umbralStartMs = 1892494521000L, // 20:55 UTC
+            totalityStartMs = 1892499309000L, // 22:15 UTC
+            totalityEndMs = 1892502531000L, // 23:08 UTC
+            umbralEndMs = 1892507319000L, // 00:28 UTC
+            penumbralEndMs = 1892511660000L // 01:41 UTC (+1d)
         ),
         EclipseEvent(
             type = EclipseType.ANNULAR_SOLAR,
@@ -674,18 +720,18 @@ class EclipseEngine {
             gamma = 0.7534,
             nameEn = "Partial Lunar Eclipse",
             nameFa = "خسوف جزئی",
-            durationTotalSeconds = 8640,
+            durationTotalSeconds = 0,
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia, Middle East, Iran",
             maxTotalityRegionFa = "ایران، خاورمیانه، اروپا، آفریقا، آسیا و استرالیا",
             descriptionEn = "A partial lunar eclipse covering 50% of the Moon's diameter, completely visible throughout Iran and the Middle East.",
             descriptionFa = "خسوف جزئی با پوشش ۵۰٪ از قطر ماه، کاملاً قابل رصد در سراسر ایران و خاورمیانه.",
             isSolar = false,
-            penumbralStartMs = 1907770500000L, // 16:15 UTC
-            umbralStartMs = 1907774460000L, // 17:21 UTC
-            totalityStartMs = 1907778780000L,
-            totalityEndMs = 1907778780000L,
-            umbralEndMs = 1907783100000L, // 19:45 UTC
-            penumbralEndMs = 1907787060000L // 20:51 UTC
+            penumbralStartMs = 1907770434000L, // 16:13 UTC
+            umbralStartMs = 1907774448000L, // 17:20 UTC
+            totalityStartMs = 1907778780000L, // 18:33 UTC
+            totalityEndMs = 1907778780000L, // 18:33 UTC
+            umbralEndMs = 1907783112000L, // 19:45 UTC
+            penumbralEndMs = 1907787126000L // 20:52 UTC
         ),
         EclipseEvent(
             type = EclipseType.TOTAL_SOLAR,
@@ -705,9 +751,9 @@ class EclipseEngine {
         EclipseEvent(
             type = EclipseType.PENUMBRAL_LUNAR,
             maximumMs = 1923085680000L, // 2030-12-09 22:28 UTC
-            magnitude = 0.9347,
+            magnitude = 0.9416,
             saros = 145,
-            gamma = -1.0770,
+            gamma = -1.0731,
             nameEn = "Penumbral Lunar Eclipse",
             nameFa = "خسوف نیم‌سایه‌ای",
             durationTotalSeconds = 0,
@@ -716,12 +762,825 @@ class EclipseEngine {
             descriptionEn = "A deep penumbral lunar eclipse visible across Iran, Europe, Africa, and the Americas.",
             descriptionFa = "خسوف نیم‌سایه‌ای عمیق قابل رویت در سراسر ایران، اروپا، آفریقا و قاره آمریکا.",
             isSolar = false,
-            penumbralStartMs = 1923077340000L, // 20:09 UTC
-            umbralStartMs = 1923085680000L,
-            totalityStartMs = 1923085680000L,
-            totalityEndMs = 1923085680000L,
-            umbralEndMs = 1923085680000L,
-            penumbralEndMs = 1923093960000L // 00:46 UTC (+1d)
+            penumbralStartMs = 1923077304000L, // 20:08 UTC
+            umbralStartMs = 1923085680000L, // 22:28 UTC
+            totalityStartMs = 1923085680000L, // 22:28 UTC
+            totalityEndMs = 1923085680000L, // 22:28 UTC
+            umbralEndMs = 1923085680000L, // 22:28 UTC
+            penumbralEndMs = 1923094056000L // 00:47 UTC (+1d)
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 1935892244000L, // 2031-05-07 03:50 UTC
+            magnitude = 0.8814,
+            saros = 112,
+            gamma = -1.0694,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Americas, Europe, Africa",
+            maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
+            descriptionEn = "A penumbral lunar eclipse. 88.1% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۸.۱ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 1935885125000L, // 01:52 UTC
+            umbralStartMs = 1935892244000L, // 03:50 UTC
+            totalityStartMs = 1935892244000L, // 03:50 UTC
+            totalityEndMs = 1935892244000L, // 03:50 UTC
+            umbralEndMs = 1935892244000L, // 03:50 UTC
+            penumbralEndMs = 1935899363000L // 05:49 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.ANNULAR_SOLAR,
+            maximumMs = 1937114086000L, // 2031-05-21 07:14 UTC
+            magnitude = 0.9589,
+            saros = 138,
+            gamma = -0.197,
+            nameEn = "Annular Solar Eclipse",
+            nameFa = "خورشیدگرفتگی حلقوی",
+            durationTotalSeconds = 326,
+            maxTotalityRegionEn = "Africa, s Asia, E. Indies, Australia (Annular: Angola, Congo, Zambia, Tanzania, s India, Malaysia, Indonesia)",
+            maxTotalityRegionFa = "آفریقا، جنوب آسیا، هند شرقی و استرالیا",
+            descriptionEn = "An annular solar eclipse of magnitude 0.959. The ring of fire lasts up to 5m 26s along the central path.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۵۹. حلقه آتش در طول مسیر مرکزی تا ۵ دقیقه و ۲۶ ثانیه دوام دارد.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 1938426239000L, // 2031-06-05 11:43 UTC
+            magnitude = 0.1292,
+            saros = 150,
+            gamma = 1.4731,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "East Indies, Australia, Pacific",
+            maxTotalityRegionFa = "هند شرقی، استرالیا و اقیانوس آرام",
+            descriptionEn = "A penumbral lunar eclipse. 12.9% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۱۲.۹ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 1938423371000L, // 10:56 UTC
+            umbralStartMs = 1938426239000L, // 11:43 UTC
+            totalityStartMs = 1938426239000L, // 11:43 UTC
+            totalityEndMs = 1938426239000L, // 11:43 UTC
+            umbralEndMs = 1938426239000L, // 11:43 UTC
+            penumbralEndMs = 1938429107000L // 12:31 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 1951112726000L, // 2031-10-30 07:45 UTC
+            magnitude = 0.7161,
+            saros = 117,
+            gamma = 1.1773,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Americas",
+            maxTotalityRegionFa = "قاره آمریکا",
+            descriptionEn = "A penumbral lunar eclipse. 71.6% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۷۱.۶ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 1951105772000L, // 05:49 UTC
+            umbralStartMs = 1951112726000L, // 07:45 UTC
+            totalityStartMs = 1951112726000L, // 07:45 UTC
+            totalityEndMs = 1951112726000L, // 07:45 UTC
+            umbralEndMs = 1951112726000L, // 07:45 UTC
+            penumbralEndMs = 1951119680000L // 09:41 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.HYBRID_SOLAR,
+            maximumMs = 1952456772000L, // 2031-11-14 21:06 UTC
+            magnitude = 1.0106,
+            saros = 143,
+            gamma = 0.3078,
+            nameEn = "Hybrid Solar Eclipse",
+            nameFa = "خورشیدگرفتگی مرکب",
+            durationTotalSeconds = 68,
+            maxTotalityRegionEn = "Pacific, s US, C. America, nw S. America (Hybrid: Pacific, Panama)",
+            maxTotalityRegionFa = "اقیانوس آرام، جنوب آمریکا، آمریکای مرکزی و شمال غرب آمریکای جنوبی",
+            descriptionEn = "A hybrid (annular-total) solar eclipse of magnitude 1.011, appearing annular along part of its path and total along another.",
+            descriptionFa = "خورشیدگرفتگی مرکب (حلقوی-کامل) با قدر ۱.۰۱۱ که در بخشی از مسیر حلقوی و در بخش دیگر کامل دیده می‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 1966518812000L, // 2032-04-25 15:13 UTC
+            magnitude = 1.1913,
+            saros = 122,
+            gamma = -0.3558,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 3930,
+            maxTotalityRegionEn = "e Africa, Asia, Australia, Pacific",
+            maxTotalityRegionFa = "شرق آفریقا، آسیا، استرالیا و اقیانوس آرام",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.191. The Moon stays completely inside Earth's umbra for 65m 30s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۱۹۱. قرص ماه به مدت ۶۵ دقیقه و ۳۰ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 1966508540000L, // 12:22 UTC
+            umbralStartMs = 1966512476000L, // 13:27 UTC
+            totalityStartMs = 1966516847000L, // 14:40 UTC
+            totalityEndMs = 1966520777000L, // 15:46 UTC
+            umbralEndMs = 1966525148000L, // 16:59 UTC
+            penumbralEndMs = 1966529084000L // 18:04 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.ANNULAR_SOLAR,
+            maximumMs = 1967721923000L, // 2032-05-09 13:25 UTC
+            magnitude = 0.9957,
+            saros = 148,
+            gamma = -0.9375,
+            nameEn = "Annular Solar Eclipse",
+            nameFa = "خورشیدگرفتگی حلقوی",
+            durationTotalSeconds = 22,
+            maxTotalityRegionEn = "s S. America, s Africa (Annular: s Atlantic)",
+            maxTotalityRegionFa = "جنوب آمریکای جنوبی و جنوب آفریقا",
+            descriptionEn = "An annular solar eclipse of magnitude 0.996. The ring of fire lasts up to 0m 22s along the central path.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۹۶. حلقه آتش در طول مسیر مرکزی تا ۰ دقیقه و ۲۲ ثانیه دوام دارد.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 1981738941000L, // 2032-10-18 19:02 UTC
+            magnitude = 1.1028,
+            saros = 127,
+            gamma = 0.4169,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 2826,
+            maxTotalityRegionEn = "Africa, Europe, Asia, Australia",
+            maxTotalityRegionFa = "آفریقا، اروپا، آسیا و استرالیا",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.103. The Moon stays completely inside Earth's umbra for 47m 06s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۱۰۳. قرص ماه به مدت ۴۷ دقیقه و ۰۶ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 1981729479000L, // 16:24 UTC
+            umbralStartMs = 1981733064000L, // 17:24 UTC
+            totalityStartMs = 1981737528000L, // 18:38 UTC
+            totalityEndMs = 1981740354000L, // 19:25 UTC
+            umbralEndMs = 1981744818000L, // 20:40 UTC
+            penumbralEndMs = 1981748403000L // 21:40 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 1983072774000L, // 2032-11-03 05:32 UTC
+            magnitude = 0.8554,
+            saros = 153,
+            gamma = 1.0643,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Asia",
+            maxTotalityRegionFa = "آسیا",
+            descriptionEn = "A partial solar eclipse of magnitude 0.855; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۸۵۵؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_SOLAR,
+            maximumMs = 1995818476000L, // 2033-03-30 18:01 UTC
+            magnitude = 1.0462,
+            saros = 120,
+            gamma = 0.9778,
+            nameEn = "Total Solar Eclipse",
+            nameFa = "خورشیدگرفتگی کامل",
+            durationTotalSeconds = 157,
+            maxTotalityRegionEn = "N. America (Total: e Russia, Alaska)",
+            maxTotalityRegionFa = "آمریکای شمالی (فاز کامل: شرق روسیه و آلاسکا)",
+            descriptionEn = "A total solar eclipse of magnitude 1.046. Totality lasts up to 2m 37s along the central path.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۴۶. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۳۷ ثانیه است.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 1997118751000L, // 2033-04-14 19:12 UTC
+            magnitude = 1.0944,
+            saros = 132,
+            gamma = 0.3954,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 2952,
+            maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
+            maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.094. The Moon stays completely inside Earth's umbra for 49m 12s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۰۹۴. قرص ماه به مدت ۴۹ دقیقه و ۱۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 1997107915000L, // 16:11 UTC
+            umbralStartMs = 1997112301000L, // 17:25 UTC
+            totalityStartMs = 1997117275000L, // 18:47 UTC
+            totalityEndMs = 1997120227000L, // 19:37 UTC
+            umbralEndMs = 1997125201000L, // 21:00 UTC
+            penumbralEndMs = 1997129587000L // 22:13 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 2011096391000L, // 2033-09-23 13:53 UTC
+            magnitude = 0.689,
+            saros = 125,
+            gamma = -1.1583,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "s S. America, Antarctica",
+            maxTotalityRegionFa = "جنوب آمریکای جنوبی و جنوبگان",
+            descriptionEn = "A partial solar eclipse of magnitude 0.689; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۶۸۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 2012381703000L, // 2033-10-08 10:55 UTC
+            magnitude = 1.3497,
+            saros = 137,
+            gamma = -0.2889,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 4728,
+            maxTotalityRegionEn = "Asia, Australia, Pacific, Americas",
+            maxTotalityRegionFa = "آسیا، استرالیا، اقیانوس آرام و قاره آمریکا",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.350. The Moon stays completely inside Earth's umbra for 78m 48s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۳۵۰. قرص ماه به مدت ۷۸ دقیقه و ۴۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2012372325000L, // 08:18 UTC
+            umbralStartMs = 2012375631000L, // 09:13 UTC
+            totalityStartMs = 2012379339000L, // 10:15 UTC
+            totalityEndMs = 2012384067000L, // 11:34 UTC
+            umbralEndMs = 2012387775000L, // 12:36 UTC
+            penumbralEndMs = 2012391081000L // 13:31 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_SOLAR,
+            maximumMs = 2026462645000L, // 2034-03-20 10:17 UTC
+            magnitude = 1.0458,
+            saros = 130,
+            gamma = 0.2894,
+            nameEn = "Total Solar Eclipse",
+            nameFa = "خورشیدگرفتگی کامل",
+            durationTotalSeconds = 249,
+            maxTotalityRegionEn = "Africa, Europe, w Asia (Total: Nigeria, Cameroon, Chad, Sudan, Egypt, Saudi Arabia, Iran, Afghanistan, Pakistan, India, China)",
+            maxTotalityRegionFa = "آفریقا، اروپا و غرب آسیا (فاز کامل: نیجریه، کامرون، چاد، سودان، مصر، عربستان، ایران، افغانستان، پاکستان، هند و چین)",
+            descriptionEn = "A total solar eclipse of magnitude 1.046. Totality lasts up to 4m 09s along the central path.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۴۶. مدت فاز کامل در طول مسیر مرکزی تا ۴ دقیقه و ۰۹ ثانیه است.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 2027703939000L, // 2034-04-03 19:05 UTC
+            magnitude = 0.8545,
+            saros = 142,
+            gamma = 1.1144,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
+            maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
+            descriptionEn = "A penumbral lunar eclipse. 85.5% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۵.۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 2027695977000L, // 16:52 UTC
+            umbralStartMs = 2027703939000L, // 19:05 UTC
+            totalityStartMs = 2027703939000L, // 19:05 UTC
+            totalityEndMs = 2027703939000L, // 19:05 UTC
+            umbralEndMs = 2027703939000L, // 19:05 UTC
+            penumbralEndMs = 2027711901000L // 21:18 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.ANNULAR_SOLAR,
+            maximumMs = 2041690687000L, // 2034-09-12 16:18 UTC
+            magnitude = 0.9736,
+            saros = 135,
+            gamma = -0.3936,
+            nameEn = "Annular Solar Eclipse",
+            nameFa = "خورشیدگرفتگی حلقوی",
+            durationTotalSeconds = 178,
+            maxTotalityRegionEn = "C. & S. America (Annular: Chile, Bolivia, Argentina, Paraguay, Brazil)",
+            maxTotalityRegionFa = "آمریکای مرکزی و جنوبی (فاز حلقوی: شیلی، بولیوی، آرژانتین، پاراگوئه و برزیل)",
+            descriptionEn = "An annular solar eclipse of magnitude 0.974. The ring of fire lasts up to 2m 58s along the central path.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۷۴. حلقه آتش در طول مسیر مرکزی تا ۲ دقیقه و ۵۸ ثانیه دوام دارد.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_LUNAR,
+            maximumMs = 2043024376000L, // 2034-09-28 02:46 UTC
+            magnitude = 0.0144,
+            saros = 147,
+            gamma = -1.011,
+            nameEn = "Partial Lunar Eclipse",
+            nameFa = "خسوف جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Americas, Europe, Africa",
+            maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
+            descriptionEn = "A partial lunar eclipse of umbral magnitude 0.014, so 1.4% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۰۱۴؛ در اوج گرفتگی ۱.۴ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2043016915000L, // 00:41 UTC
+            umbralStartMs = 2043023575000L, // 02:32 UTC
+            totalityStartMs = 2043024376000L, // 02:46 UTC
+            totalityEndMs = 2043024376000L, // 02:46 UTC
+            umbralEndMs = 2043025177000L, // 02:59 UTC
+            penumbralEndMs = 2043031837000L // 04:50 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 2055747891000L, // 2035-02-22 09:04 UTC
+            magnitude = 0.9652,
+            saros = 114,
+            gamma = -1.0367,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "e Asia, Pacific, Americas",
+            maxTotalityRegionFa = "شرق آسیا، اقیانوس آرام و قاره آمریکا",
+            descriptionEn = "A penumbral lunar eclipse. 96.5% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۹۶.۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 2055740220000L, // 06:57 UTC
+            umbralStartMs = 2055747891000L, // 09:04 UTC
+            totalityStartMs = 2055747891000L, // 09:04 UTC
+            totalityEndMs = 2055747891000L, // 09:04 UTC
+            umbralEndMs = 2055747891000L, // 09:04 UTC
+            penumbralEndMs = 2055755562000L // 11:12 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.ANNULAR_SOLAR,
+            maximumMs = 2057094273000L, // 2035-03-09 23:04 UTC
+            magnitude = 0.9919,
+            saros = 140,
+            gamma = -0.4368,
+            nameEn = "Annular Solar Eclipse",
+            nameFa = "خورشیدگرفتگی حلقوی",
+            durationTotalSeconds = 48,
+            maxTotalityRegionEn = "Australia, New Zealand, s Pacific, Mexico, Antarctica (Annular: New Zealand, Pacific)",
+            maxTotalityRegionFa = "استرالیا، نیوزیلند، جنوب اقیانوس آرام، مکزیک و جنوبگان",
+            descriptionEn = "An annular solar eclipse of magnitude 0.992. The ring of fire lasts up to 0m 48s along the central path.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۹۲. حلقه آتش در طول مسیر مرکزی تا ۰ دقیقه و ۴۸ ثانیه دوام دارد.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_LUNAR,
+            maximumMs = 2071098654000L, // 2035-08-19 01:10 UTC
+            magnitude = 0.1037,
+            saros = 119,
+            gamma = 0.9433,
+            nameEn = "Partial Lunar Eclipse",
+            nameFa = "خسوف جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Americas, Europe, Africa, Mid East",
+            maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و خاورمیانه",
+            descriptionEn = "A partial lunar eclipse of umbral magnitude 0.104, so 10.4% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۱۰۴؛ در اوج گرفتگی ۱۰.۴ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2071089960000L, // 22:46 UTC
+            umbralStartMs = 2071096359000L, // 00:32 UTC
+            totalityStartMs = 2071098654000L, // 01:10 UTC
+            totalityEndMs = 2071098654000L, // 01:10 UTC
+            umbralEndMs = 2071100949000L, // 01:49 UTC
+            penumbralEndMs = 2071107348000L // 03:35 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_SOLAR,
+            maximumMs = 2072310925000L, // 2035-09-02 01:55 UTC
+            magnitude = 1.032,
+            saros = 145,
+            gamma = 0.3727,
+            nameEn = "Total Solar Eclipse",
+            nameFa = "خورشیدگرفتگی کامل",
+            durationTotalSeconds = 174,
+            maxTotalityRegionEn = "e Asia, Pacific (Total: China, Korea, Japan, Pacific)",
+            maxTotalityRegionFa = "شرق آسیا و اقیانوس آرام (فاز کامل: چین، کره، ژاپن و اقیانوس آرام)",
+            descriptionEn = "A total solar eclipse of magnitude 1.032. Totality lasts up to 2m 54s along the central path.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۳۲. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۵۴ ثانیه است.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 2086380704000L, // 2036-02-11 22:11 UTC
+            magnitude = 1.2995,
+            saros = 124,
+            gamma = -0.311,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 4470,
+            maxTotalityRegionEn = "Americas, Europe, Africa, Asia, w Australia",
+            maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا، آسیا و غرب استرالیا",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.300. The Moon stays completely inside Earth's umbra for 74m 30s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۳۰۰. قرص ماه به مدت ۷۴ دقیقه و ۳۰ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2086371221000L, // 19:33 UTC
+            umbralStartMs = 2086374647000L, // 20:30 UTC
+            totalityStartMs = 2086378469000L, // 21:34 UTC
+            totalityEndMs = 2086382939000L, // 22:48 UTC
+            umbralEndMs = 2086386761000L, // 23:52 UTC
+            penumbralEndMs = 2086390187000L // 00:49 UTC (+1d)
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 2087700327000L, // 2036-02-27 04:45 UTC
+            magnitude = 0.6286,
+            saros = 150,
+            gamma = -1.1942,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Antarctica, s Australia, New Zealand",
+            maxTotalityRegionFa = "جنوبگان، جنوب استرالیا و نیوزیلند",
+            descriptionEn = "A partial solar eclipse of magnitude 0.629; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۶۲۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 2100421844000L, // 2036-07-23 10:30 UTC
+            magnitude = 0.1991,
+            saros = 117,
+            gamma = -1.425,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "s Atlantic",
+            maxTotalityRegionFa = "جنوب اقیانوس اطلس",
+            descriptionEn = "A partial solar eclipse of magnitude 0.199; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۱۹۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 2101690270000L, // 2036-08-07 02:51 UTC
+            magnitude = 1.4544,
+            saros = 129,
+            gamma = 0.2004,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 5718,
+            maxTotalityRegionEn = "Americas, Europe, Africa, w Asia",
+            maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و غرب آسیا",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.454. The Moon stays completely inside Earth's umbra for 95m 18s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۴۵۴. قرص ماه به مدت ۹۵ دقیقه و ۱۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2101679107000L, // 23:45 UTC
+            umbralStartMs = 2101683331000L, // 00:55 UTC
+            totalityStartMs = 2101687411000L, // 02:03 UTC
+            totalityEndMs = 2101693129000L, // 03:38 UTC
+            umbralEndMs = 2101697209000L, // 04:46 UTC
+            penumbralEndMs = 2101701433000L // 05:57 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 2102952263000L, // 2036-08-21 17:24 UTC
+            magnitude = 0.8622,
+            saros = 155,
+            gamma = 1.0825,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Alaska, Canada, Arctic, w Europe, nw Africa",
+            maxTotalityRegionFa = "آلاسکا، کانادا، شمالگان، غرب اروپا و شمال غرب آفریقا",
+            descriptionEn = "A partial solar eclipse of magnitude 0.862; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۸۶۲؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 2115712053000L, // 2037-01-16 09:47 UTC
+            magnitude = 0.7049,
+            saros = 122,
+            gamma = 1.1477,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "n Africa, Europe, Mid East, w Asia",
+            maxTotalityRegionFa = "شمال آفریقا، اروپا، خاورمیانه و غرب آسیا",
+            descriptionEn = "A partial solar eclipse of magnitude 0.705; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۷۰۵؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 2117023216000L, // 2037-01-31 14:00 UTC
+            magnitude = 1.2074,
+            saros = 134,
+            gamma = 0.3619,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 3822,
+            maxTotalityRegionEn = "e Europe, e Africa, Asia, Australia, Pacific, N. America",
+            maxTotalityRegionFa = "شرق اروپا، شرق آفریقا، آسیا، استرالیا، اقیانوس آرام و آمریکای شمالی",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.207. The Moon stays completely inside Earth's umbra for 63m 42s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۲۰۷. قرص ماه به مدت ۶۳ دقیقه و ۴۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2117013853000L, // 11:24 UTC
+            umbralStartMs = 2117017291000L, // 12:21 UTC
+            totalityStartMs = 2117021305000L, // 13:28 UTC
+            totalityEndMs = 2117025127000L, // 14:32 UTC
+            umbralEndMs = 2117029141000L, // 15:39 UTC
+            penumbralEndMs = 2117032579000L // 16:36 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_SOLAR,
+            maximumMs = 2131065553000L, // 2037-07-13 02:39 UTC
+            magnitude = 1.0413,
+            saros = 127,
+            gamma = -0.7246,
+            nameEn = "Total Solar Eclipse",
+            nameFa = "خورشیدگرفتگی کامل",
+            durationTotalSeconds = 238,
+            maxTotalityRegionEn = "E. Indies, Australia, Pacific (Total: Australia, New Zealand)",
+            maxTotalityRegionFa = "هند شرقی، استرالیا و اقیانوس آرام (فاز کامل: استرالیا و نیوزیلند)",
+            descriptionEn = "A total solar eclipse of magnitude 1.041. Totality lasts up to 3m 58s along the central path.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۴۱. مدت فاز کامل در طول مسیر مرکزی تا ۳ دقیقه و ۵۸ ثانیه است.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_LUNAR,
+            maximumMs = 2132280510000L, // 2037-07-27 04:08 UTC
+            magnitude = 0.8095,
+            saros = 139,
+            gamma = -0.5582,
+            nameEn = "Partial Lunar Eclipse",
+            nameFa = "خسوف جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Americas, Europe, Africa",
+            maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
+            descriptionEn = "A partial lunar eclipse of umbral magnitude 0.809, so 81.0% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۸۰۹؛ در اوج گرفتگی ۸۱.۰ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2132270286000L, // 01:18 UTC
+            umbralStartMs = 2132274738000L, // 02:32 UTC
+            totalityStartMs = 2132280510000L, // 04:08 UTC
+            totalityEndMs = 2132280510000L, // 04:08 UTC
+            umbralEndMs = 2132286282000L, // 05:44 UTC
+            penumbralEndMs = 2132290734000L // 06:58 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.ANNULAR_SOLAR,
+            maximumMs = 2146311948000L, // 2038-01-05 13:45 UTC
+            magnitude = 0.9728,
+            saros = 132,
+            gamma = 0.4169,
+            nameEn = "Annular Solar Eclipse",
+            nameFa = "خورشیدگرفتگی حلقوی",
+            durationTotalSeconds = 198,
+            maxTotalityRegionEn = "e N. America, n S. America, Atlantic, Africa, Europe (Annular: Cuba, Dom.Rep., Ghana, Niger, Chad, Egypt)",
+            maxTotalityRegionFa = "شرق آمریکای شمالی، شمال آمریکای جنوبی، اقیانوس اطلس، آفریقا و اروپا",
+            descriptionEn = "An annular solar eclipse of magnitude 0.973. The ring of fire lasts up to 3m 18s along the central path.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۷۳. حلقه آتش در طول مسیر مرکزی تا ۳ دقیقه و ۱۸ ثانیه دوام دارد.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 2147658509000L, // 2038-01-21 03:48 UTC
+            magnitude = 0.8996,
+            saros = 144,
+            gamma = 1.071,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Americas, Europe, Africa",
+            maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
+            descriptionEn = "A penumbral lunar eclipse. 90.0% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۹۰.۰ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 2147651135000L, // 01:45 UTC
+            umbralStartMs = 2147658509000L, // 03:48 UTC
+            totalityStartMs = 2147658509000L, // 03:48 UTC
+            totalityEndMs = 2147658509000L, // 03:48 UTC
+            umbralEndMs = 2147658509000L, // 03:48 UTC
+            penumbralEndMs = 2147665883000L // 05:51 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 2160355419000L, // 2038-06-17 02:43 UTC
+            magnitude = 0.4422,
+            saros = 111,
+            gamma = 1.3082,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "e N. America, C. & S. America, Africa, w Europe",
+            maxTotalityRegionFa = "شرق آمریکای شمالی، آمریکای مرکزی و جنوبی، آفریقا و غرب اروپا",
+            descriptionEn = "A penumbral lunar eclipse. 44.2% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۴۴.۲ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 2160350130000L, // 01:15 UTC
+            umbralStartMs = 2160355419000L, // 02:43 UTC
+            totalityStartMs = 2160355419000L, // 02:43 UTC
+            totalityEndMs = 2160355419000L, // 02:43 UTC
+            umbralEndMs = 2160355419000L, // 02:43 UTC
+            penumbralEndMs = 2160360708000L // 04:11 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.ANNULAR_SOLAR,
+            maximumMs = 2161690291000L, // 2038-07-02 13:31 UTC
+            magnitude = 0.9911,
+            saros = 137,
+            gamma = 0.0398,
+            nameEn = "Annular Solar Eclipse",
+            nameFa = "خورشیدگرفتگی حلقوی",
+            durationTotalSeconds = 60,
+            maxTotalityRegionEn = "N. & C. America, S. America, Africa, Europe, Mid East (Annular: Colombia, Venezuela, Morocco, Mali, Niger, Chad, Sudan, Ethiopia, Kenya)",
+            maxTotalityRegionFa = "آمریکای شمالی و مرکزی، آمریکای جنوبی، آفریقا، اروپا و خاورمیانه",
+            descriptionEn = "An annular solar eclipse of magnitude 0.991. The ring of fire lasts up to 1m 00s along the central path.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۹۱. حلقه آتش در طول مسیر مرکزی تا ۱ دقیقه و ۰۰ ثانیه دوام دارد.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 2162892872000L, // 2038-07-16 11:34 UTC
+            magnitude = 0.4999,
+            saros = 149,
+            gamma = -1.2837,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Australia, e Asia, Pacific, w Americas",
+            maxTotalityRegionFa = "استرالیا، شرق آسیا، اقیانوس آرام و غرب قاره آمریکا",
+            descriptionEn = "A penumbral lunar eclipse. 50.0% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۵۰.۰ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 2162887100000L, // 09:58 UTC
+            umbralStartMs = 2162892872000L, // 11:34 UTC
+            totalityStartMs = 2162892872000L, // 11:34 UTC
+            totalityEndMs = 2162892872000L, // 11:34 UTC
+            umbralEndMs = 2162892872000L, // 11:34 UTC
+            penumbralEndMs = 2162898644000L // 13:10 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PENUMBRAL_LUNAR,
+            maximumMs = 2175702216000L, // 2038-12-11 17:43 UTC
+            magnitude = 0.8046,
+            saros = 116,
+            gamma = -1.1448,
+            nameEn = "Penumbral Lunar Eclipse",
+            nameFa = "خسوف نیم‌سایه‌ای",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
+            maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
+            descriptionEn = "A penumbral lunar eclipse. 80.5% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۰.۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            isSolar = false,
+            penumbralStartMs = 2175694461000L, // 15:34 UTC
+            umbralStartMs = 2175702216000L, // 17:43 UTC
+            totalityStartMs = 2175702216000L, // 17:43 UTC
+            totalityEndMs = 2175702216000L, // 17:43 UTC
+            umbralEndMs = 2175702216000L, // 17:43 UTC
+            penumbralEndMs = 2175709971000L // 19:52 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_SOLAR,
+            maximumMs = 2176937926000L, // 2038-12-26 00:58 UTC
+            magnitude = 1.0268,
+            saros = 142,
+            gamma = -0.2881,
+            nameEn = "Total Solar Eclipse",
+            nameFa = "خورشیدگرفتگی کامل",
+            durationTotalSeconds = 138,
+            maxTotalityRegionEn = "se Asia, E. Indies, Australia, New Zealand, s Pacific, Antarctica (Total: Australia, New Zealand, s Pacific)",
+            maxTotalityRegionFa = "جنوب شرق آسیا، هند شرقی، استرالیا، نیوزیلند، جنوب اقیانوس آرام و جنوبگان",
+            descriptionEn = "A total solar eclipse of magnitude 1.027. Totality lasts up to 2m 18s along the central path.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۲۷. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۱۸ ثانیه است.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_LUNAR,
+            maximumMs = 2190999181000L, // 2039-06-06 18:53 UTC
+            magnitude = 0.8846,
+            saros = 121,
+            gamma = 0.546,
+            nameEn = "Partial Lunar Eclipse",
+            nameFa = "خسوف جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
+            maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
+            descriptionEn = "A partial lunar eclipse of umbral magnitude 0.885, so 88.5% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۸۸۵؛ در اوج گرفتگی ۸۸.۵ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2190990280000L, // 16:24 UTC
+            umbralStartMs = 2190993802000L, // 17:23 UTC
+            totalityStartMs = 2190999181000L, // 18:53 UTC
+            totalityEndMs = 2190999181000L, // 18:53 UTC
+            umbralEndMs = 2191004560000L, // 20:22 UTC
+            penumbralEndMs = 2191008082000L // 21:21 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.ANNULAR_SOLAR,
+            maximumMs = 2192289090000L, // 2039-06-21 17:11 UTC
+            magnitude = 0.9454,
+            saros = 147,
+            gamma = 0.8312,
+            nameEn = "Annular Solar Eclipse",
+            nameFa = "خورشیدگرفتگی حلقوی",
+            durationTotalSeconds = 245,
+            maxTotalityRegionEn = "N. America, w Europe (Annular: Alaska, n Canada, Norway, Sweden, Finland, Estonia, Russia)",
+            maxTotalityRegionFa = "آمریکای شمالی و غرب اروپا (فاز حلقوی: آلاسکا، شمال کانادا، نروژ، سوئد، فنلاند، استونی و روسیه)",
+            descriptionEn = "An annular solar eclipse of magnitude 0.945. The ring of fire lasts up to 4m 05s along the central path.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۴۵. حلقه آتش در طول مسیر مرکزی تا ۴ دقیقه و ۰۵ ثانیه دوام دارد.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_LUNAR,
+            maximumMs = 2206284903000L, // 2039-11-30 16:55 UTC
+            magnitude = 0.9426,
+            saros = 126,
+            gamma = -0.4721,
+            nameEn = "Partial Lunar Eclipse",
+            nameFa = "خسوف جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Europe, Africa, Asia, Australia, Pacific",
+            maxTotalityRegionFa = "اروپا، آفریقا، آسیا، استرالیا و اقیانوس آرام",
+            descriptionEn = "A partial lunar eclipse of umbral magnitude 0.943, so 94.3% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۹۴۳؛ در اوج گرفتگی ۹۴.۳ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2206274100000L, // 13:55 UTC
+            umbralStartMs = 2206278723000L, // 15:12 UTC
+            totalityStartMs = 2206284903000L, // 16:55 UTC
+            totalityEndMs = 2206284903000L, // 16:55 UTC
+            umbralEndMs = 2206291083000L, // 18:38 UTC
+            penumbralEndMs = 2206295706000L // 19:55 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_SOLAR,
+            maximumMs = 2207578941000L, // 2039-12-15 16:22 UTC
+            magnitude = 1.0356,
+            saros = 152,
+            gamma = -0.9458,
+            nameEn = "Total Solar Eclipse",
+            nameFa = "خورشیدگرفتگی کامل",
+            durationTotalSeconds = 111,
+            maxTotalityRegionEn = "s S. America, Antarctica (Total: Antarctica)",
+            maxTotalityRegionFa = "جنوب آمریکای جنوبی و جنوبگان",
+            descriptionEn = "A total solar eclipse of magnitude 1.036. Totality lasts up to 1m 51s along the central path.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۳۶. مدت فاز کامل در طول مسیر مرکزی تا ۱ دقیقه و ۵۱ ثانیه است.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 2220320497000L, // 2040-05-11 03:41 UTC
+            magnitude = 0.5306,
+            saros = 119,
+            gamma = -1.2529,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "Australia, N.Z., Antarctica",
+            maxTotalityRegionFa = "استرالیا، نیوزیلند و جنوبگان",
+            descriptionEn = "A partial solar eclipse of magnitude 0.531; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۵۳۱؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 2221645497000L, // 2040-05-26 11:44 UTC
+            magnitude = 1.5348,
+            saros = 131,
+            gamma = -0.1872,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 5532,
+            maxTotalityRegionEn = "e Asia, Australia, Pacific, w Americas",
+            maxTotalityRegionFa = "شرق آسیا، استرالیا، اقیانوس آرام و غرب قاره آمریکا",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.535. The Moon stays completely inside Earth's umbra for 92m 12s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۵۳۵. قرص ماه به مدت ۹۲ دقیقه و ۱۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2221635855000L, // 09:04 UTC
+            umbralStartMs = 2221639176000L, // 09:59 UTC
+            totalityStartMs = 2221642731000L, // 10:58 UTC
+            totalityEndMs = 2221648263000L, // 12:31 UTC
+            umbralEndMs = 2221651818000L, // 13:30 UTC
+            penumbralEndMs = 2221655139000L // 14:25 UTC
+        ),
+        EclipseEvent(
+            type = EclipseType.PARTIAL_SOLAR,
+            maximumMs = 2235668857000L, // 2040-11-04 19:07 UTC
+            magnitude = 0.8074,
+            saros = 124,
+            gamma = 1.0993,
+            nameEn = "Partial Solar Eclipse",
+            nameFa = "خورشیدگرفتگی جزئی",
+            durationTotalSeconds = 0,
+            maxTotalityRegionEn = "N. & C. America",
+            maxTotalityRegionFa = "آمریکای شمالی و مرکزی",
+            descriptionEn = "A partial solar eclipse of magnitude 0.807; no location on Earth sees totality.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۸۰۷؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            isSolar = true
+        ),
+        EclipseEvent(
+            type = EclipseType.TOTAL_LUNAR,
+            maximumMs = 2236878195000L, // 2040-11-18 19:03 UTC
+            magnitude = 1.3974,
+            saros = 136,
+            gamma = 0.2361,
+            nameEn = "Total Lunar Eclipse",
+            nameFa = "خسوف کامل",
+            durationTotalSeconds = 5268,
+            maxTotalityRegionEn = "e Americas, Europe, Africa, Asia, Australia",
+            maxTotalityRegionFa = "شرق قاره آمریکا، اروپا، آفریقا، آسیا و استرالیا",
+            descriptionEn = "A total lunar eclipse of umbral magnitude 1.397. The Moon stays completely inside Earth's umbra for 87m 48s.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۳۹۷. قرص ماه به مدت ۸۷ دقیقه و ۴۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            isSolar = false,
+            penumbralStartMs = 2236867587000L, // 16:06 UTC
+            umbralStartMs = 2236871583000L, // 17:13 UTC
+            totalityStartMs = 2236875561000L, // 18:19 UTC
+            totalityEndMs = 2236880829000L, // 19:47 UTC
+            umbralEndMs = 2236884807000L, // 20:53 UTC
+            penumbralEndMs = 2236888803000L // 22:00 UTC
         )
     )
 
@@ -1206,6 +2065,62 @@ class EclipseEngine {
     }
 
     /**
+     * Magnitude of a lunar eclipse at [timeMs], linearly interpolated between the
+     * catalogue contact times.
+     *
+     * The magnitude is 0 at first contact, peaks at greatest eclipse and returns to 0
+     * at last contact. For a total eclipse it additionally passes through exactly 1.0
+     * at the beginning (U2) and end (U3) of totality, because those are the instants
+     * when the Moon becomes and then ceases to be fully immersed in the umbra.
+     * For a penumbral eclipse the same triangular profile is applied to the penumbral
+     * contacts P1 / greatest / P4 and to the penumbral magnitude.
+     *
+     * Returns 0.0 outside the eclipse, and also whenever the contact times are
+     * degenerate (unknown), so callers never see a fabricated value.
+     */
+    private fun lunarMagnitudeAt(event: EclipseEvent, timeMs: Long): Double {
+        val isPenumbral = event.type == EclipseType.PENUMBRAL_LUNAR
+        val firstMs = if (isPenumbral) event.penumbralStartMs else event.umbralStartMs
+        val lastMs = if (isPenumbral) event.penumbralEndMs else event.umbralEndMs
+        val peakMag = event.magnitude
+        if (lastMs <= firstMs || peakMag <= 0.0) return 0.0
+        if (timeMs <= firstMs || timeMs >= lastMs) return 0.0
+
+        if (!isPenumbral && event.type == EclipseType.TOTAL_LUNAR) {
+            val u2 = event.totalityStartMs
+            val u3 = event.totalityEndMs
+            val maxMs = event.maximumMs
+            // U1 -> U2 : 0 -> 1
+            if (u2 > firstMs && timeMs <= u2) {
+                return ((timeMs - firstMs).toDouble() / (u2 - firstMs).toDouble()).coerceIn(0.0, 1.0)
+            }
+            // U3 -> U4 : 1 -> 0
+            if (u3 < lastMs && timeMs >= u3) {
+                return ((lastMs - timeMs).toDouble() / (lastMs - u3).toDouble()).coerceIn(0.0, 1.0)
+            }
+            // U2 -> greatest : 1 -> peak
+            if (maxMs > u2 && timeMs < maxMs) {
+                val f = (timeMs - u2).toDouble() / (maxMs - u2).toDouble()
+                return (1.0 + (peakMag - 1.0) * f).coerceIn(0.0, maxOf(1.0, peakMag))
+            }
+            // greatest -> U3 : peak -> 1
+            if (u3 > maxMs) {
+                val f = (u3 - timeMs).toDouble() / (u3 - maxMs).toDouble()
+                return (1.0 + (peakMag - 1.0) * f).coerceIn(0.0, maxOf(1.0, peakMag))
+            }
+            return peakMag
+        }
+
+        return if (timeMs < event.maximumMs) {
+            val span = event.maximumMs - firstMs
+            if (span <= 0L) peakMag else (peakMag * (timeMs - firstMs).toDouble() / span.toDouble()).coerceIn(0.0, peakMag)
+        } else {
+            val span = lastMs - event.maximumMs
+            if (span <= 0L) peakMag else (peakMag * (lastMs - timeMs).toDouble() / span.toDouble()).coerceIn(0.0, peakMag)
+        }
+    }
+
+    /**
      * High-precision local circumstances for Lunar Eclipse at user location.
      */
     private fun evaluateLunarEclipseLocal(
@@ -1258,10 +2173,13 @@ class EclipseEngine {
             getMoonHorizAt(localPeakMs, userLatDeg, userLonDeg, elevationM)
         }
 
-        // Compute local magnitude & umbral obscuration at localPeakMs
+        // Local magnitude & umbral obscuration at localPeakMs.
+        // If the Moon is above the horizon at greatest eclipse the observer sees the
+        // full catalogue magnitude. If the Moon only rises (or sets) part-way through
+        // the event, the magnitude is interpolated between the catalogue contacts.
         val (localMag, obscurationPercent) = if (!isVisibleAtAnyTime) {
             Pair(0.0, 0)
-        } else if (isVisibleAtPeak || (event.type == EclipseType.TOTAL_LUNAR && localPeakMs in event.totalityStartMs..event.totalityEndMs)) {
+        } else if (isVisibleAtPeak || localPeakMs == maxMs) {
             val obs = when (event.type) {
                 EclipseType.TOTAL_LUNAR -> 100
                 EclipseType.PARTIAL_LUNAR -> (event.magnitude * 100.0).roundToInt().coerceIn(1, 99)
@@ -1271,22 +2189,16 @@ class EclipseEngine {
             Pair(event.magnitude, obs)
         } else {
             // Visible only before moonset or after moonrise (localPeakMs != maxMs)
-            val halfPenSpan = max(1L, (p4Ms - p1Ms) / 2L).toDouble()
-            val dtFromMax = abs(localPeakMs - maxMs).toDouble()
-            val progress = (1.0 - (dtFromMax / halfPenSpan)).coerceIn(0.05, 1.0)
-            val scaledMag = event.magnitude * progress
+            val magAtPeak = lunarMagnitudeAt(event, localPeakMs)
             val inUmbra = (event.type == EclipseType.TOTAL_LUNAR || event.type == EclipseType.PARTIAL_LUNAR) &&
                     localPeakMs in event.umbralStartMs..event.umbralEndMs &&
                     event.umbralEndMs > event.umbralStartMs
             val obs = if (inUmbra) {
-                val halfUmbSpan = max(1L, (event.umbralEndMs - event.umbralStartMs) / 2L).toDouble()
-                val umbFrac = (1.0 - (dtFromMax / halfUmbSpan)).coerceIn(0.01, 0.99)
-                val peakUmbMag = min(1.0, event.magnitude)
-                (peakUmbMag * umbFrac * 100.0).roundToInt().coerceIn(1, 99)
+                if (magAtPeak >= 1.0) 100 else (magAtPeak * 100.0).roundToInt().coerceIn(1, 99)
             } else {
                 0
             }
-            Pair(scaledMag, obs)
+            Pair(magAtPeak, obs)
         }
 
         val timeZone = TimeEngine.resolveTimeZone(timezoneId)
@@ -1389,27 +2301,101 @@ class EclipseEngine {
         timezoneId: String = "Asia/Tehran",
         calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI
     ): Pair<EclipseResult, EclipseResult> {
+        val (solarSeries, lunarSeries) = getNextEclipseSeries(
+            nowMs = nowMs,
+            userLatDeg = userLatDeg,
+            userLonDeg = userLonDeg,
+            elevationM = elevationM,
+            timezoneId = timezoneId,
+            calendarSystem = calendarSystem,
+            count = 1
+        )
+        return Pair(solarSeries.first(), lunarSeries.first())
+    }
+
+    /**
+     * Returns the next [count] solar eclipses and the next [count] lunar eclipses,
+     * each evaluated for the observer's location: local visibility window, local
+     * magnitude, local obscuration, peak altitude/azimuth and formatted local dates.
+     *
+     * Both lists are chronological by the event's greatest-eclipse instant and never
+     * contain duplicates.
+     *
+     * The first entry of each series obeys the same rule as [getNextEclipses]: an
+     * eclipse that is already under way stays listed until its last contact rather
+     * than vanishing the moment its peak passes.
+     */
+    fun getNextEclipseSeries(
+        nowMs: Long,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        elevationM: Double = 0.0,
+        timezoneId: String = "Asia/Tehran",
+        calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
+        count: Int = 3
+    ): Pair<List<EclipseResult>, List<EclipseResult>> {
+        val take = count.coerceAtLeast(1)
+        return Pair(
+            collectNextEclipses(
+                isSolar = true,
+                count = take,
+                nowMs = nowMs,
+                userLatDeg = userLatDeg,
+                userLonDeg = userLonDeg,
+                elevationM = elevationM,
+                timezoneId = timezoneId,
+                calendarSystem = calendarSystem
+            ),
+            collectNextEclipses(
+                isSolar = false,
+                count = take,
+                nowMs = nowMs,
+                userLatDeg = userLatDeg,
+                userLonDeg = userLonDeg,
+                elevationM = elevationM,
+                timezoneId = timezoneId,
+                calendarSystem = calendarSystem
+            )
+        )
+    }
+
+    /**
+     * Walks the eclipse canon forward from [nowMs] collecting up to [count] events of
+     * one kind (solar or lunar), evaluating each one for the observer's location.
+     *
+     * The first iteration looks back by 3.5 h so an in-progress eclipse is still
+     * offered; afterwards the cursor always moves past the previous event's last
+     * contact, which guarantees forward progress.
+     */
+    private fun collectNextEclipses(
+        isSolar: Boolean,
+        count: Int,
+        nowMs: Long,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        elevationM: Double,
+        timezoneId: String,
+        calendarSystem: CalendarSystem
+    ): List<EclipseResult> {
         val lookbackMs = (3.5 * 3600 * 1000).toLong()
+        val results = ArrayList<EclipseResult>(count)
+        var cursorMs = nowMs - lookbackMs
 
-        var solarEvent = findNextSolarEclipse(nowMs - lookbackMs) ?: canonicalEclipses.first { it.isSolar }
-        var solarResult = evaluateEclipse(
-            event = solarEvent,
-            userLatDeg = userLatDeg,
-            userLonDeg = userLonDeg,
-            elevationM = elevationM,
-            nowMs = nowMs,
-            timezoneId = timezoneId,
-            calendarSystem = calendarSystem
-        )
-        val solarEndMs = if (solarResult.isLocallyVisible) {
-            max(solarResult.localEndTimeMs, solarEvent.maximumMs)
-        } else {
-            solarEvent.maximumMs + lookbackMs / 2
-        }
-        if (nowMs > solarEndMs) {
-            solarEvent = findNextSolarEclipse(nowMs) ?: solarEvent
-            solarResult = evaluateEclipse(
-                event = solarEvent,
+        // Belt-and-braces bound: the catalogue is finite, and every branch below
+        // strictly advances `cursorMs`, so this loop always terminates.
+        var iterations = 0
+        val iterationLimit = count * 4 + 8
+
+        while (results.size < count && iterations++ < iterationLimit) {
+            val event = if (isSolar) {
+                findNextSolarEclipse(cursorMs)
+            } else {
+                findNextLunarEclipse(cursorMs)
+            } ?: break
+            if (event.maximumMs <= cursorMs) break
+
+            val result = evaluateEclipse(
+                event = event,
                 userLatDeg = userLatDeg,
                 userLonDeg = userLonDeg,
                 elevationM = elevationM,
@@ -1417,37 +2403,29 @@ class EclipseEngine {
                 timezoneId = timezoneId,
                 calendarSystem = calendarSystem
             )
+
+            val lastContactMs = if (isSolar) {
+                // Solar entries carry no global contacts (see EclipseEvent); the
+                // topocentric scan in evaluateSolarEclipseLocal supplies the local ones.
+                if (result.isLocallyVisible) max(result.localEndTimeMs, event.maximumMs)
+                else event.maximumMs + lookbackMs / 2
+            } else {
+                if (result.isLocallyVisible) max(result.localEndTimeMs, event.penumbralEndMs)
+                else event.penumbralEndMs
+            }
+
+            if (results.isEmpty() && nowMs > lastContactMs) {
+                // The lookback reached an eclipse that has already finished. Move on to
+                // the following one instead of reporting a past event.
+                cursorMs = max(nowMs, event.maximumMs)
+                continue
+            }
+
+            results.add(result)
+            cursorMs = max(event.maximumMs, lastContactMs)
         }
 
-        var lunarEvent = findNextLunarEclipse(nowMs - lookbackMs) ?: canonicalEclipses.first { !it.isSolar }
-        var lunarResult = evaluateEclipse(
-            event = lunarEvent,
-            userLatDeg = userLatDeg,
-            userLonDeg = userLonDeg,
-            elevationM = elevationM,
-            nowMs = nowMs,
-            timezoneId = timezoneId,
-            calendarSystem = calendarSystem
-        )
-        val lunarEndMs = if (lunarResult.isLocallyVisible) {
-            max(lunarResult.localEndTimeMs, lunarEvent.penumbralEndMs)
-        } else {
-            lunarEvent.penumbralEndMs
-        }
-        if (nowMs > lunarEndMs) {
-            lunarEvent = findNextLunarEclipse(nowMs) ?: lunarEvent
-            lunarResult = evaluateEclipse(
-                event = lunarEvent,
-                userLatDeg = userLatDeg,
-                userLonDeg = userLonDeg,
-                elevationM = elevationM,
-                nowMs = nowMs,
-                timezoneId = timezoneId,
-                calendarSystem = calendarSystem
-            )
-        }
-
-        return Pair(solarResult, lunarResult)
+        return results
     }
 
     /**
