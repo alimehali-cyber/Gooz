@@ -52,6 +52,35 @@ class EclipseEngine {
         }
 
         /**
+         * Convenience helper returning the next [count] solar and next [count] lunar
+         * eclipses, each evaluated for the user's location.
+         *
+         * This is the multi-eclipse counterpart of [getNextEclipses]; the Home screen
+         * uses it with count = 3 to let the Solar and Lunar chips list three eclipses
+         * each. Both companion entry points share the same singleton, so the resolved
+         * results are consistent between them.
+         */
+        fun getNextEclipseSeries(
+            nowMs: Long,
+            userLatDeg: Double,
+            userLonDeg: Double,
+            elevationM: Double = 0.0,
+            timezoneId: String = "Asia/Tehran",
+            calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
+            count: Int = 3
+        ): Pair<List<EclipseResult>, List<EclipseResult>> {
+            return instance.getNextEclipseSeries(
+                nowMs = nowMs,
+                userLatDeg = userLatDeg,
+                userLonDeg = userLonDeg,
+                elevationM = elevationM,
+                timezoneId = timezoneId,
+                calendarSystem = calendarSystem,
+                count = count
+            )
+        }
+
+        /**
          * Convenience helper for detailed eclipse info.
          */
         fun getDetailedEclipseInfo(
@@ -2391,7 +2420,8 @@ class EclipseEngine {
                 findNextSolarEclipse(cursorMs)
             } else {
                 findNextLunarEclipse(cursorMs)
-            } ?: break
+            }
+            if (event == null) break
             if (event.maximumMs <= cursorMs) break
 
             val result = evaluateEclipse(
@@ -2423,6 +2453,31 @@ class EclipseEngine {
 
             results.add(result)
             cursorMs = max(event.maximumMs, lastContactMs)
+        }
+
+        if (results.isEmpty()) {
+            // Nothing found ahead of `nowMs` (the canon is finite). Fall back to the
+            // first eclipse of this kind in the table so callers — notably
+            // getNextEclipses, which reads .first() — always receive one result,
+            // matching the behaviour this replaced.
+            val fallback = if (isSolar) {
+                canonicalEclipses.firstOrNull { it.isSolar }
+            } else {
+                canonicalEclipses.firstOrNull { !it.isSolar }
+            }
+            if (fallback != null) {
+                results.add(
+                    evaluateEclipse(
+                        event = fallback,
+                        userLatDeg = userLatDeg,
+                        userLonDeg = userLonDeg,
+                        elevationM = elevationM,
+                        nowMs = nowMs,
+                        timezoneId = timezoneId,
+                        calendarSystem = calendarSystem
+                    )
+                )
+            }
         }
 
         return results
