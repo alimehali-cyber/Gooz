@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
+import com.alijafari.red.astronomy.astro_engine.EclipseVisibility
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
@@ -583,6 +585,88 @@ fun EclipseDetailModal(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
+                // Visibility verdict: not just "is it in the sky", but "is there
+                // anything to see". See EclipseVisibility for the criteria.
+                val visibility = result.visibility
+                val gradeColor = when (visibility.grade) {
+                    EclipseVisibility.Grade.SPECTACULAR,
+                    EclipseVisibility.Grade.EXCELLENT -> StatusExcellent
+                    EclipseVisibility.Grade.GOOD -> StatusGood
+                    EclipseVisibility.Grade.MARGINAL -> StatusWarning
+                    EclipseVisibility.Grade.NOT_OBSERVABLE -> MaterialTheme.colorScheme.error
+                }
+                Text(
+                    text = if (isFa) "ارزیابی دیدپذیری از موقعیت شما:" else "Visibility From Your Location:",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = gradeColor.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, gradeColor.copy(alpha = 0.5f)),
+                        modifier = Modifier.testTag("eclipse_detail_visibility_grade")
+                    ) {
+                        Text(
+                            text = if (isFa) {
+                                "دیدپذیری: ${visibility.grade.labelFa}"
+                            } else {
+                                "Visibility: ${visibility.grade.labelEn}"
+                            },
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = gradeColor,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                    Text(
+                        text = if (isFa) visibility.reasonFa else visibility.reasonEn,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.testTag("eclipse_detail_visibility_reason")
+                    )
+                    Text(
+                        text = if (isFa) visibility.altitudeNoteFa else visibility.altitudeNoteEn,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // What it is called, what it will look like, and why it matters.
+                val insight = result.insight
+                Text(
+                    text = if (isFa) "نام و اهمیت این رخداد:" else "Name & Significance:",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = if (isFa) insight.nicknameFa else insight.nicknameEn,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.testTag("eclipse_detail_nickname")
+                    )
+                    if (insight.significanceEn.isNotEmpty()) {
+                        Text(
+                            text = if (isFa) insight.significanceFa else insight.significanceEn,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("eclipse_detail_significance")
+                        )
+                    }
+                }
+
+                Text(
+                    text = if (isFa) "ظاهر و رنگ:" else "Appearance & Colour:",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (isFa) insight.appearanceFa else insight.appearanceEn,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("eclipse_detail_appearance")
+                )
 
                 // Safety Guidelines
                 LiquidGlassSurface(

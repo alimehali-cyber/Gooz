@@ -634,6 +634,7 @@ fun HomeScreen(
                                     dateStr = if (isFa) eclipse.formattedDateFa else eclipse.formattedDateEn,
                                     visibilityInfo = if (isFa) eclipse.localVisibilityTextFa else eclipse.localVisibilityTextEn,
                                     isLocallyVisible = eclipse.isLocallyVisible,
+                                    visibilityGrade = eclipse.visibility.grade,
                                     isFa = isFa,
                                     onClick = { selectedEclipseResult = eclipse }
                                 )
@@ -977,6 +978,8 @@ private fun EclipseItemRow(
     dateStr: String,
     visibilityInfo: String,
     isLocallyVisible: Boolean,
+    /** Verdict from [EclipseVisibility]; drives the badge shown on the right. */
+    visibilityGrade: EclipseVisibility.Grade = EclipseVisibility.Grade.NOT_OBSERVABLE,
     isFa: Boolean,
     onClick: () -> Unit
 ) {
@@ -1021,19 +1024,46 @@ private fun EclipseItemRow(
             }
         }
 
-        if (isLocallyVisible) {
-            RedStatusBadge(
-                text = if (isFa) "قابل رصد" else "Locally Visible",
-                statusColor = RedTheme.colors.statusSuccess,
-                containerColor = RedTheme.colors.statusSuccessContainer
-            )
-        } else {
-            RedBadge(
-                text = if (isFa) "غیرقابل رصد" else "Not Visible",
-                backgroundColor = RedTheme.colors.surfaceGrouped,
-                textColor = RedTheme.colors.textTertiary,
-                borderColor = RedTheme.colors.border
-            )
+        // The list is already filtered to observable events (see EclipseVisibility),
+        // so an event can still be "in the sky" yet have nothing worth seeing — that
+        // is the fallback case, and it must not wear the same badge as a good one.
+        when {
+            visibilityGrade == EclipseVisibility.Grade.SPECTACULAR -> {
+                RedStatusBadge(
+                    text = if (isFa) "دیدنی و بی‌نظیر" else "Spectacular",
+                    statusColor = RedTheme.colors.statusSuccess,
+                    containerColor = RedTheme.colors.statusSuccessContainer
+                )
+            }
+            visibilityGrade == EclipseVisibility.Grade.EXCELLENT ||
+                visibilityGrade == EclipseVisibility.Grade.GOOD -> {
+                RedStatusBadge(
+                    text = if (isFa) visibilityGrade.labelFa else visibilityGrade.labelEn,
+                    statusColor = RedTheme.colors.statusSuccess,
+                    containerColor = RedTheme.colors.statusSuccessContainer
+                )
+            }
+            visibilityGrade == EclipseVisibility.Grade.MARGINAL -> {
+                RedStatusBadge(
+                    text = if (isFa) visibilityGrade.labelFa else visibilityGrade.labelEn,
+                    statusColor = RedTheme.colors.statusWarning,
+                    containerColor = RedTheme.colors.statusWarningContainer
+                )
+            }
+            isLocallyVisible -> {
+                RedBadge(
+                    text = if (isFa) "تقریباً دیده نمی‌شود" else "Barely Visible",
+                    isAccent = true
+                )
+            }
+            else -> {
+                RedBadge(
+                    text = if (isFa) "غیرقابل رصد" else "Not Visible",
+                    backgroundColor = RedTheme.colors.surfaceGrouped,
+                    textColor = RedTheme.colors.textTertiary,
+                    borderColor = RedTheme.colors.border
+                )
+            }
         }
     }
 }

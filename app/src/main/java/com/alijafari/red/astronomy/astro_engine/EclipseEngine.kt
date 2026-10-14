@@ -102,6 +102,50 @@ class EclipseEngine {
         }
     }
 
+    /**
+     * Catalogue-wide superlatives, computed once per engine instance and shared
+     * with [EclipseVisibility] so per-eclipse "significance" text can say things
+     * like "the deepest in the catalogue" without rescanning all 77 entries on
+     * every recomposition.
+     *
+     * A missing category is reported as -1L rather than 0L, because 0 ms is the
+     * Unix epoch and is (just) a legal instant, whereas -1 never is.
+     */
+    val catalogueContext: CatalogueContext by lazy {
+        val lunar = canonicalEclipses.filter { !it.isSolar }
+
+        val deepest = lunar
+            .filter { it.type != EclipseType.PENUMBRAL_LUNAR }
+            .maxByOrNull { it.magnitude }
+        val longest = lunar
+            .filter { it.type == EclipseType.TOTAL_LUNAR }
+            .maxByOrNull { it.durationTotalSeconds }
+        val longestCentral = canonicalEclipses
+            .filter { it.isSolar && it.durationTotalSeconds > 0 }
+            .maxByOrNull { it.durationTotalSeconds }
+
+        // A tetrad is a run of four or more consecutive TOTAL lunar eclipses with
+        // no partial or penumbral eclipse in between.
+        val tetrad = LinkedHashSet<Long>()
+        var run = ArrayList<EclipseEvent>()
+        for (e in lunar.sortedBy { it.maximumMs }) {
+            if (e.type == EclipseType.TOTAL_LUNAR) {
+                run.add(e)
+            } else {
+                if (run.size >= 4) run.forEach { tetrad.add(it.maximumMs) }
+                run = ArrayList()
+            }
+        }
+        if (run.size >= 4) run.forEach { tetrad.add(it.maximumMs) }
+
+        CatalogueContext(
+            deepestLunarMs = deepest?.maximumMs ?: -1L,
+            longestLunarTotalityMs = longest?.maximumMs ?: -1L,
+            longestCentralSolarMs = longestCentral?.maximumMs ?: -1L,
+            tetradMemberMs = tetrad
+        )
+    }
+
     enum class EclipseType {
         TOTAL_SOLAR,
         ANNULAR_SOLAR,
@@ -173,7 +217,38 @@ class EclipseEngine {
         val formattedDateFa: String,
         val localVisibilityTextEn: String,
         val localVisibilityTextFa: String,
-        val daysRemaining: Int
+        val daysRemaining: Int,
+        /**
+         * Whether there is anything worth looking at from the observer's location,
+         * and why. This is stricter than [isLocallyVisible]: an eclipse can be
+         * above the horizon and still have no observable effect (a shallow partial
+         * solar eclipse, or a penumbral lunar eclipse below the ~0.6 detection
+         * threshold). See [EclipseVisibility] for the criteria and their sources.
+         */
+        val visibility: EclipseVisibility.Assessment,
+        /**
+         * Observer-facing extras: traditional name, predicted colour (Danjon band
+         * for total lunar eclipses) and what makes the event significant. Depends
+         * only on the [event], not on the location, but is stored here so the UI
+         * needs a single object.
+         */
+        val insight: EclipseVisibility.Insight
+    )
+
+    /**
+     * Catalogue-wide superlatives, computed once and cached, so per-eclipse
+     * insight text can say "the deepest in the catalogue" without rescanning
+     * all 77 entries on every recomposition.
+     */
+    data class CatalogueContext(
+        /** greatest-eclipse instant of the largest-umbral-magnitude lunar eclipse */
+        val deepestLunarMs: Long,
+        /** greatest-eclipse instant of the longest lunar totality */
+        val longestLunarTotalityMs: Long,
+        /** greatest-eclipse instant of the longest central (total/annular) solar phase */
+        val longestCentralSolarMs: Long,
+        /** greatest-eclipse instants of every lunar eclipse inside a tetrad */
+        val tetradMemberMs: Set<Long>
     )
 
     data class DetailedEclipseInfo(
@@ -2077,7 +2152,16 @@ class EclipseEngine {
             formattedDateFa = formattedFa,
             localVisibilityTextEn = visibilityTextEn,
             localVisibilityTextFa = visibilityTextFa,
-            daysRemaining = daysRemaining
+            daysRemaining = daysRemaining,
+            visibility = EclipseVisibility.assessSolar(
+                event = event,
+                isLocallyVisible = isVisible,
+                localStartTimeMs = if (isVisible) firstContactMs else maxMs,
+                localEndTimeMs = if (isVisible) lastContactMs else maxMs,
+                localObscurationPercent = obscurationPercent,
+                targetAltitudeDeg = peakSunAlt
+            ),
+            insight = EclipseVisibility.insight(event, catalogueContext)
         )
     }
 
@@ -2285,7 +2369,16 @@ class EclipseEngine {
             formattedDateFa = formattedFa,
             localVisibilityTextEn = visibilityTextEn,
             localVisibilityTextFa = visibilityTextFa,
-            daysRemaining = daysRemaining
+            daysRemaining = daysRemaining,
+            visibility = EclipseVisibility.assessLunar(
+                event = event,
+                isLocallyVisible = isVisibleAtAnyTime,
+                localStartTimeMs = if (isVisibleAtAnyTime) localStartMs else maxMs,
+                localEndTimeMs = if (isVisibleAtAnyTime) localEndMs else maxMs,
+                localMagnitude = localMag,
+                targetAltitudeDeg = if (isVisibleAtAnyTime) localPeakHoriz.altitudeDeg else maxHoriz.altitudeDeg
+            ),
+            insight = EclipseVisibility.insight(event, catalogueContext)
         )
     }
 
@@ -2390,11 +2483,23 @@ class EclipseEngine {
 
     /**
      * Walks the eclipse canon forward from [nowMs] collecting up to [count] events of
-     * one kind (solar or lunar), evaluating each one for the observer's location.
+     * one kind (solar or lunar) that are actually **observable** from the observer's
+     * location, evaluating each one against [EclipseVisibility]'s criteria.
+     *
+     * "Observable" is deliberately stricter than "in the sky". A partial solar
+     * eclipse covering 0.4% of the Sun, or a penumbral lunar eclipse of magnitude
+     * 0.0014, is above the horizon and still shows nothing a human can detect, so
+     * listing it as one of the "next 3 eclipses" would be misleading. Those events
+     * are skipped here. See [EclipseVisibility] for the thresholds and their
+     * published sources.
      *
      * The first iteration looks back by 3.5 h so an in-progress eclipse is still
      * offered; afterwards the cursor always moves past the previous event's last
      * contact, which guarantees forward progress.
+     *
+     * The list is never returned empty: if nothing observable lies ahead, the
+     * nearest eclipse that was evaluated is kept instead, so callers that read
+     * `.first()` (notably [getNextEclipses]) still get a sane next event.
      */
     private fun collectNextEclipses(
         isSolar: Boolean,
@@ -2408,12 +2513,16 @@ class EclipseEngine {
     ): List<EclipseResult> {
         val lookbackMs = (3.5 * 3600 * 1000).toLong()
         val results = ArrayList<EclipseResult>(count)
+        // Nearest rejected events, kept only so the list never ends up empty.
+        val nearestUnobservable = ArrayList<EclipseResult>(count)
         var cursorMs = nowMs - lookbackMs
 
         // Belt-and-braces bound: the catalogue is finite, and every branch below
-        // strictly advances `cursorMs`, so this loop always terminates.
+        // strictly advances `cursorMs` past the current event's maximum, so the
+        // walk can visit each catalogue entry of this kind at most once.
         var iterations = 0
-        val iterationLimit = count * 4 + 8
+        val iterationLimit =
+            canonicalEclipses.count { it.isSolar == isSolar } + 1
 
         while (results.size < count && iterations++ < iterationLimit) {
             val event = if (isSolar) {
@@ -2451,32 +2560,45 @@ class EclipseEngine {
                 continue
             }
 
-            results.add(result)
+            if (result.visibility.isObservable) {
+                results.add(result)
+            } else if (nearestUnobservable.size < count) {
+                // Not observable from here (below the horizon, or too shallow to
+                // notice). Remember it, but keep looking for something better.
+                nearestUnobservable.add(result)
+            }
             cursorMs = max(event.maximumMs, lastContactMs)
         }
 
         if (results.isEmpty()) {
-            // Nothing found ahead of `nowMs` (the canon is finite). Fall back to the
-            // first eclipse of this kind in the table so callers — notably
-            // getNextEclipses, which reads .first() — always receive one result,
-            // matching the behaviour this replaced.
-            val fallback = if (isSolar) {
-                canonicalEclipses.firstOrNull { it.isSolar }
+            // Nothing observable lies ahead. Prefer the nearest eclipse the walk
+            // actually evaluated — it is still the next one in time — so the card
+            // shows the true "next" event rather than a jump to the start of the
+            // table. Only if the walk produced nothing at all (the canon is
+            // exhausted) fall back to the first eclipse of this kind, which keeps
+            // callers that read .first() — notably getNextEclipses — safe.
+            val nextBest = nearestUnobservable.firstOrNull()
+            if (nextBest != null) {
+                results.add(nextBest)
             } else {
-                canonicalEclipses.firstOrNull { !it.isSolar }
-            }
-            if (fallback != null) {
-                results.add(
-                    evaluateEclipse(
-                        event = fallback,
-                        userLatDeg = userLatDeg,
-                        userLonDeg = userLonDeg,
-                        elevationM = elevationM,
-                        nowMs = nowMs,
-                        timezoneId = timezoneId,
-                        calendarSystem = calendarSystem
+                val fallback = if (isSolar) {
+                    canonicalEclipses.firstOrNull { it.isSolar }
+                } else {
+                    canonicalEclipses.firstOrNull { !it.isSolar }
+                }
+                if (fallback != null) {
+                    results.add(
+                        evaluateEclipse(
+                            event = fallback,
+                            userLatDeg = userLatDeg,
+                            userLonDeg = userLonDeg,
+                            elevationM = elevationM,
+                            nowMs = nowMs,
+                            timezoneId = timezoneId,
+                            calendarSystem = calendarSystem
+                        )
                     )
-                )
+                }
             }
         }
 

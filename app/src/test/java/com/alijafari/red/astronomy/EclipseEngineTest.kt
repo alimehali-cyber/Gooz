@@ -310,16 +310,22 @@ class EclipseEngineTest {
 
     @Test
     fun testEclipseSeriesIsEvaluatedForTheObserversLocation() {
-        // The same three eclipses seen from Tehran and from Sydney must not report the
-        // same local circumstances — proving the series is location aware.
+        // Lunar eclipses are visible from anywhere on the night side, so both cities
+        // see the same EVENTS — but the local circumstances (whether the Moon is up,
+        // and how high) must differ. That is what proves the series is location aware.
+        //
+        // Note: the same is deliberately NOT asserted for the solar series. Since the
+        // series is filtered to genuinely observable events (see EclipseVisibility),
+        // two cities can legitimately receive different solar eclipses: a 0.4%
+        // partial is skipped for one observer and a 60% partial is offered to another.
         val nowMs = 1_784_000_000_000L
         val tehran = engine.getNextEclipseSeries(nowMs, 35.6892, 51.3890, 1200.0, "Asia/Tehran", CalendarSystem.SOLAR_HIJRI, 3)
         val sydney = engine.getNextEclipseSeries(nowMs, -33.8688, 151.2093, 20.0, "Australia/Sydney", CalendarSystem.SOLAR_HIJRI, 3)
-        assertEquals("same events regardless of observer",
-            tehran.first.map { it.event.maximumMs }, sydney.first.map { it.event.maximumMs })
         val differing = tehran.second.indices.count { i ->
-            tehran.second[i].isLocallyVisible != sydney.second[i].isLocallyVisible ||
-                kotlin.math.abs(tehran.second[i].targetAltitudeDeg - sydney.second[i].targetAltitudeDeg) > 1.0
+            val s = sydney.second.getOrNull(i)
+            s == null ||
+                tehran.second[i].isLocallyVisible != s.isLocallyVisible ||
+                kotlin.math.abs(tehran.second[i].targetAltitudeDeg - s.targetAltitudeDeg) > 1.0
         }
         assertTrue("lunar circumstances must differ between Tehran and Sydney ($differing)", differing >= 1)
     }
