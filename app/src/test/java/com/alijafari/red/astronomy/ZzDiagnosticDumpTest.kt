@@ -18,13 +18,14 @@ class ZzDiagnosticDumpTest {
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    private fun dump(label: String, lat: Double, lon: Double, elev: Double, tz: String): String {
+    private fun dump(label: String, lat: Double, lon: Double, elev: Double, tz: String, lunarOnly: Boolean): String {
         val nowMs = 1_784_000_000_000L // 2026-07-14
         val (solar, lunar) = engine.getNextEclipseSeries(
             nowMs, lat, lon, elev, tz, CalendarSystem.SOLAR_HIJRI, 6
         )
         val sb = StringBuilder("\n### $label ###")
-        for ((kind, list) in listOf("SOLAR" to solar, "LUNAR" to lunar)) {
+        val kinds = if (lunarOnly) listOf("LUNAR" to lunar) else listOf("SOLAR" to solar)
+        for ((kind, list) in kinds) {
             sb.append("\n-- $kind (${list.size}) --")
             list.forEach { r ->
                 val e = r.event
@@ -47,17 +48,17 @@ class ZzDiagnosticDumpTest {
     }
 
     @Test
-    fun dumpTehran() {
-        org.junit.Assert.fail(dump("Tehran", 35.6892, 51.3890, 1200.0, "Asia/Tehran"))
+    fun dumpTehranLunar() {
+        org.junit.Assert.fail(dump("Tehran", 35.6892, 51.3890, 1200.0, "Asia/Tehran", true))
     }
 
     @Test
-    fun dumpSydney() {
-        org.junit.Assert.fail(dump("Sydney", -33.8688, 151.2093, 20.0, "Australia/Sydney"))
+    fun dumpSydneyLunar() {
+        org.junit.Assert.fail(dump("Sydney", -33.8688, 151.2093, 20.0, "Australia/Sydney", true))
     }
 
     @Test
-    fun dumpLuxor() {
-        org.junit.Assert.fail(dump("Luxor", 25.6872, 32.6396, 89.0, "Africa/Cairo"))
+    fun dumpLuxorLunar() {
+        org.junit.Assert.fail(dump("Luxor", 25.6872, 32.6396, 89.0, "Africa/Cairo", true))
     }
 }
