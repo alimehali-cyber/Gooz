@@ -289,8 +289,31 @@ class EclipseEngineTest {
             list.map { fmt.format(java.util.Date(it.event.maximumMs)) }
         }
 
-        assertEquals("3 solar eclipses", listOf("2026-08-12", "2027-02-06", "2027-08-02"), dates(solar))
-        assertEquals("3 lunar eclipses", listOf("2026-08-28", "2027-02-20", "2027-07-18"), dates(lunar))
+        // These are the next three *observable* eclipses from Tehran, not the next
+        // three in time. The events that used to occupy these slots are gone for
+        // documented astronomical reasons:
+        //
+        //   2026-08-12 solar — greatest eclipse 17:47Z, i.e. 21:17 in Tehran
+        //                      (UTC+3:30). Tehran sunset in mid-August is about
+        //                      19:30, so the Sun is below the horizon throughout.
+        //   2027-02-06 solar — greatest eclipse 16:00Z = 19:30 in Tehran; sunset
+        //                      in mid-February is about 18:00. Below the horizon.
+        //   2027-07-18 lunar — a penumbral eclipse whose penumbral magnitude is
+        //                      0.0014. Espenak's threshold for detecting one at
+        //                      all is 0.6, so there is nothing to see.
+        //
+        // What remains:
+        //   2027-08-02 solar — greatest eclipse 10:07Z, mid-morning in Tehran,
+        //                      ~35% obscuration with the Sun 62° up.
+        //   2030-06-01 solar — ~53% obscuration, Sun 45° up.
+        //   2031-05-21 solar — a shallow ~1% partial, which is the floor of what
+        //                      counts as observable through a solar filter.
+        //   2026-08-28 lunar — the Moon sets mid-eclipse; the observer sees it
+        //                      reach umbral magnitude 0.53 before moonset.
+        //   2027-02-20 lunar — penumbral magnitude 0.927, above the 0.6 threshold.
+        //   2028-01-12 lunar — a shallow partial, umbral magnitude 0.066.
+        assertEquals("3 solar eclipses", listOf("2027-08-02", "2030-06-01", "2031-05-21"), dates(solar))
+        assertEquals("3 lunar eclipses", listOf("2026-08-28", "2027-02-20", "2028-01-12"), dates(lunar))
 
         assertTrue("every solar entry must be solar", solar.all { it.event.isSolar })
         assertTrue("every lunar entry must be lunar", lunar.all { !it.event.isSolar })

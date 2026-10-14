@@ -283,8 +283,14 @@ class EclipseVisibilityTest {
     fun testAltitudeNotesTrackAltitude() {
         val partial = solarEvent(EclipseEngine.EclipseType.PARTIAL_SOLAR, 0.5)
         assertTrue(
+            "whole degrees once the object is clear of the horizon",
             assessSolar(partial, obscurationPercent = 50, altitudeDeg = 55.0)
                 .altitudeNoteEn.contains("55°")
+        )
+        assertTrue(
+            "a decimal is kept below 10°, where 3° vs 3.9° matters",
+            assessSolar(partial, obscurationPercent = 50, altitudeDeg = 3.4)
+                .altitudeNoteEn.contains("3.4°")
         )
         assertTrue(
             "a horizon-hugging eclipse must warn about the horizon",
@@ -367,6 +373,88 @@ class EclipseVisibilityTest {
                 "(tehran=${tehranSolar.map { it.event.maximumMs }}, " +
                 "sydney=${sydneySolar.map { it.event.maximumMs }})",
             !sameEvents || circumstancesDiffer
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // 4b. Location awareness, checked against NASA's eclipse paths
+    // ------------------------------------------------------------------
+
+    private fun firstOfKind(
+        lat: Double, lon: Double, elev: Double, tz: String,
+        solar: Boolean
+    ): EclipseEngine.EclipseResult {
+        val (s, l) = engine.getNextEclipseSeries(
+            nowMs, lat, lon, elev, tz, CalendarSystem.SOLAR_HIJRI, 3
+        )
+        return (if (solar) s else l).first()
+    }
+
+    @Test
+    fun testLuxorSeesThe2027August2Totality() {
+        // NASA: 2027-08-02 total, path "[Total: Morocco, Spain, Algeria, Libya,
+        // Egypt, Saudi Arabia, Yemen, Somalia]". Luxor is inside it.
+        val r = firstOfKind(25.6872, 32.6396, 89.0, "Africa/Cairo", solar = true)
+        assertEquals(
+            "2027-08-02 must be the next observable solar eclipse from Luxor",
+            1_817_201_220_000L, r.event.maximumMs
+        )
+        assertEquals(
+            "Luxor is inside the totality path, so obscuration must be 100%",
+            100, r.localObscurationPercent
+        )
+        assertEquals(EclipseVisibility.Grade.SPECTACULAR, r.visibility.grade)
+    }
+
+    @Test
+    fun testSydneySeesThe2028July22Totality() {
+        // NASA: 2028-07-22 total, path "[Total: Australia, N. Z.]".
+        val r = firstOfKind(-33.8688, 151.2093, 20.0, "Australia/Sydney", solar = true)
+        assertEquals(
+            "2028-07-22 must be the next observable solar eclipse from Sydney",
+            1_847_847_360_000L, r.event.maximumMs
+        )
+        assertEquals(100, r.localObscurationPercent)
+        assertEquals(EclipseVisibility.Grade.SPECTACULAR, r.visibility.grade)
+    }
+
+    @Test
+    fun testTehranOnlyGetsAPartialOfThe2027August2Eclipse() {
+        // Same event as Luxor sees in totality, but Tehran is roughly 2,000 km
+        // north of the path, so it must NOT be reported as anything like total.
+        val r = firstOfKind(tehranLat, tehranLon, tehranElev, tehranTz, solar = true)
+        assertEquals(1_817_201_220_000L, r.event.maximumMs)
+        assertTrue(
+            "Tehran is outside the totality path, so obscuration must be well under 100%",
+            r.localObscurationPercent in 20..60
+        )
+        assertNotEquals(
+            "a 35% partial must never be graded SPECTACULAR",
+            EclipseVisibility.Grade.SPECTACULAR, r.visibility.grade
+        )
+    }
+
+    @Test
+    fun testEachCityGetsItsOwnLunarList() {
+        // Lunar eclipses are visible from the whole night side, so which ones a
+        // given city can watch depends entirely on where it is when the Moon is up.
+        val tehran = engine.getNextEclipseSeries(
+            nowMs, tehranLat, tehranLon, tehranElev, tehranTz, CalendarSystem.SOLAR_HIJRI, 3
+        ).second.map { it.event.maximumMs }
+        val sydney = engine.getNextEclipseSeries(
+            nowMs, -33.8688, 151.2093, 20.0, "Australia/Sydney", CalendarSystem.SOLAR_HIJRI, 3
+        ).second.map { it.event.maximumMs }
+        val luxor = engine.getNextEclipseSeries(
+            nowMs, 25.6872, 32.6396, 89.0, "Africa/Cairo", CalendarSystem.SOLAR_HIJRI, 3
+        ).second.map { it.event.maximumMs }
+
+        assertNotEquals(
+            "Tehran and Sydney must not share a lunar list " +
+                "(tehran=$tehran, sydney=$sydney)", tehran, sydney
+        )
+        assertNotEquals(
+            "Tehran and Luxor must not share a lunar list " +
+                "(tehran=$tehran, luxor=$luxor)", tehran, luxor
         )
     }
 

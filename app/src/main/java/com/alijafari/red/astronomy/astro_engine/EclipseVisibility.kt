@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.astro_engine
 
 import com.alijafari.red.astronomy.util.toPersianDigits
+import java.util.Locale
 
 /**
  * Visibility criteria for solar and lunar eclipses, plus the observer-facing
@@ -355,15 +356,29 @@ object EclipseVisibility {
         )
     }
 
-    private fun altitudeNoteEn(altDeg: Double, body: String): String = when {
-        altDeg >= HIGH_ALT_DEG -> "$body stands $altDeg° high at maximum: no trouble from haze or thick air."
-        altDeg >= MEDIUM_ALT_DEG -> "$body stands $altDeg° up at maximum: comfortable viewing."
-        altDeg >= LOW_ALT_DEG -> "$body is only $altDeg° up at maximum: low in thick air, so you need a flat, clear horizon."
-        else -> "$body sits within $altDeg° of the horizon at maximum, so this is very hard to observe in practice."
+    /**
+     * Altitude for prose. Whole degrees are plenty once the object is clear of
+     * the horizon; below [MEDIUM_ALT_DEG] a decimal matters, because the
+     * difference between 3° and 3.9° is the difference between "low" and "in
+     * the trees". Always formatted with [Locale.US] so a device locale using
+     * non-ASCII digits cannot leak into the text.
+     */
+    private fun fmtAlt(altDeg: Double): String =
+        if (altDeg >= MEDIUM_ALT_DEG) "%.0f".format(Locale.US, altDeg)
+        else "%.1f".format(Locale.US, altDeg)
+
+    private fun altitudeNoteEn(altDeg: Double, body: String): String {
+        val a = fmtAlt(altDeg)
+        return when {
+            altDeg >= HIGH_ALT_DEG -> "$body stands $a° high at maximum: no trouble from haze or thick air."
+            altDeg >= MEDIUM_ALT_DEG -> "$body stands $a° up at maximum: comfortable viewing."
+            altDeg >= LOW_ALT_DEG -> "$body is only $a° up at maximum: low in thick air, so you need a flat, clear horizon."
+            else -> "$body sits within $a° of the horizon at maximum, so this is very hard to observe in practice."
+        }
     }
 
     private fun altitudeNoteFa(altDeg: Double): String {
-        val a = ("%.0f" .format(java.util.Locale.US, altDeg)).toPersianDigits()
+        val a = fmtAlt(altDeg).toPersianDigits()
         return when {
             altDeg >= HIGH_ALT_DEG -> "در لحظهٔ اوج، ارتفاع آن $a درجه است؛ نه کدریِ هوا مزاحم است و نه ضخامت جو."
             altDeg >= MEDIUM_ALT_DEG -> "در لحظهٔ اوج، ارتفاع آن $a درجه است؛ شرایط رصد راحت است."
@@ -422,8 +437,8 @@ object EclipseVisibility {
         if (secs > 0) {
             val mm = secs / 60
             val ss = secs % 60
-            bits += "Totality (or annularity) lasts up to ${mm}m ${"%02d".format(ss)}s on the central line."
-            bitsFa += "مدت فاز کامل یا حلقوی در خط مرکزی تا ${mm.toString().toPersianDigits()} دقیقه و ${"%02d".format(ss).toPersianDigits()} ثانیه است."
+            bits += "Totality (or annularity) lasts up to ${mm}m ${"%02d".format(Locale.US, ss)}s on the central line."
+            bitsFa += "مدت فاز کامل یا حلقوی در خط مرکزی تا ${mm.toString().toPersianDigits()} دقیقه و ${"%02d".format(Locale.US, ss).toPersianDigits()} ثانیه است."
         }
         bits += "Member of Saros series ${event.saros}."
         bitsFa += "این گرفتگی عضو دورهٔ ساروس ${event.saros.toString().toPersianDigits()} است."
@@ -513,8 +528,8 @@ object EclipseVisibility {
 
         val absGamma = kotlin.math.abs(event.gamma)
         if (absGamma <= 0.1) {
-            bits += "The Moon passes almost straight through the centre of Earth's shadow (gamma ${"%.3f".format(event.gamma)}), which makes this a notably deep eclipse."
-            bitsFa += "ماه تقریباً از مرکز سایهٔ زمین می‌گذرد (گاما برابر با ${"%.3f".format(event.gamma).toPersianDigits()}) و به همین دلیل این خسوف عمق قابل‌توجهی دارد."
+            bits += "The Moon passes almost straight through the centre of Earth's shadow (gamma ${"%.3f".format(Locale.US, event.gamma)}), which makes this a notably deep eclipse."
+            bitsFa += "ماه تقریباً از مرکز سایهٔ زمین می‌گذرد (گاما برابر با ${"%.3f".format(Locale.US, event.gamma).toPersianDigits()}) و به همین دلیل این خسوف عمق قابل‌توجهی دارد."
         }
 
         if (context.deepestLunarMs == event.maximumMs && umMag > 0.0) {
@@ -582,16 +597,16 @@ object EclipseVisibility {
 
     private fun formatPercentEn(fraction: Double): String {
         val pct = fraction * 100.0
-        return if (pct < 1.0) "%.2f%%".format(pct) else "%.0f%%".format(pct)
+        return if (pct < 1.0) "%.2f".format(Locale.US, pct) + "%" else "%.0f".format(Locale.US, pct) + "%"
     }
 
     private fun formatPercentFa(fraction: Double): String {
         val pct = fraction * 100.0
-        return if (pct < 1.0) "%.2f".format(pct).toPersianDigits() + "٪"
-        else "%.0f".format(pct).toPersianDigits() + "٪"
+        return if (pct < 1.0) "%.2f".format(Locale.US, pct).toPersianDigits() + "٪"
+        else "%.0f".format(Locale.US, pct).toPersianDigits() + "٪"
     }
 
-    private fun formatMagEn(mag: Double) = "%.3f".format(mag)
+    private fun formatMagEn(mag: Double) = "%.3f".format(Locale.US, mag)
 
-    private fun formatMagFa(mag: Double) = "%.3f".format(mag).toPersianDigits()
+    private fun formatMagFa(mag: Double) = "%.3f".format(Locale.US, mag).toPersianDigits()
 }
