@@ -637,7 +637,7 @@ fun HomeScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 moonData = moonData,
-                jd = jd,
+                catalogJd = catalogJd,
                 onDismiss = { closeSkySearch() }
             )
         }
@@ -671,7 +671,13 @@ private fun SkySearchOverlay(
     uiState: MainUiState,
     viewModel: MainViewModel,
     moonData: MoonEngine.MoonData,
-    jd: Double,
+    /**
+     * Julian date on the CATALOG bucket, not the 1 Hz clock. The rise/set strings below
+     * are recomputed per result row, so they must sit on the same coarse snapshot as
+     * [results] (which derives from the catalog-bucketed `sortedObjectsWithObs`) rather
+     * than being re-solved every second.
+     */
+    catalogJd: Double,
     onDismiss: () -> Unit
 ) {
     // The bar is the reason the overlay exists, so it takes focus as soon as it is composed.
