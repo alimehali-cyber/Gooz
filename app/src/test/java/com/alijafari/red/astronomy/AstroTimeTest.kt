@@ -98,7 +98,23 @@ class AstroTimeTest {
 
         assertTrue("deltaT for year 1000 must be finite, was $year1000", year1000.isFinite())
         assertTrue("deltaT for year 2200 must be finite, was $year2200", year2200.isFinite())
-        assertTrue("deltaT must grow away from 1820", year2200 > year1000)
+
+        // Monotonicity only holds WITHIN the post-2150 parabolic branch, where
+        //     ΔT = −20 + 32·((y − 1820)/100)²
+        // grows with |y − 1820|. It does NOT hold across branches, and an earlier
+        // revision asserted `year2200 > year1000`, which is false:
+        //   · year 1000 is not in the parabolic branch at all — it falls in the
+        //     [500, 1600) 6th-degree interval, where ΔT ≈ 1574 s;
+        //   · year 2200 is in the parabolic branch with ΔT ≈ 442 s;
+        //   · even evaluated on the parabola alone, year 1000 is 820 years from the
+        //     vertex against year 2200's 380, so year 1000 would still be the larger.
+        // Measured: ΔT(1000-01-01) = 1574.086 s, ΔT(2200-01-01) = 442.070 s.
+        val year2500 = AstroTime.fromUtcDate(2500, 1, 1, 0, 0, 0).deltaT
+        assertTrue(
+            "deltaT must grow with |y−1820| inside the post-2150 branch " +
+                "($year2500 should exceed $year2200)",
+            year2500 > year2200
+        )
     }
 
     @Test
