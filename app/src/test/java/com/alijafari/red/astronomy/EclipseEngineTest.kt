@@ -308,12 +308,19 @@ class EclipseEngineTest {
         //   2030-06-01 solar — ~53% obscuration, Sun 45° up.
         //   2031-05-21 solar — a shallow ~1% partial, which is the floor of what
         //                      counts as observable through a solar filter.
-        //   2026-08-28 lunar — the Moon sets mid-eclipse; the observer sees it
-        //                      reach umbral magnitude 0.53 before moonset.
-        //   2027-02-20 lunar — penumbral magnitude 0.927, above the 0.6 threshold.
-        //   2028-01-12 lunar — a shallow partial, umbral magnitude 0.066.
+        //   2026-08-28 lunar — greatest eclipse 04:13Z = 07:43 in Tehran, but the
+        //                      full Moon has already set (moonset ~06:15, about 45
+        //                      minutes after a ~05:57 sunrise). Below the horizon.
+        //                      (Luxor does see it: 04:13Z = 06:13 there, right at
+        //                      moonset, and it is Luxor's next lunar eclipse.)
+        //
+        // What remains for Tehran:
+        //   2027-02-20 lunar — penumbral magnitude 0.927, above the 0.6 threshold,
+        //                      Moon 66° up at maximum.
+        //   2028-07-06 lunar — partial, umbral magnitude 0.389, Moon 18° up.
+        //   2028-12-31 lunar — total, Moon 22° up.
         assertEquals("3 solar eclipses", listOf("2027-08-02", "2030-06-01", "2031-05-21"), dates(solar))
-        assertEquals("3 lunar eclipses", listOf("2026-08-28", "2027-02-20", "2028-01-12"), dates(lunar))
+        assertEquals("3 lunar eclipses", listOf("2027-02-20", "2028-07-06", "2028-12-31"), dates(lunar))
 
         assertTrue("every solar entry must be solar", solar.all { it.event.isSolar })
         assertTrue("every lunar entry must be lunar", lunar.all { !it.event.isSolar })
