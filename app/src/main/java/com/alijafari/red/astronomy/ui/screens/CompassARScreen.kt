@@ -99,6 +99,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import com.alijafari.red.astronomy.R
 import java.util.Locale
 import kotlin.math.*
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 
 enum class ArExpandedPanel {
     SEARCH, TIME_MACHINE, FILTERS, SENSORS
@@ -3204,14 +3205,16 @@ fun CompassARScreen(
         ) {
             val obj = activeTappedObj ?: return@AnimatedVisibility
 
-            val rs = remember(obj, jd) {
+            val rs = remember(obj, jd, uiState.userLocation) {
                 CoordinateEngine.calculateRiseSetTransit(
                     raDeg = obj.raDeg,
                     decDeg = obj.decDeg,
                     latDeg = uiState.userLocation.latitude,
                     lonDeg = uiState.userLocation.longitude,
                     jd = jd,
-                    isFa = isFa
+                    isFa = isFa,
+                    timezoneId = uiState.userLocation.timezoneId,
+                    horizonAltDeg = CoordinateEngineLegacy.horizonAltDegFor(obj.id)
                 )
             }
 

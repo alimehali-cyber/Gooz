@@ -60,12 +60,47 @@ import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
 import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 
 /**
  * The Moon render is inset inside its square card, which leaves the date line room below it and keeps the
  * card's heavy corners visible instead of being covered by the lunar disc.
  */
 private const val MoonRenderFillFraction = 0.68f
+
+// ------------------------------------------------------------------------------------------------
+// Recompute budgets for the Home screen
+//
+// HomeScreen now reads the shared 1 Hz clock (MainViewModel.skyLiveClock) so that live mode
+// actually advances. Several of its derivations are far too expensive to repeat every second
+// on the main thread, so each one is keyed on a coarse bucket of that clock instead of on the
+// clock itself. These bucket sizes are engineering estimates chosen so that the visible value
+// still refreshes faster than it meaningfully changes; they are NOT benchmarked measurements,
+// and they should be profiled on a low-end device before being tightened.
+// ------------------------------------------------------------------------------------------------
+
+/** MoonEngine.calculateMoon runs ELP2000 plus an iterative MoonTimes rise/set solve. */
+private const val MOON_REFRESH_MS = 60_000L
+
+/** AstronomyCatalog.getAllObjects pushes all ~336 objects through calculateState, then Home maps and sorts them. */
+private const val CATALOG_REFRESH_MS = 60_000L
+
+/**
+ * EclipseEngine.getNextEclipses samples ~421 solar and ~121 lunar ephemeris evaluations per
+ * call, synchronously during composition. The next eclipse only changes every few months, so
+ * an hourly cadence is already generous.
+ */
+private const val ECLIPSE_REFRESH_MS = 3_600_000L
+
+/**
+ * Floors [timeMs] to a whole multiple of [bucketMs], so a `remember` keyed on the result
+ * changes at most once per bucket.
+ *
+ * Simulation time is exempt: it only ever moves when the user moves the time machine, so
+ * bucketing it would change existing behaviour for no benefit.
+ */
+private fun bucketMs(timeMs: Long, isSimulation: Boolean, bucketMs: Long): Long =
+    if (isSimulation || bucketMs <= 0L) timeMs else timeMs - java.lang.Math.floorMod(timeMs, bucketMs)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,33 +110,72 @@ fun HomeScreen(
     onNavigateToTab: (Int) -> Unit
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    val activeTimeMs = remember(uiState.timeMachineState) {
-        if (uiState.timeMachineState.mode == TimeMachineMode.SIMULATION) {
-            uiState.timeMachineState.simulationTimeMs
-        } else {
-            System.currentTimeMillis()
-        }
+
+    // --- Time selection ----------------------------------------------------------------
+    //
+    // LIVE mode now reads the single shared clock (MainViewModel.skyLiveClock) that
+    // HeroSkyCanvas and LiveSkyBackdrop already use. It used to capture
+    // System.currentTimeMillis() inside a remember() keyed on timeMachineState, so in
+    // live mode Home froze at whatever instant it was composed at and never advanced:
+    // HomeScreen has no ticker of its own, no observable time state, and nothing in
+    // MainViewModel updates _uiState periodically. Reading a StateFlow inside
+    // HeroSkyCanvas cannot help either, because that composable has its own restart
+    // group and invalidating it never invalidates HomeScreen.
+    //
+    // SIMULATION mode is unchanged: it still follows timeMachineState.simulationTimeMs
+    // and still only moves when the user moves the time machine.
+    val liveTimeMs by viewModel.skyLiveClock.timeMs.collectAsState()
+    val isSimulation = uiState.timeMachineState.mode == TimeMachineMode.SIMULATION
+    val activeTimeMs = if (isSimulation) {
+        uiState.timeMachineState.simulationTimeMs
+    } else {
+        liveTimeMs
     }
+
+    // Now that activeTimeMs advances every second, the expensive derivations must NOT
+    // key off it directly, or a 1 Hz clock would become a 1 Hz whole-catalog pass, a
+    // 1 Hz iterative Moon rise/set solve and a 1 Hz eclipse search. Each is keyed on a
+    // coarse bucket of the clock instead. See MOON_REFRESH_MS / CATALOG_REFRESH_MS /
+    // ECLIPSE_REFRESH_MS: those numbers are conservative engineering estimates,
+    // NOT measurements — they have not been benchmarked on a device.
+    val moonKeyMs = bucketMs(activeTimeMs, isSimulation, MOON_REFRESH_MS)
+    val catalogKeyMs = bucketMs(activeTimeMs, isSimulation, CATALOG_REFRESH_MS)
+    val eclipseKeyMs = bucketMs(activeTimeMs, isSimulation, ECLIPSE_REFRESH_MS)
+
+    // Cheap, and correct to keep live: this is the clock the user reads, and the
+    // instant the hero canvas draws the sky for.
     val jd = remember(activeTimeMs) { TimeEngine.getJulianDate(activeTimeMs) }
-    val sunPos = remember(jd) { SunEngine.calculatePosition(jd) }
-    val lastDeg = remember(jd, uiState.userLocation) {
-        TimeEngine.getLAST(jd, uiState.userLocation.longitude)
+
+    // Whole-catalog pass: ~336 objects through AstroDispatchEngine.calculateState.
+    val catalogJd = remember(catalogKeyMs) { TimeEngine.getJulianDate(catalogKeyMs) }
+    val allObjects = remember(catalogJd) { AstronomyCatalog.getAllObjects(catalogJd) }
+    val catalogLastDeg = remember(catalogJd, uiState.userLocation) {
+        TimeEngine.getLAST(catalogJd, uiState.userLocation.longitude)
     }
 
-    // Sun altitude for twilight phase
+    // Sun altitude for the twilight phase.
+    //
+    // Keyed on the CATALOG bucket, NOT on the 1 Hz `jd`. `sunHoriz` is also an input to
+    // sortedObjectsWithObs below, so deriving it from the live clock would drag the
+    // whole ~336-object filter/map/sort along at 1 Hz and silently defeat
+    // CATALOG_REFRESH_MS. Bucketing costs nothing observable: solar altitude moves by
+    // at most ~15 deg/hour (0.25 deg/min), while the twilight bands it selects between
+    // (0, -6, -12, -18 deg) are 6 deg apart, so a 60 s snapshot is finer than the
+    // output resolution by more than an order of magnitude. It also removes a 1 Hz
+    // SunEngine.calculatePosition and a 1 Hz TimeEngine.getLAST.
+    val sunPos = remember(catalogJd) { SunEngine.calculatePosition(catalogJd) }
     val sunEquatorial = CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg)
-    val sunHoriz = remember(sunPos, lastDeg, uiState.userLocation) {
-        CoordinateEngine.equatorialToHorizontal(sunEquatorial, lastDeg, uiState.userLocation.latitude)
+    val sunHoriz = remember(sunPos, catalogLastDeg, uiState.userLocation) {
+        CoordinateEngine.equatorialToHorizontal(sunEquatorial, catalogLastDeg, uiState.userLocation.latitude)
     }
 
-    // Moon data
-    val moonData = remember(jd, uiState.userLocation) {
-        MoonEngine.calculateMoon(jd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+    // Moon data — expensive: ELP2000 plus an iterative MoonTimes rise/set solve.
+    val moonJd = remember(moonKeyMs) { TimeEngine.getJulianDate(moonKeyMs) }
+    val moonData = remember(moonJd, uiState.userLocation) {
+        MoonEngine.calculateMoon(moonJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
     }
 
-    val allObjects = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
-
-    val sortedObjectsWithObs = remember(allObjects, lastDeg, sunHoriz, moonData, uiState.userLocation, uiState.bortleClass) {
+    val sortedObjectsWithObs = remember(allObjects, catalogLastDeg, sunHoriz, moonData, uiState.userLocation, uiState.bortleClass) {
         allObjects
             .filter { it.id != "planet_earth" && it.id != "sat_iss" && it.type != ObjectType.SATELLITE }
             .map { obj ->
@@ -109,7 +183,7 @@ fun HomeScreen(
                     CoordinateEngine.geocentricToTopocentric(
                         geocentric = CoordinateEngine.Equatorial(moonData.raDeg, moonData.decDeg),
                         geocentricDistanceKm = moonData.distanceKm,
-                        lastDeg = lastDeg,
+                        lastDeg = catalogLastDeg,
                         latitudeDeg = uiState.userLocation.latitude,
                         elevationM = uiState.userLocation.elevationMeters
                     )
@@ -118,7 +192,7 @@ fun HomeScreen(
                 }
                 val horiz = CoordinateEngine.equatorialToHorizontal(
                     eq,
-                    lastDeg,
+                    catalogLastDeg,
                     uiState.userLocation.latitude,
                     uiState.userLocation.elevationMeters
                 )
@@ -140,7 +214,12 @@ fun HomeScreen(
     // The Moon card and the Moon window scrub through one shared day offset owned by the ViewModel, so
     // dragging either one moves both. Leaving Home resets it, exactly as the Moon screen used to reset
     // when you navigated away from it.
-    val moonCardJd = jd + uiState.moonDayOffset
+    // Bucketed so an idle tick never re-solves MoonTimes, while a user scrub still
+    // moves the card as soon as the offset crosses a bucket boundary.
+    val moonCardJd = TimeEngine.getJulianDate(
+        bucketMs(activeTimeMs, isSimulation, MOON_REFRESH_MS) +
+            (uiState.moonDayOffset.toDouble() * 86_400_000.0).toLong()
+    )
     val moonCardData = remember(moonCardJd, uiState.userLocation) {
         MoonEngine.calculateMoon(moonCardJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
     }
@@ -168,13 +247,19 @@ fun HomeScreen(
     BackHandler(enabled = isSearchOpen) { closeSkySearch() }
     var selectedEclipseResult by remember { mutableStateOf<EclipseEngine.EclipseResult?>(null) }
 
+    // The eclipse search samples ~421 solar + ~121 lunar ephemeris evaluations per
+    // call, synchronously during composition. It is keyed on eclipseKeyMs so it runs
+    // at most once per ECLIPSE_REFRESH_MS rather than once per tick.
+    // NOTE: WhatsUpTonightEngine below performs a second, identical search. Removing
+    // that duplicate needs an API change to pass the result in, so it is left as-is
+    // here and recorded as follow-up work.
     val (solarEclipse, lunarEclipse) = remember(
         uiState.userLocation,
-        activeTimeMs,
+        eclipseKeyMs,
         uiState.calendarSystem
     ) {
         EclipseEngine.getNextEclipses(
-            nowMs = activeTimeMs,
+            nowMs = eclipseKeyMs,
             userLatDeg = uiState.userLocation.latitude,
             userLonDeg = uiState.userLocation.longitude,
             elevationM = uiState.userLocation.elevationMeters,
@@ -400,9 +485,9 @@ fun HomeScreen(
 
             // 2. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
             item {
-                val tonightEvents = remember(uiState.userLocation, jd, isFa) {
+                val tonightEvents = remember(uiState.userLocation, catalogJd, isFa) {
                     WhatsUpTonightEngine.calculateTonightEvents(
-                        jd = jd,
+                        jd = catalogJd,
                         userLatDeg = uiState.userLocation.latitude,
                         userLonDeg = uiState.userLocation.longitude,
                         isFa = isFa
@@ -703,7 +788,7 @@ private fun SkySearchOverlay(
                     } else {
                         Column(modifier = Modifier.padding(top = RedSpacing.xs)) {
                             displayedPredictiveItems.forEachIndexed { idx, (obj, horiz, obs) ->
-                                val riseSetStr = remember(obj, moonData, uiState.userLocation, jd, isFa) {
+                                val riseSetStr = remember(obj, moonData, uiState.userLocation, catalogJd, isFa) {
                                     if (obj.id == "moon") {
                                         val tz = TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
                                         val rStr = TimeEngine.formatTime24h(moonData.moonriseTimeMs ?: 0L, isFa, tz)
@@ -715,8 +800,10 @@ private fun SkySearchOverlay(
                                             decDeg = obj.decDeg,
                                             latDeg = uiState.userLocation.latitude,
                                             lonDeg = uiState.userLocation.longitude,
-                                            jd = jd,
-                                            isFa = isFa
+                                            jd = catalogJd,
+                                            isFa = isFa,
+                                            timezoneId = uiState.userLocation.timezoneId,
+                                            horizonAltDeg = CoordinateEngineLegacy.horizonAltDegFor(obj.id)
                                         )
                                         if (isFa) "طلوع: ${rst.riseTimeStr} | غروب: ${rst.setTimeStr}" else "Rise: ${rst.riseTimeStr} | Set: ${rst.setTimeStr}"
                                     }

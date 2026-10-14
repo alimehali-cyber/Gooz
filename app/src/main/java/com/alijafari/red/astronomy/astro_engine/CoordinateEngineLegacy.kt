@@ -275,18 +275,93 @@ object CoordinateEngineLegacy {
         val neverRises: Boolean = false
     )
 
+    /**
+     * Standard horizon altitudes (degrees) at which the event is declared, per object class.
+     * These are the conventional values used by HMNAO/USNO and Meeus (ch. 15).
+     *
+     * - Stars, planets, deep-sky objects: −0.5667° = atmospheric refraction alone
+     *   (≈34′). There is no appreciable disc, so the centre crossing that altitude is
+     *   the event.
+     * - The Sun: −0.833° = −(0.5667° refraction + 0.2667° semidiameter), i.e. the
+     *   instant the **upper limb** appears on the horizon, which is what "sunrise"
+     *   means in every published almanac.
+     * - The Moon: +0.125° = Meeus' h₀ = 0.7275·π − 0.5667° with the mean horizontal
+     *   parallax π ≈ 0.9507°. The Moon's parallax makes the correction positive and
+     *   larger than the disc correction. A rigorous value recomputes π per date; the
+     *   mean value is the usual constant approximation. Quantified: the true π ranges
+     *   0.8945°–1.0183°, i.e. h₀ from 0.084° to 0.174°, so pinning h₀ at 0.125° moves
+     *   Moon rise/set by −20 s to +24 s depending on date and observer latitude. That
+     *   is well below the one-minute resolution these functions return, but it is not
+     *   zero, and it is the largest single modelling error in this solver.
+     */
+    const val STAR_HORIZON_ALT_DEG = -0.5667
+    const val SUN_HORIZON_ALT_DEG = -0.833
+    const val MOON_HORIZON_ALT_DEG = 0.125
+
+    /**
+     * Picks the conventional [horizonAltDeg] for a catalog object id.
+     * Anything that is not the Sun or the Moon is treated as a point source.
+     */
+    fun horizonAltDegFor(objectId: String?): Double = when (objectId) {
+        "sun" -> SUN_HORIZON_ALT_DEG
+        "moon" -> MOON_HORIZON_ALT_DEG
+        else -> STAR_HORIZON_ALT_DEG
+    }
+
+    /**
+     * Geometric rise / transit / set for the observer's meridian on the day containing [jd].
+     *
+     * Solved analytically from
+     *     cos H₀ = (sin h₀ − sin φ sin δ) / (cos φ cos δ)
+     * so it is O(1) — no sampling, and no refraction is applied to any altitude here.
+     * [horizonAltDeg] already carries the refraction/semidiameter correction, which is
+     * why the comparison is against a GEOMETRIC altitude.
+     *
+     * @param timezoneId IANA id used both to place "start of day" and to render the
+     *                   returned wall-clock strings. Null/blank falls back to
+     *                   Asia/Tehran, which is what every caller used to be pinned to.
+     *                   Callers that know the observer's timezone MUST pass it: without
+     *                   it a user outside Iran is shown Tehran wall-clock times.
+     * @param horizonAltDeg altitude h₀ at which the event is declared, in degrees.
+     *                      Defaults to the point-source value; pass
+     *                      [SUN_HORIZON_ALT_DEG] or [MOON_HORIZON_ALT_DEG] as appropriate.
+     *
+     * KNOWN EDGE CASES — documented rather than fixed, because each is long-standing
+     * behaviour and changing it would move results that are already published to users.
+     *
+     * 1. DST SPRING-FORWARD AT MIDNIGHT. "Start of day" is produced by zeroing the
+     *    calendar fields in [timeZone]. In the few zones that transition at exactly
+     *    midnight — America/Havana, America/Santiago and Asia/Beirut were all confirmed
+     *    to do so — local midnight does not exist on that date and the calendar
+     *    resolves leniently to 01:00. The event window is then 23 h long and starts at
+     *    01:00, so an event falling between 00:00 and 01:00 local is attributed to the
+     *    preceding day. Nothing crashes; this affects one day per year in a handful of
+     *    zones.
+     *
+     * 2. NO PRECESSION. [raDeg]/[decDeg] are compared directly against the local
+     *    APPARENT sidereal time, so they are treated as coordinates already expressed
+     *    for the date of [jd]; no precession from a catalog epoch is applied. A J2000
+     *    position used for 2026 is therefore off by about +0.33° in RA (≈1.3 min of
+     *    time) and +0.15° in Dec, and the offset grows with the epoch difference.
+     *    Callers that hold fixed-epoch catalog coordinates must precess them first.
+     *    The fixtures in RiseSetTransitTest are stated in the date's own frame, so they
+     *    are unaffected.
+     */
     fun calculateRiseSetTransit(
         raDeg: Double,
         decDeg: Double,
         latDeg: Double,
         lonDeg: Double,
         jd: Double = TimeEngine.getJulianDate(),
-        isFa: Boolean = true
+        isFa: Boolean = true,
+        timezoneId: String? = null,
+        horizonAltDeg: Double = STAR_HORIZON_ALT_DEG
     ): RiseSetTransit {
+        val timeZone = TimeEngine.resolveTimeZone(timezoneId)
         val latRad = Math.toRadians(latDeg)
         val decRad = Math.toRadians(decDeg)
 
-        val h0Rad = Math.toRadians(-0.5667)
+        val h0Rad = Math.toRadians(horizonAltDeg)
         val cosH0 = (sin(h0Rad) - sin(latRad) * sin(decRad)) / (cos(latRad) * cos(decRad)).coerceAtLeast(1e-6)
 
         if (cosH0 > 1.0) {
@@ -309,7 +384,7 @@ object CoordinateEngineLegacy {
 
         val ha0Deg = Math.toDegrees(acos(cosH0))
 
-        val baseCal = java.util.Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
+        val baseCal = java.util.Calendar.getInstance(timeZone).apply {
             timeInMillis = TimeEngine.getTimestampFromJulianDate(jd)
             set(java.util.Calendar.HOUR_OF_DAY, 0)
             set(java.util.Calendar.MINUTE, 0)
@@ -331,9 +406,9 @@ object CoordinateEngineLegacy {
         val riseMs = startOfDayMs + (riseHoursFrom0h * 3600000.0).toLong()
         val setMs = startOfDayMs + (setHoursFrom0h * 3600000.0).toLong()
 
-        val riseStr = TimeEngine.formatTime24h(riseMs, isFa)
-        val transitStr = TimeEngine.formatTime24h(transitMs, isFa)
-        val setStr = TimeEngine.formatTime24h(setMs, isFa)
+        val riseStr = TimeEngine.formatTime24h(riseMs, isFa, timeZone)
+        val transitStr = TimeEngine.formatTime24h(transitMs, isFa, timeZone)
+        val setStr = TimeEngine.formatTime24h(setMs, isFa, timeZone)
 
         return RiseSetTransit(
             riseTimeStr = riseStr,

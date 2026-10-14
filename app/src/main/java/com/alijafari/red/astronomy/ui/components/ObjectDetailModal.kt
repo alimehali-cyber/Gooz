@@ -37,6 +37,7 @@ import com.alijafari.red.astronomy.ui.*
 import com.alijafari.red.astronomy.ui.theme.*
 import java.util.Locale
 import kotlin.math.tan
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 
 private fun isDetailDeepSky(type: ObjectType): Boolean {
     return type == ObjectType.DEEP_SKY ||
@@ -236,14 +237,16 @@ fun ObjectDetailModal(
         formatComputedLinearSize(celestialObj.distanceLightYears, celestialObj.angularSizeArcmin, isFa)
     }
 
-    val riseSetTransit = remember(dynamicRa, dynamicDec, uiState.userLocation, jd, isFa) {
+    val riseSetTransit = remember(dynamicRa, dynamicDec, uiState.userLocation, jd, isFa, celestialObj.id) {
         CoordinateEngine.calculateRiseSetTransit(
             raDeg = dynamicRa,
             decDeg = dynamicDec,
             latDeg = uiState.userLocation.latitude,
             lonDeg = uiState.userLocation.longitude,
             jd = jd,
-            isFa = isFa
+            isFa = isFa,
+            timezoneId = uiState.userLocation.timezoneId,
+            horizonAltDeg = CoordinateEngineLegacy.horizonAltDegFor(celestialObj.id)
         )
     }
 

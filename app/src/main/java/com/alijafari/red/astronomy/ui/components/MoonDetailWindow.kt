@@ -64,6 +64,12 @@ fun MoonDetailWindow(
     val isFa = uiState.language == AppLanguage.PERSIAN
     val dayOffsetInt = uiState.moonDayOffset.roundToInt()
 
+    // Rise/set are wall-clock values, so they must be rendered in the OBSERVER's own
+    // timezone. Falling through to TimeEngine.formatTime24h's default would pin every
+    // user — in Berlin, London or New York — to Asia/Tehran, the exact defect the
+    // timezoneId parameter was introduced to remove.
+    val tz = TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
+
     val baseJd = remember(baseTimeMs) { TimeEngine.getJulianDate(baseTimeMs) }
     val currentJd = baseJd + uiState.moonDayOffset.toDouble()
 
@@ -299,8 +305,8 @@ fun MoonDetailWindow(
                             subtitle = if (isFa) "طلوع، غروب، فاصله و مشخصات فیزیکی" else "Rise, set, distance & physical ephemeris"
                         )
 
-                        val riseStr = moonData.moonriseTimeMs?.let { TimeEngine.formatTime24h(it, isFa) } ?: "--:--"
-                        val setStr = moonData.moonsetTimeMs?.let { TimeEngine.formatTime24h(it, isFa) } ?: "--:--"
+                        val riseStr = moonData.moonriseTimeMs?.let { TimeEngine.formatTime24h(it, isFa, tz) } ?: "--:--"
+                        val setStr = moonData.moonsetTimeMs?.let { TimeEngine.formatTime24h(it, isFa, tz) } ?: "--:--"
                         val distStr = String.format("%,d", moonData.distanceKm.toInt()).let {
                             if (isFa) "$it کیلومتر".toPersianDigits() else "$it km"
                         }
