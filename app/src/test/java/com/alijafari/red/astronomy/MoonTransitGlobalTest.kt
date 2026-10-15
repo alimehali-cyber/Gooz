@@ -62,7 +62,7 @@ class MoonTransitGlobalTest {
             MoonTransitCity("Sao Paulo", -23.5505, -46.6333, 760.0, "America/Sao_Paulo", 1802371912982L)
         )
 
-        const val REFERENCE_TOLERANCE_MS = 2000L
+        const val REFERENCE_TOLERANCE_MS = 250L
 
         fun localMidnightMs(year: Int, month: Int, day: Int, timezoneId: String): Long {
             val tz = TimeZone.getTimeZone(timezoneId)
