@@ -1,6 +1,5 @@
 package com.alijafari.red.astronomy.astro_engine
 
-import java.util.Calendar
 import kotlin.math.*
 
 /**
@@ -29,13 +28,6 @@ object SunEngine {
         val isDaylight: Boolean
     )
 
-    data class SunEvents(
-        val sunsetMs: Long?,
-        val sunriseMs: Long?,
-        val astronomicalDuskMs: Long?, // Peak dark start
-        val astronomicalDawnMs: Long?  // Peak dark end
-    )
-
     fun calculateSun(astroTime: AstroTime): SunPosition {
         val solar = lunarSolar.calculateSun(astroTime)
         return SunPosition(
@@ -50,46 +42,6 @@ object SunEngine {
     fun calculatePosition(jd: Double): SunPosition {
         val astroTime = AstroTime.fromJd(jd)
         return calculateSun(astroTime)
-    }
-
-    /**
-     * Calculates Sun events for observer's location starting from today's noon.
-     */
-    fun calculateSunEvents(
-        userLatDeg: Double,
-        userLonDeg: Double,
-        nowMs: Long = System.currentTimeMillis()
-    ): SunEvents {
-        val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
-            timeInMillis = nowMs
-            set(Calendar.HOUR_OF_DAY, 12)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val noonMs = cal.timeInMillis
-
-        var sunsetMs: Long? = null
-        var astroDuskMs: Long? = null
-        var astroDawnMs: Long? = null
-        var sunriseMs: Long? = null
-
-        val stepMs = 2 * 60 * 1000L // 2-min resolution
-        var prevAlt = getSunAltitude(noonMs, userLatDeg, userLonDeg)
-
-        for (i in 1..(24 * 30)) {
-            val t = noonMs + i * stepMs
-            val alt = getSunAltitude(t, userLatDeg, userLonDeg)
-
-            if (prevAlt > 0.0 && alt <= 0.0 && sunsetMs == null) sunsetMs = t
-            if (prevAlt > -18.0 && alt <= -18.0 && astroDuskMs == null) astroDuskMs = t
-            if (prevAlt <= -18.0 && alt > -18.0 && astroDawnMs == null) astroDawnMs = t
-            if (prevAlt <= 0.0 && alt > 0.0 && sunriseMs == null) sunriseMs = t
-
-            prevAlt = alt
-        }
-
-        return SunEvents(sunsetMs, sunriseMs, astroDuskMs, astroDawnMs)
     }
 
     fun getSunAltitude(timestampMs: Long, userLatDeg: Double, userLonDeg: Double): Double {

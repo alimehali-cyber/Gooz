@@ -405,7 +405,7 @@ fun MoonDetailWindow(
                         val libLatStr = String.format("%+.1f°", moonData.librationLatDeg).let {
                             if (isFa) it.toPersianDigits() else it
                         }
-                        val earthshineStr = String.format("%.0f%%", moonData.earthshinePercent * 100.0).let {
+                        val earthshineStr = String.format("%.0f%%", moonData.earthshineFraction * 100.0).let {
                             if (isFa) it.toPersianDigits() else it
                         }
 

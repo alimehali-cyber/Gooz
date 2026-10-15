@@ -183,9 +183,13 @@ class SGP4Propagator {
         var xmp = xmdf
         val tsq = tsince * tsince
         val xnode = xnoddf + xnodcf * tsq
-        var tempa = 1.0 - c1 * tsince - d2 * tsq - d3 * (tsq * tsince) - d4 * (tsq * tsq)
+        // Drag is applied ONLY in the isimp != 1 branch below, exactly as in the
+        // reference. Applying d2/d3/d4 and t3cof/t4cof/t5cof here as well would
+        // count them twice (and would also leak them into the isimp == 1 path,
+        // perigee < 220 km, where the reference never applies them).
+        var tempa = 1.0 - c1 * tsince
         var tempe = bstar * c4 * tsince
-        var templ = t2cof * tsq + t3cof * (tsq * tsince) + (tsq * tsq) * (t4cof + tsince * t5cof)
+        var templ = t2cof * tsq
 
         if (isimp != 1) {
             val delomg = omgcof * tsince
@@ -211,9 +215,16 @@ class SGP4Propagator {
         // Long period terms (Lyddane)
         val axn = e * cos(omega)
         val tempPl = 1.0 / (a * beta * beta)
-        val xll = tempPl * XJ3 * sinI0 * 0.5 / CK2
-        val ayn = e * sin(omega) + tempPl * XJ3 * sinI0 * 0.5 / CK2
-        val xlt = xl + xll * axn
+        // J3 long-period coefficients. Published SGP4 (Vallado/CelesTrak,
+        // AIAA 2006-6753): a3ovk2 = -J3 / CK2 in Earth-radii units (AE = 1).
+        val a3ovk2 = -XJ3 / CK2
+        val onePlusCosI0 = 1.0 + cosI0
+        val xlCoeff = 0.125 * a3ovk2 * sinI0 * (3.0 + 5.0 * cosI0) /
+                (if (abs(onePlusCosI0) > 1.5e-12) onePlusCosI0 else 1.5e-12)
+        val ayCoeff = 0.25 * a3ovk2 * sinI0
+        val xll = tempPl * xlCoeff * axn
+        val ayn = e * sin(omega) + tempPl * ayCoeff
+        val xlt = xl + xll
         val el2 = axn * axn + ayn * ayn
 
         // Solve Kepler's equation for (E + omega)

@@ -40,7 +40,7 @@ object MoonEngine {
         val librationLonDeg: Double = 0.0,
         val librationLatDeg: Double = 0.0,
         val brightLimbAngleDeg: Double = 0.0,
-        val earthshinePercent: Double = 0.0,
+        val earthshineFraction: Double = 0.0,
         val angularDiameterArcmin: Double = 31.0,
         val moonriseTimeMs: Long? = null,
         val moonsetTimeMs: Long? = null,
@@ -172,10 +172,12 @@ object MoonEngine {
         var brightLimbAngleDeg = atan2(numChi, denChi) * RAD2DEG
         if (brightLimbAngleDeg < 0) brightLimbAngleDeg += 360.0
 
-        // Earthshine intensity calculation
-        val earthshinePercent = if (illuminationPercent in 1.0..35.0) {
-            (1.0 - (illuminationPercent / 35.0)) * 85.0
-        } else 0.0
+        // Earthshine: sunlight reflected by Earth onto the Moon's night side. Its
+        // brightness tracks Earth's illuminated fraction as seen from the Moon,
+        // which is (1 - k) where k is the Moon's illuminated fraction as seen from
+        // here — so it is brightest at new moon and zero at full moon. Stored as
+        // a FRACTION 0..1; MoonDetailWindow multiplies by 100 for display.
+        val earthshineFraction = (1.0 - illuminatedFraction).coerceIn(0.0, 1.0)
 
         // Topocentric angular diameter (arcminutes)
         val angularDiameterArcmin = 2.0 * asin(1737.4 / distanceKm) * RAD2DEG * 60.0
@@ -221,7 +223,7 @@ object MoonEngine {
             librationLonDeg = librationLonDeg,
             librationLatDeg = librationLatDeg,
             brightLimbAngleDeg = brightLimbAngleDeg,
-            earthshinePercent = earthshinePercent,
+            earthshineFraction = earthshineFraction,
             angularDiameterArcmin = angularDiameterArcmin,
             moonriseTimeMs = riseMs,
             moonsetTimeMs = setMs,
