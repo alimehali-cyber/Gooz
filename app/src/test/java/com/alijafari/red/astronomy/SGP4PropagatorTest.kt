@@ -160,7 +160,16 @@ class SGP4PropagatorTest {
         assertTrue("Should detect orbital passes over 5 days", allPasses.isNotEmpty())
 
         for (pass in allPasses) {
-            assertTrue("Max elevation must be >= 10 deg", pass.maxElevationDeg >= 10.0)
+            // The predictor's contract is the peak filter in ISSEngine.kt:401, which keeps
+            // candidates at 9.5 deg or above (plus an 8.0 deg visibility floor and 20 s of
+            // continuous visibility, :457). This assertion used to demand 10.0 deg, which no
+            // longer held once the propagator was corrected: this scan now yields passes
+            // peaking in the 9.7-9.9 deg band, and they are legitimately kept. Assert the
+            // contract the code enforces, not a stricter number that was never the contract.
+            assertTrue(
+                "Max elevation must be >= 9.5 deg (ISSEngine.kt:401 peak filter), was ${pass.maxElevationDeg}",
+                pass.maxElevationDeg >= 9.5
+            )
             assertTrue("End time must be greater than start time", pass.endTimeMs > pass.startTimeMs)
             assertTrue("Pass duration should be between 30 and 900 seconds", pass.passDurationSec in 30..900)
 
@@ -213,7 +222,7 @@ class SGP4PropagatorTest {
             epochVelKmS = listOf(1.615408770, -4.468874211, 6.008267203),
             dayPosKm = listOf(6559.241439, 1786.571168, -27.755944),
             dayVelKmS = listOf(-1.262486494, 4.581331172, -6.008443490),
-            dayToleranceKm = 0.45 // measured residual 0.357 km
+            dayToleranceKm = 0.06 // measured residual 0.0275 km (2.2x margin)
         ),
         Sgp4Reference(
             name = "Tiangong 48274",
@@ -223,7 +232,7 @@ class SGP4PropagatorTest {
             epochVelKmS = listOf(-2.883301384, -4.978096666, 5.087958530),
             dayPosKm = listOf(5909.962285, 288.932826, -3280.705088),
             dayVelKmS = listOf(-2.233731909, 6.474591400, -3.463695028),
-            dayToleranceKm = 0.85 // measured residual 0.659 km
+            dayToleranceKm = 0.26 // measured residual 0.1288 km (2.0x margin)
         ),
         Sgp4Reference(
             name = "Hubble 20580",
@@ -233,7 +242,7 @@ class SGP4PropagatorTest {
             epochVelKmS = listOf(5.115218814, 4.288453113, 3.622228115),
             dayPosKm = listOf(6247.435350, -1926.902121, 2251.959219),
             dayVelKmS = listOf(1.207739714, 7.018298973, 2.643253238),
-            dayToleranceKm = 1.75 // measured residual 1.376 km
+            dayToleranceKm = 0.02 // measured residual 0.0068 km (2.9x margin)
         ),
         Sgp4Reference(
             name = "Envisat 27386",
@@ -243,7 +252,7 @@ class SGP4PropagatorTest {
             epochVelKmS = listOf(1.093270620, -0.183989381, 7.387413529),
             dayPosKm = listOf(-20.110951, -5009.087554, 5086.246538),
             dayVelKmS = listOf(-1.602493362, -5.203903285, -5.118417954),
-            dayToleranceKm = 0.07 // measured residual 0.050 km
+            dayToleranceKm = 0.01 // measured residual 0.0002 km (47x margin)
         )
     )
 
@@ -300,16 +309,16 @@ class SGP4PropagatorTest {
     }
 
     /**
-     * One day out. TOLERANCES ARE THE MEASURED RESIDUALS PLUS MARGIN, NOT 20 m.
+     * One day out. TOLERANCES ARE THE MEASURED RESIDUALS TIMES TWO, NOT 20 m.
      *
      * 20 m is not reachable at +1440 min without correcting SGP4 *initialisation* terms
-     * that are outside the scope of this change. The residual is dominated by the RAAN
-     * secular-rate coefficient at SGP4Propagator.kt:161, which uses 0.125 where the
-     * reference uses 0.5. Measured: 0.357 / 0.659 / 1.376 / 0.050 km for
-     * ISS / Tiangong / Hubble / Envisat, falling to 0.028 / 0.129 / 0.007 / 0.0002 km if
-     * that single coefficient is corrected, with further small contributions from `c2`,
-     * `c3`, `d4`, `t4cof` and `t5cof`. Do NOT raise these ceilings to silence a
-     * regression: a failure means the propagator changed.
+     * that are outside the scope of this change. Until 2026-10-15 the dominant term was
+     * the RAAN secular-rate coefficient at SGP4Propagator.kt:161, which used 0.125 where
+     * the reference uses 0.5; with just that coefficient corrected the +1440 min residuals
+     * went 0.357 / 0.659 / 1.376 / 0.050 km -> 0.0275 / 0.1288 / 0.0068 / 0.0002 km for
+     * ISS / Tiangong / Hubble / Envisat, and the ceilings below were tightened to match.
+     * Do NOT raise these ceilings to silence a regression: a failure means the propagator
+     * changed.
      */
     @Test
     fun `propagator matches the official SGP4 reference vectors one day out`() {

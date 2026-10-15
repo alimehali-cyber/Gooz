@@ -240,16 +240,26 @@ fun ObjectDetailModal(
     // Rise / transit / set.
     //
     // Stars, planets, deep-sky objects and the Sun keep the analytic solver unchanged.
-    // The MOON must not: that solver holds one fixed RA/Dec for the whole day, and the
-    // Moon moves about 13°/day, which makes its rise/set 20–55 minutes wrong (measured,
-    // Tehran: −20/−53 min on 2026-06-15, −34/−37 min on 2026-10-15). Its horizon
-    // constant is also the geocentric one (+0.125°), applied here to coordinates that
-    // already have parallax removed — worth a further ±4 min.
     //
-    // moonData above already carries proper iterative rise/set times from
-    // commons-suncalc (MoonTimes), and that is exactly what the home card shows, so
-    // using them here is what makes the two screens agree. If suncalc has no event for
-    // the day (polar day/night), fall back to the analytic string.
+    // The MOON must not. That solver holds one fixed RA/Dec for the whole day and the Moon
+    // moves about 13°/day, which makes its rise/set wrong by the following amounts (Tehran,
+    // 35.69N 51.39E, 1200 m; the analytic solver fed the Moon's topocentric RA/Dec sampled at
+    // local midnight and h0 = +0.125°, compared with the iterative topocentric solve with
+    // refraction that the suncalc path performs — PyEphem 4.2.1 as the proxy, since
+    // commons-suncalc is a JVM library):
+    //
+    //     2026-06-15   rise +9 min    set +61 min
+    //     2026-10-15   rise +27 min   set +45 min
+    //
+    // Its horizon constant is also the geocentric one (+0.125°), applied here to coordinates
+    // that already have parallax removed — worth a further ±4 minutes. Like the transit below,
+    // the displayed value also drifts with the moment the panel is opened (same mechanism).
+    //
+    // moonData above already carries proper iterative rise/set times from commons-suncalc
+    // (MoonTimes), and that is exactly what the home card shows, so using them here is what
+    // makes the two screens agree. If suncalc has no event for the day (polar day/night),
+    // fall back to the analytic string. Transit needs its own solver — see
+    // CoordinateEngineLegacy.calculateMoonTransitTimeMs for why and for the measured drift.
     val riseSetTransit = remember(dynamicRa, dynamicDec, uiState.userLocation, jd, isFa, celestialObj.id, moonData) {
         val analytic = CoordinateEngine.calculateRiseSetTransit(
             raDeg = dynamicRa,
@@ -264,14 +274,28 @@ fun ObjectDetailModal(
         if (celestialObj.id != "moon") {
             analytic
         } else {
-            // Transit stays on the analytic path: the Moon's transit is a meridian
-            // crossing, which the frozen-position solver gets to within a minute or two.
             val tz = TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
             analytic.copy(
                 riseTimeStr = moonData.moonriseTimeMs
                     ?.let { TimeEngine.formatTime24h(it, isFa, tz) } ?: analytic.riseTimeStr,
                 setTimeStr = moonData.moonsetTimeMs
-                    ?.let { TimeEngine.formatTime24h(it, isFa, tz) } ?: analytic.setTimeStr
+                    ?.let { TimeEngine.formatTime24h(it, isFa, tz) } ?: analytic.setTimeStr,
+                transitTimeStr = TimeEngine.formatTime24h(
+                    CoordinateEngineLegacy.calculateMoonTransitTimeMs(
+                        nowMs = timestampMs,
+                        longitudeDeg = uiState.userLocation.longitude,
+                        timezoneId = uiState.userLocation.timezoneId
+                    ) { guessJd ->
+                        MoonEngine.topocentricRaDeg(
+                            jd = guessJd,
+                            latitude = uiState.userLocation.latitude,
+                            longitude = uiState.userLocation.longitude,
+                            elevationM = uiState.userLocation.elevationMeters
+                        )
+                    },
+                    isFa,
+                    tz
+                )
             )
         }
     }

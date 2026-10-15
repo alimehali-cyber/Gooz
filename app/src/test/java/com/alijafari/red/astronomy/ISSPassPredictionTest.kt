@@ -147,6 +147,10 @@ class ISSPassPredictionTest {
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).apply {
             timeZone = iranTz
         }
+        fun iranMs(hour: Int, minute: Int): Long = Calendar.getInstance(iranTz).apply {
+            set(2026, Calendar.AUGUST, 21, hour, minute, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
 
         println("=== ALL NURABAD GEOMETRIC PASSES (Count: ${allPasses.size}) ===")
         for (p in allPasses) {
@@ -169,10 +173,64 @@ class ISSPassPredictionTest {
             println("Visible Pass: Start=${sdf.format(java.util.Date(p.startTimeMs))}, Peak=${sdf.format(java.util.Date(p.maxTimeMs))}, End=${sdf.format(java.util.Date(p.endTimeMs))}, MaxElev=${String.format(Locale.US, "%.1f", p.maxElevationDeg)}°, Class=${p.classification.name}")
         }
 
-        val aug21Pass = visiblePasses.find {
-            val d = sdf.format(java.util.Date(it.maxTimeMs))
-            d.startsWith("2026-08-21 04:09")
+        // The 2026-08-21 ~04:09 Iran flyover above Nurabad is real, but it is a 9.32 deg
+        // graze, and the predictor's peak filter (ISSEngine.kt:401, "flyovers below 9.5 deg
+        // are filtered out") must reject it. This assertion used to require the opposite --
+        // that the pass be listed as visible -- which only held while the propagator was
+        // wrong. Independent references for the same geometry, same instants:
+        //
+        //   python-sgp4 2.25, WGS-72 (the AIAA 2006-6753 reference implementation): 9.3170 deg
+        //   official AIAA 2006-6753 C++ (run from this repo's own kernels, WGS-72):  9.3168 deg
+        //   Skyfield 1.55 / ERFA, same topocentric reduction as ISSEngine:            9.317 deg
+        //
+        // The app now computes 9.317 deg; before the fix it computed 9.320 deg. The pass sits
+        // 0.18 deg under the cut either way, so the filter is what decides it, not the fix --
+        // which is why the fix must not be allowed to change the outcome, and why the test has
+        // to track the filter rather than demand a pass the physics does not support.
+        val windowStartMs = iranMs(4, 0)
+        val windowEndMs = iranMs(4, 20)
+        val inWindow = { ms: Long -> ms in windowStartMs..windowEndMs }
+
+        assertTrue(
+            "The 04:09 Iran pass peaks at 9.32 deg and must not survive the 9.5 deg filter; " +
+                "geometric list still contains " +
+                allPasses.filter { inWindow(it.maxTimeMs) }.map { sdf.format(java.util.Date(it.maxTimeMs)) },
+            allPasses.none { inWindow(it.maxTimeMs) }
+        )
+        assertTrue(
+            "The filtered-out pass must not appear among visible passes either",
+            visiblePasses.none { inWindow(it.maxTimeMs) }
+        )
+
+        // Measure the peak directly from the topocentric solver, so this test fails loudly if
+        // the propagator ever drifts away from the reference instead of quietly listing a pass.
+        var peakElevDeg = -90.0
+        var peakMs = windowStartMs
+        var t = windowStartMs
+        while (t <= windowEndMs) {
+            val elev = ISSEngine.calculateTopocentricPos(t, nurabadLat, nurabadLon, 940.0, liveTle).elevationDeg
+            if (elev > peakElevDeg) {
+                peakElevDeg = elev
+                peakMs = t
+            }
+            t += 250L
         }
-        assertNotNull("Must detect the visible pass on Aug 21 around 04:09 Iran time", aug21Pass)
+        println(
+            "Independent geometric peak: ${sdf.format(java.util.Date(peakMs))} Iran, " +
+                "${String.format(Locale.US, "%.4f", peakElevDeg)} deg (reference 9.3168 / 9.3170)"
+        )
+
+        assertEquals(
+            "Nurabad 04:09 peak elevation must be 9.32 deg +/- 0.05 (references 9.3168-9.3170); was $peakElevDeg",
+            9.32, peakElevDeg, 0.05
+        )
+        assertTrue(
+            "Peak must sit just under the 9.5 deg filter at ISSEngine.kt:401, was $peakElevDeg",
+            peakElevDeg < 9.5
+        )
+        assertTrue(
+            "Peak time must be 04:09 Iran, was ${sdf.format(java.util.Date(peakMs))}",
+            sdf.format(java.util.Date(peakMs)).startsWith("2026-08-21 04:0")
+        )
     }
 }

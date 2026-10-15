@@ -158,7 +158,7 @@ class SGP4Propagator {
         val xmdot = n0dp + 0.5 * temp1 * beta0 * x3thm1 + 0.0625 * temp2 * beta0 * (13.0 - 78.0 * theta2 + 137.0 * theta2 * theta2)
         val omgdot = -0.5 * temp1 * (1.0 - 5.0 * theta2) + 0.0625 * temp2 * (7.0 - 114.0 * theta2 + 395.0 * theta2 * theta2) +
                 temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta2 * theta2)
-        val xnodot = -temp1 * cosI0 + 0.125 * temp2 * (4.0 * cosI0 - 19.0 * cosI0 * theta2) +
+        val xnodot = -temp1 * cosI0 + 0.5 * temp2 * (4.0 * cosI0 - 19.0 * cosI0 * theta2) +
                 2.0 * temp3 * cosI0 * (3.0 - 7.0 * theta2)
 
         val d2 = 4.0 * a0dp * tsi * c1 * c1
@@ -212,7 +212,10 @@ class SGP4Propagator {
         val beta = sqrt(1.0 - e * e)
         val n = XKE / a.pow(1.5)
 
-        // Long period terms (Lyddane)
+        // Long-period periodics: the J3 pair that shifts the mean (xl, ay) before the Kepler
+        // solve. The label here used to read "(Lyddane)"; this block is not the Lyddane
+        // transformation, and that mislabel is part of why the two coefficients below stayed
+        // wrong. a3ovk2 = -J3/CK2 in Earth-radii units (AE = 1), per AIAA 2006-6753.
         val axn = e * cos(omega)
         val tempPl = 1.0 / (a * beta * beta)
         // J3 long-period coefficients. Published SGP4 (Vallado/CelesTrak,

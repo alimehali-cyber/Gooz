@@ -232,6 +232,31 @@ object MoonEngine {
     }
 
     /**
+     * Apparent topocentric right ascension of the Moon, in degrees, at a given instant.
+     *
+     * This is the same quantity [calculateMoon] publishes as [MoonData.raDeg] — the geocentric
+     * ELP2000 position reduced for the observer's parallax against the local sidereal time —
+     * but without the phase, libration, rise/set or NASA-frame work, so it is cheap enough to
+     * be evaluated several times per iteration of the Moon's meridian-transit fixed point in
+     * [CoordinateEngineLegacy.calculateMoonTransitTimeMs].
+     */
+    fun topocentricRaDeg(
+        jd: Double,
+        latitude: Double = 30.1141,
+        longitude: Double = 51.5217,
+        elevationM: Double = 0.0
+    ): Double {
+        val lunar = lunarSolar.calculateMoon(AstroTime.fromJd(jd))
+        return CoordinateEngine.geocentricToTopocentric(
+            geocentric = CoordinateEngine.Equatorial(lunar.raDeg, lunar.decDeg),
+            geocentricDistanceKm = lunar.distanceKm,
+            lastDeg = TimeEngine.getLAST(jd, longitude),
+            latitudeDeg = latitude,
+            elevationM = elevationM
+        ).raDeg
+    }
+
+    /**
      * Computes the precise upcoming timestamps for the four primary phases:
      * New Moon, First Quarter, Full Moon, and Last Quarter using Meeus Chapter 49.
      */
