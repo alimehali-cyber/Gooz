@@ -242,18 +242,26 @@ fun ObjectDetailModal(
     // Stars, planets, deep-sky objects and the Sun keep the analytic solver unchanged.
     //
     // The MOON must not. That solver holds one fixed RA/Dec for the whole day and the Moon
-    // moves about 13°/day, which makes its rise/set wrong by the following amounts (Tehran,
-    // 35.69N 51.39E, 1200 m; the analytic solver fed the Moon's topocentric RA/Dec sampled at
-    // local midnight and h0 = +0.125°, compared with the iterative topocentric solve with
-    // refraction that the suncalc path performs — PyEphem 4.2.1 as the proxy, since
-    // commons-suncalc is a JVM library):
+    // moves about 13°/day, which makes its rise/set wrong. Sign convention below: positive
+    // means the suncalc value shown here is that many minutes LATER than what the analytic
+    // solver computed. Tehran, 35.69N 51.39E, 1200 m, h0 = +0.125°, measured once against the
+    // iterative topocentric solve with refraction (PyEphem 4.2.1 next_rising/next_setting as
+    // the proxy for commons-suncalc's MoonTimes, which is a JVM library):
     //
-    //     2026-06-15   rise +9 min    set +61 min
-    //     2026-10-15   rise +27 min   set +45 min
+    //     2026-06-15   rise +9 min    set +61 min       (at local midnight)
+    //     2026-10-15   rise +27 min   set +45 min       (at local midnight)
+    //
+    // Only the "at midnight" numbers above are quoted, because the analytic solver anchors its
+    // hour angle on local midnight but samples the Moon's RA/Dec at the moment it is called —
+    // so its output moves with the clock. Sampling the same two dates at 00:30, 06:00, 12:00,
+    // 15:00, 18:00, 20:00 and 23:30 local spreads the difference over rise -58..+26 min and set
+    // -4..+61 min. That drift is why the numbers quoted in earlier reviews of this file (+14/+59
+    // and +28/+43) and in the code comment that used to be here (-20/-53 and -34/-37, opposite
+    // sign) did not agree: each was one moment of a moving quantity. Midnight is the moment
+    // this file states, and h0 is fixed at +0.125°, so the table above is reproducible.
     //
     // Its horizon constant is also the geocentric one (+0.125°), applied here to coordinates
-    // that already have parallax removed — worth a further ±4 minutes. Like the transit below,
-    // the displayed value also drifts with the moment the panel is opened (same mechanism).
+    // that already have parallax removed — worth a further ±4 minutes.
     //
     // moonData above already carries proper iterative rise/set times from commons-suncalc
     // (MoonTimes), and that is exactly what the home card shows, so using them here is what
