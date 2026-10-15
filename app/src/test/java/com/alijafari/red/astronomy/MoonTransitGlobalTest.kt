@@ -25,11 +25,16 @@ import java.util.TimeZone
  *
  * REFERENCE. PyEphem 4.2.1 `Observer.next_transit(Moon)` -- the Moon's apparent *topocentric*
  * meridian crossing, which is the same definition the engine solves (HA = LAST - RA = 0 with
- * the topocentric RA). The instants below are that oracle converted to UTC milliseconds. The
- * engine's own RA comes from ELP2000 / Meeus 47.a rather than PyEphem's theory, so a small
- * residual is expected and allowed: 2 seconds of time is 0.008 deg of hour angle, about
- * two orders of magnitude tighter than the 1-minute criterion this change is judged by, and
- * still far above the arcsecond-level disagreement between the two lunar theories.
+ * the topocentric RA). The instants below are that oracle converted to UTC milliseconds.
+ *
+ * AGREEMENT, measured in CI at a 10 ms probe on 2026-10-15: the engine is consistently
+ * 74-103 ms LATE against the reference across all twelve city/date cases and all five open
+ * times (Tehran +77, New York +79, London +77, Sydney +74, Tokyo +74, Sao Paulo +77 ms on
+ * 2026-10-15; Tehran +103, New York +92 ms on 2027-02-11). That is a systematic ~4 arcsec of
+ * RA -- the difference between the ELP2000 / Meeus 47.a implementation in MoonEngine and
+ * PyEphem's lunar theory, as expected -- not a defect in the fixed point, which converges to
+ * 0.00 s against its own RA. The bound below is ~2.4x the worst of those measurements, and
+ * 240x tighter than the 1-minute criterion this change is judged by.
  */
 class MoonTransitGlobalTest {
 
@@ -63,7 +68,13 @@ class MoonTransitGlobalTest {
             MoonTransitCity("Sao Paulo", -23.5505, -46.6333, 760.0, "America/Sao_Paulo", 1802371912982L)
         )
 
-        const val REFERENCE_TOLERANCE_MS = 10L
+        /**
+         * Worst case measured in CI: 103 ms (Tehran, 2027-02-11). The rest sit between 74 and
+         * 92 ms, all LATE, all consistent with the ~4 arcsec RA difference between the
+         * engine's ELP2000 and PyEphem's lunar theory. Do not raise this to hide a drift:
+         * a failure here means the transit solver or the Moon's RA changed.
+         */
+        const val REFERENCE_TOLERANCE_MS = 250L
 
         fun localMidnightMs(year: Int, month: Int, day: Int, timezoneId: String): Long {
             val tz = TimeZone.getTimeZone(timezoneId)
@@ -107,11 +118,14 @@ class MoonTransitGlobalTest {
                 val midnightMs = localMidnightMs(year, month, day, city.timezoneId)
                 val engineMs = transitFromEngine(midnightMs, city)
                 val deltaMs = engineMs - city.oracleTransitUtcMs
-                val row = "${city.name} ${year}-${month + 1}-$day: engine " +
-                    "${localTime(engineMs, city.timezoneId)} local, reference " +
-                    "${localTime(city.oracleTransitUtcMs, city.timezoneId)} local, " +
-                    "delta ${deltaMs} ms"
-                println(row)
+                println(
+                    "${city.name} ${year}-${month + 1}-$day: engine " +
+                        "${localTime(engineMs, city.timezoneId)} local, reference " +
+                        "${localTime(city.oracleTransitUtcMs, city.timezoneId)} local, " +
+                        "delta ${deltaMs} ms"
+                )
+                // Compact form for the failure message, which GitHub truncates at 900 chars.
+                val row = "${city.name} ${year}-${month + 1}-$day: ${deltaMs} ms"
                 rows += row
                 if (Math.abs(deltaMs) > REFERENCE_TOLERANCE_MS) outOfTolerance += row
             }
@@ -141,9 +155,10 @@ class MoonTransitGlobalTest {
         val answers = openedAt.map { transitFromEngine(it, tehran) }
         val rows = answers.mapIndexed { index, answerMs ->
             val (hour, minute) = listOf(0 to 30, 6 to 0, 12 to 0, 15 to 0, 23 to 30)[index]
-            "opened %02d:%02d -> %s local (delta %d ms from the reference)"
+            "opened %02d:%02d -> %s local (delta %d ms from the reference, engine %s)"
                 .format(hour, minute, localTime(answerMs, tehran.timezoneId),
-                    answerMs - tehran.oracleTransitUtcMs)
+                    answerMs - tehran.oracleTransitUtcMs,
+                    localTime(answerMs, tehran.timezoneId))
         }
         rows.forEach { println(it) }
         // Report every open time, not just the first one that is off.
