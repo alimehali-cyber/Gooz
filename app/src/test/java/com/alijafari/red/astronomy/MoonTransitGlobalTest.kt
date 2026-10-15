@@ -3,6 +3,7 @@ package com.alijafari.red.astronomy
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.text.SimpleDateFormat
 import java.util.Calendar
