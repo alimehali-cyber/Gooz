@@ -98,30 +98,30 @@ class MoonTransitGlobalTest {
             Triple(2026, Calendar.OCTOBER, 15) to CITIES_20261015,
             Triple(2027, Calendar.FEBRUARY, 11) to CITIES_20270211
         )
+        val rows = mutableListOf<String>()
+        val outOfTolerance = mutableListOf<String>()
         for ((date, cities) in dates) {
             val (year, month, day) = date
             for (city in cities) {
                 val midnightMs = localMidnightMs(year, month, day, city.timezoneId)
                 val engineMs = transitFromEngine(midnightMs, city)
                 val deltaMs = engineMs - city.oracleTransitUtcMs
-                println(
-                    "${city.name} ${year}-${month + 1}-$day: engine " +
-                        "${localTime(engineMs, city.timezoneId)} local, reference " +
-                        "${localTime(city.oracleTransitUtcMs, city.timezoneId)} local, " +
-                        "delta ${deltaMs} ms"
-                )
-                assertEquals(
-                    "${city.name} ${year}-${month + 1}-$day: moon transit must match the " +
-                        "topocentric reference (PyEphem next_transit) within " +
-                        "${REFERENCE_TOLERANCE_MS} ms; engine gave " +
-                        "${localTime(engineMs, city.timezoneId)} local " +
-                        "(${deltaMs / 1000.0} s off)",
-                    city.oracleTransitUtcMs.toDouble(),
-                    engineMs.toDouble(),
-                    REFERENCE_TOLERANCE_MS.toDouble()
-                )
+                val row = "${city.name} ${year}-${month + 1}-$day: engine " +
+                    "${localTime(engineMs, city.timezoneId)} local, reference " +
+                    "${localTime(city.oracleTransitUtcMs, city.timezoneId)} local, " +
+                    "delta ${deltaMs} ms"
+                println(row)
+                rows += row
+                if (Math.abs(deltaMs) > REFERENCE_TOLERANCE_MS) outOfTolerance += row
             }
         }
+        // Report every city, not just the first one that is off.
+        assertTrue(
+            "Moon transit must match the topocentric reference (PyEphem next_transit) within " +
+                "${REFERENCE_TOLERANCE_MS} ms; these did not:\n" +
+                outOfTolerance.joinToString("\n") + "\nall cases:\n" + rows.joinToString("\n"),
+            outOfTolerance.isEmpty()
+        )
     }
 
     @Test
@@ -138,23 +138,21 @@ class MoonTransitGlobalTest {
         }
 
         val answers = openedAt.map { transitFromEngine(it, tehran) }
-        answers.forEachIndexed { index, answerMs ->
+        val rows = answers.mapIndexed { index, answerMs ->
             val (hour, minute) = listOf(0 to 30, 6 to 0, 12 to 0, 15 to 0, 23 to 30)[index]
-            println(
-                "opened %02d:%02d -> %s local (delta %d ms from the reference)"
-                    .format(hour, minute, localTime(answerMs, tehran.timezoneId),
-                        answerMs - tehran.oracleTransitUtcMs)
-            )
-            assertEquals(
-                "Panel opened at %02d:%02d must still show the 15:32:35 transit, not a "
-                    .format(hour, minute) +
-                    "time that drifted with the clock; engine gave " +
-                    "${localTime(answerMs, tehran.timezoneId)} (${(answerMs - tehran.oracleTransitUtcMs) / 1000.0} s off)",
-                tehran.oracleTransitUtcMs.toDouble(),
-                answerMs.toDouble(),
-                REFERENCE_TOLERANCE_MS.toDouble()
-            )
+            "opened %02d:%02d -> %s local (delta %d ms from the reference)"
+                .format(hour, minute, localTime(answerMs, tehran.timezoneId),
+                    answerMs - tehran.oracleTransitUtcMs)
         }
+        rows.forEach { println(it) }
+        // Report every open time, not just the first one that is off.
+        val outOfTolerance = answers.filter { Math.abs(it - tehran.oracleTransitUtcMs) > REFERENCE_TOLERANCE_MS }
+        assertTrue(
+            "Every open time must still show the 15:32:35 transit, not a time that drifted " +
+                "with the clock; " + outOfTolerance.size + " of ${answers.size} did not:\n" +
+                rows.joinToString("\n"),
+            outOfTolerance.isEmpty()
+        )
         assertEquals(
             "Every open time must yield the identical instant, not merely a close one",
             1,
