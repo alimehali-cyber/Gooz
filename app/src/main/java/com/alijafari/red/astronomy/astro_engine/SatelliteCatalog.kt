@@ -42,6 +42,12 @@ object SatelliteCatalog {
     /**
      * 4 naked-eye static satellites.
      * Dynamic Starlink train is added via [getVisibleList].
+     *
+     * The bundled `defaultTle` element sets are the real CelesTrak GP element sets
+     * (https://celestrak.org/NORAD/elements/gp.php?CATNR=<id>&FORMAT=TLE) of epoch 2026 day 288
+     * (2026-10-15), checksum-verified. They are only the offline fallback: TleRepository replaces
+     * them with live elements whenever the network is available, and the AR screen shows the element
+     * age because SGP4 positions degrade by kilometres per day as a TLE ages.
      */
     val satellites: List<SatelliteItem> = listOf(
         SatelliteItem(
@@ -53,8 +59,8 @@ object SatelliteCatalog {
             designation = "1998-067A",
             defaultTle = TLEData(
                 name = "ISS (ZARYA)",
-                line1 = "1 25544U 98067A   26213.50000000  .00016717  00000-0  30000-3 0  9993",
-                line2 = "2 25544  51.6400 200.0000 0005000  90.0000 270.0000 15.49000000400001"
+                line1 = "1 25544U 98067A   26288.82192346  .00005580  00000+0  10980-3 0  9999",
+                line2 = "2 25544  51.6317  63.1136 0006755 265.8514  94.1703 15.48879905590452"
             ),
             isConstellation = false,
             isTrain = false,
@@ -91,8 +97,8 @@ object SatelliteCatalog {
             designation = "2021-035A",
             defaultTle = TLEData(
                 name = "CSS (TIANGONG)",
-                line1 = "1 48274U 21035A   26213.50000000  .00012000  00000-0  20000-3 0  9994",
-                line2 = "2 48274  41.4700 150.0000 0003500 120.0000 240.0000 15.61000000280001"
+                line1 = "1 48274U 21035A   26288.94797040  .00024884  00000+0  29331-3 0  9998",
+                line2 = "2 48274  41.4694 308.5162 0000855 151.7615 208.3271 15.60787511312026"
             ),
             isConstellation = false,
             isTrain = false,
@@ -129,8 +135,8 @@ object SatelliteCatalog {
             designation = "1990-037B",
             defaultTle = TLEData(
                 name = "HST",
-                line1 = "1 20580U 90037B   26213.50000000  .00000850  00000-0  45000-4 0  9998",
-                line2 = "2 20580  28.4700 310.0000 0002800 210.0000 150.0000 15.09000000890001"
+                line1 = "1 20580U 90037B   26288.44649328  .00006511  00000+0  19755-3 0  9992",
+                line2 = "2 20580  28.4739 337.8862 0001989  61.1778 298.9018 15.31953866807025"
             ),
             isConstellation = false,
             isTrain = false,
@@ -167,8 +173,8 @@ object SatelliteCatalog {
             designation = "2002-009A",
             defaultTle = TLEData(
                 name = "ENVISAT",
-                line1 = "1 27386U 02009A   26213.50000000  .00000300  00000-0  12000-4 0  9995",
-                line2 = "2 27386  98.5400  80.0000 0001200  90.0000 270.0000 14.38000000150001"
+                line1 = "1 27386U 02009A   26288.80471052  .00000084  00000+0  41076-4 0  9993",
+                line2 = "2 27386  98.3982 237.5074 0001335  87.9607 290.8960 14.39088056290834"
             ),
             isConstellation = false,
             isTrain = false,

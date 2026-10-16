@@ -476,4 +476,47 @@ class AROnePointAlignmentTest {
         assertEquals(0L, offsets.lastCalibratedTimeMs)
         assertFalse(offsets.isCalibrated)
     }
+
+    // ------------------------------------------------------------------
+    // Re-alignment must accumulate, not toggle (audit finding #4)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun testRepeatedAlignmentOnSameTargetIsStableInsteadOfToggling() {
+        // Raw compass heading 100°, true target azimuth 103°.
+        val rawHeading = 100.0
+        val target = 103.0
+        var offset = 0.0
+        repeat(4) { i ->
+            val displayed = ARCalibrationManager.normalizeAngle180(rawHeading + offset)
+            val applied = ARCalibrationManager.applyOnePointAlignment(target, (displayed + 360.0) % 360.0, "Star", context)
+            offset = applied.toDouble()
+            assertEquals("alignment #${i + 1} must keep the +3° correction", 3.0, offset, 1e-4)
+        }
+        assertTrue(ARCalibrationManager.getOffsets().isCalibrated)
+    }
+
+    @Test
+    fun testSecondAlignmentRefinesTheExistingOffset() {
+        ARCalibrationManager.applyOnePointAlignment(103.0, 100.0, "Vega", context) // +3
+        // The view now shows 103°, but a better reference says the boresight is really at 104.5°.
+        val total = ARCalibrationManager.applyOnePointAlignment(104.5, 103.0, "Altair", context)
+        assertEquals(4.5f, total, 1e-4f)
+        assertEquals(4.5f, ARCalibrationManager.getOffsets().yawOffsetDeg, 1e-4f)
+    }
+
+    @Test
+    fun testZeroResidualAlignmentStillCountsAsAligned() {
+        val total = ARCalibrationManager.applyOnePointAlignment(250.0, 250.0, "Moon", context)
+        assertEquals(0f, total, 0f)
+        assertTrue("an alignment confirming the compass exactly is still an alignment", ARCalibrationManager.getOffsets().isCalibrated)
+    }
+
+    @Test
+    fun testImplausiblyLargeOffsetIsRejected() {
+        val total = ARCalibrationManager.applyOnePointAlignment(200.0, 100.0, "Wrong object", context)
+        assertTrue(total.isNaN())
+        assertFalse(ARCalibrationManager.getOffsets().isCalibrated)
+        assertEquals(0f, ARCalibrationManager.getOffsets().yawOffsetDeg, 0f)
+    }
 }

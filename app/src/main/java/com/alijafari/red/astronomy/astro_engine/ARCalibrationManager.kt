@@ -39,10 +39,16 @@ data class ARCalibrationOffsets(
     val lastCalibratedTimeMs: Long = 0L,
     val referenceStarName: String = "",
     val lastLocationLat: Double? = null,
-    val lastLocationLon: Double? = null
+    val lastLocationLon: Double? = null,
+    /**
+     * True once a 1-point alignment has been applied (and until it is reset). Kept separately from
+     * the offset value: an alignment that confirms the compass exactly (offset 0.0°) is still an
+     * alignment, and a non-zero offset is no longer used as a proxy for "aligned".
+     */
+    val alignmentActive: Boolean = false
 ) {
     val isCalibrated: Boolean
-        get() = yawOffsetDeg != 0f
+        get() = alignmentActive
 }
 
 /**
@@ -96,6 +102,14 @@ object ARCalibrationManager {
     private const val KEY_AUTO_PROMPT = "calib_auto_prompt_enabled"
     private const val KEY_LAST_LOCATION_LAT = "calib_last_location_lat"
     private const val KEY_LAST_LOCATION_LON = "calib_last_location_lon"
+    private const val KEY_ALIGNMENT_ACTIVE = "calib_alignment_active"
+
+    /**
+     * Largest total yaw correction a 1-point alignment may establish. Phone compasses that are off by
+     * more than this are mis-calibrated or disturbed (a figure-8 calibration is needed), and accepting
+     * such an offset almost always means the wrong object was centred.
+     */
+    const val MAX_TOTAL_YAW_OFFSET_DEG = 45.0
 
     // Legacy 3-axis keys (pitch/roll) from the retired manual slider system.
     // No longer read; removed on init so no stale offsets can linger.
@@ -135,12 +149,15 @@ object ARCalibrationManager {
             val autoPrompt = prefs.getBoolean(KEY_AUTO_PROMPT, true)
             val lat = if (prefs.contains(KEY_LAST_LOCATION_LAT)) prefs.getFloat(KEY_LAST_LOCATION_LAT, Float.NaN).toDouble() else null
             val lon = if (prefs.contains(KEY_LAST_LOCATION_LON)) prefs.getFloat(KEY_LAST_LOCATION_LON, Float.NaN).toDouble() else null
+            // Older builds had no explicit flag: a stored non-zero offset meant "aligned".
+            val active = if (prefs.contains(KEY_ALIGNMENT_ACTIVE)) prefs.getBoolean(KEY_ALIGNMENT_ACTIVE, false) else yaw != 0f
             _calibrationFlow.value = ARCalibrationOffsets(
-                yawOffsetDeg = yaw,
+                yawOffsetDeg = if (active) yaw else 0f,
                 lastCalibratedTimeMs = time,
                 referenceStarName = star,
                 lastLocationLat = lat?.takeIf { it.isFinite() },
-                lastLocationLon = lon?.takeIf { it.isFinite() }
+                lastLocationLon = lon?.takeIf { it.isFinite() },
+                alignmentActive = active
             )
             _autoPromptEnabledFlow.value = autoPrompt
             // One-way migration: drop retired pitch/roll keys if present.
@@ -278,10 +295,19 @@ object ARCalibrationManager {
     }
 
     /**
-     * Applies a guided 1-point alignment: computes ΔAz from the reference target, stores it
-     * in-memory, persists it, and returns the applied offset in degrees.
+     * Applies a guided 1-point alignment.
      *
-     * @param referenceName display name of the physical object the user centered (for telemetry).
+     * [currentAzimuthDeg] is the azimuth the AR view currently DISPLAYS for the boresight, i.e. the
+     * fused compass heading with the existing alignment offset already applied. The residual
+     * ΔAz = normalize180(Az_target − Az_current) is therefore ADDED to the stored offset:
+     *
+     *     offset_new = normalize180(offset_old + ΔAz)
+     *
+     * so re-aligning on an already aligned view leaves the offset unchanged (ΔAz ≈ 0) instead of
+     * toggling it back to zero, which is what replacing the offset did.
+     *
+     * @return the new total yaw offset in degrees, or [Float.NaN] when the resulting total would exceed
+     *         [MAX_TOTAL_YAW_OFFSET_DEG] (nothing is changed in that case).
      */
     fun applyOnePointAlignment(
         targetAzimuthDeg: Double,
@@ -291,13 +317,18 @@ object ARCalibrationManager {
         latitude: Double? = null,
         longitude: Double? = null
     ): Float {
-        val yawOffset = computeYawOffset(targetAzimuthDeg, currentAzimuthDeg)
+        val current = _calibrationFlow.value
+        val residual = computeYawOffset(targetAzimuthDeg, currentAzimuthDeg)
+        val previous = if (current.alignmentActive) current.yawOffsetDeg.toDouble() else 0.0
+        val total = normalizeAngle180(previous + residual)
+        if (kotlin.math.abs(total) > MAX_TOTAL_YAW_OFFSET_DEG) return Float.NaN
         val updated = ARCalibrationOffsets(
-            yawOffsetDeg = yawOffset,
+            yawOffsetDeg = total.toFloat(),
             lastCalibratedTimeMs = System.currentTimeMillis(),
             referenceStarName = referenceName,
             lastLocationLat = latitude,
-            lastLocationLon = longitude
+            lastLocationLon = longitude,
+            alignmentActive = true
         )
         _calibrationFlow.value = updated
 
@@ -306,11 +337,12 @@ object ARCalibrationManager {
             putFloat(KEY_YAW, updated.yawOffsetDeg)
             putLong(KEY_TIME, updated.lastCalibratedTimeMs)
             putString(KEY_STAR, updated.referenceStarName)
+            putBoolean(KEY_ALIGNMENT_ACTIVE, true)
             updated.lastLocationLat?.let { putFloat(KEY_LAST_LOCATION_LAT, it.toFloat()) }
             updated.lastLocationLon?.let { putFloat(KEY_LAST_LOCATION_LON, it.toFloat()) }
             apply()
         }
-        return yawOffset
+        return updated.yawOffsetDeg
     }
 
     fun resetAlignment(context: Context? = null) {
@@ -319,13 +351,15 @@ object ARCalibrationManager {
             lastCalibratedTimeMs = 0L,
             referenceStarName = "",
             lastLocationLat = null,
-            lastLocationLon = null
+            lastLocationLon = null,
+            alignmentActive = false
         )
         val prefs = sharedPreferences ?: context?.applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs?.edit()?.apply {
             putFloat(KEY_YAW, 0f)
             putLong(KEY_TIME, 0L)
             putString(KEY_STAR, "")
+            putBoolean(KEY_ALIGNMENT_ACTIVE, false)
             remove(KEY_LAST_LOCATION_LAT)
             remove(KEY_LAST_LOCATION_LON)
             apply()
