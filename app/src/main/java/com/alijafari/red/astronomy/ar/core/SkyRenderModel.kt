@@ -34,34 +34,44 @@ object SkyRenderModel {
     fun limitingMagnitude(skyMagArcsec2: Double): Double =
         7.93 - 5.0 * log10(10.0.pow(4.316 - skyMagArcsec2 / 5.0) + 1.0)
 
-    /** Zenith sky brightness (V mag/arcsec²) for a Bortle class 1..9 (natural sky ≈ 21.9). */
+    /**
+     * Zenith sky brightness (V mag/arcsec²) for a Bortle class 1..9: the midpoints of the Sky Quality
+     * Meter ranges commonly attached to the classes (1: 21.99–22.0, 2: 21.89–21.99, 3: 21.69–21.89,
+     * 4: 20.49–21.69, 5: 19.50–20.49, 6: 18.94–19.50, 7: 18.38–18.94, 8: < 18.38, 9: < 18.0).
+     */
     fun bortleZenithMagArcsec2(bortle: Int): Double = when (bortle.coerceIn(1, 9)) {
-        1 -> 21.95
-        2 -> 21.8
-        3 -> 21.5
-        4 -> 20.9
-        5 -> 20.1
-        6 -> 19.3
-        7 -> 18.7
-        8 -> 18.2
-        else -> 17.7
+        1 -> 21.99
+        2 -> 21.94
+        3 -> 21.79
+        4 -> 21.09
+        5 -> 20.0
+        6 -> 19.22
+        7 -> 18.66
+        8 -> 18.1
+        else -> 17.6
     }
 
+    /** Natural (airglow + zodiacal + starlight) zenith sky brightness, V mag/arcsec² (mean solar activity). */
+    const val NATURAL_ZENITH_MAG_ARCSEC2 = 21.95
+
     /**
-     * Dark-sky (no Sun, no Moon) background luminance at an apparent altitude, in cd/m²:
-     * airglow brightening towards the horizon by the van Rhijn factor (emission layer at 90 km),
-     * attenuated by extinction, plus artificial light pollution growing towards the horizon.
+     * Dark-sky (no Sun, no Moon) background luminance at an apparent altitude, in cd/m².
+     *
+     * Natural part: Krisciunas & Schaefer (1991, PASP 103, 1033, eq. 2),
+     * B(z) = B_zen · X · 10^(−0.4·k·(X − 1)) with X = (1 − 0.96 sin²z)^(−1/2): the airglow layer seen
+     * through a longer path near the horizon, dimmed by extinction (k from the zenith transmittance
+     * [extinctionV], i.e. 10^(−0.4k) = T_zenith). Artificial part: the Bortle excess over the natural
+     * sky, growing towards the horizon where light domes concentrate.
      */
     fun nightBackgroundLuminance(altDeg: Double, bortle: Int, extinctionV: Double): Double {
-        val natural = magArcsec2ToLuminance(21.95)
+        val natural = magArcsec2ToLuminance(NATURAL_ZENITH_MAG_ARCSEC2)
         val zenithTotal = magArcsec2ToLuminance(bortleZenithMagArcsec2(bortle))
         val artificial = max(0.0, zenithTotal - natural)
         val alt = max(altDeg, 0.5)
-        val z = Math.toRadians(90.0 - alt)
-        val earthR = 6371.0; val layer = 90.0
-        val s = earthR / (earthR + layer) * sin(z)
-        val vanRhijn = 1.0 / sqrt(max(1e-3, 1.0 - s * s))
-        val airglow = natural * vanRhijn * extinctionV.coerceIn(0.2, 1.0)
+        val sz = sin(Math.toRadians(90.0 - alt))
+        val x = 1.0 / sqrt(max(1e-3, 1.0 - 0.96 * sz * sz))
+        val tz = extinctionV.coerceIn(0.05, 1.0)
+        val airglow = natural * x * tz.pow(x - 1.0)
         // Light domes concentrate within ~20° of the horizon.
         val dome = artificial * (1.0 + 4.0 * exp(-alt / 9.0))
         return airglow + dome

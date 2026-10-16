@@ -1111,7 +1111,7 @@ fun CompassARScreen(
             val centerX = width / 2f
             val centerY = height / 2f
             val bore = cam.boresightEnu()
-            val c = DoubleArray(3)
+            val c = DoubleArray(2)
             val p = FloatArray(2)
             allCatalog.mapNotNull { obj ->
                 if (selectedTarget?.id == obj.id) return@mapNotNull null
@@ -1130,7 +1130,7 @@ fun CompassARScreen(
                 if (cam.project(placed.enu[0], placed.enu[1], placed.enu[2], p) &&
                     p[0] in 0f..width && p[1] in 0f..height
                 ) return@mapNotNull null
-                cam.toCamera(placed.enu[0], placed.enu[1], placed.enu[2], c)
+                if (!cam.screenDirection(placed.enu[0], placed.enu[1], placed.enu[2], c)) return@mapNotNull null
                 val vx = c[0].toFloat()
                 val vy = c[1].toFloat()
                 val norm = hypot(vx, vy).coerceAtLeast(1e-6f)

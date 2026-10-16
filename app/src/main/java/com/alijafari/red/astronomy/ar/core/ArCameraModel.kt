@@ -225,19 +225,49 @@ class ArCameraModel private constructor(
         return out[offset].isFinite() && out[offset + 1].isFinite()
     }
 
+    // Local linear part of the projection at the optical axis (view pixels per normalized unit).
+    private var jacobianReady = false
+    private val jac = DoubleArray(4)
+
+    private fun ensureJacobian(): Boolean {
+        if (jacobianReady) return true
+        val a = FloatArray(2); val b = FloatArray(2); val c = FloatArray(2)
+        val h = 1e-3
+        if (!projectCamera(0.0, 0.0, a) || !projectCamera(h, 0.0, b) || !projectCamera(0.0, h, c)) return false
+        jac[0] = (b[0] - a[0]) / h; jac[1] = (b[1] - a[1]) / h
+        jac[2] = (c[0] - a[0]) / h; jac[3] = (c[1] - a[1]) / h
+        jacobianReady = true
+        return true
+    }
+
+    /**
+     * Screen-space direction (view pixels; x right, y down; not normalised) towards an ENU direction as
+     * seen from the optical axis. Valid for every pipeline (sensor rotation, display rotation, mirrored
+     * transforms) and also for points behind the camera or far outside the view — use it for guidance
+     * arrows. (The raw [toCamera] frame is the sensor frame for the live camera, not the screen.)
+     */
+    fun screenDirection(e: Double, n: Double, u: Double, out: DoubleArray): Boolean {
+        if (!hasAttitude || !ensureJacobian()) return false
+        val cx = m[0] * e + m[1] * n + m[2] * u
+        val cy = m[3] * e + m[4] * n + m[5] * u
+        out[0] = cx * jac[0] + cy * jac[2]
+        out[1] = cx * jac[1] + cy * jac[3]
+        return true
+    }
+
     /** Boresight (view centre of the optical axis) as an ENU unit vector. */
     fun boresightEnu(out: DoubleArray = DoubleArray(3)): DoubleArray {
         out[0] = m[6]; out[1] = m[7]; out[2] = m[8]
         return out
     }
 
-    /** ENU unit vector of the camera's "image down" axis (useful for screen-space orientation). */
+    /** ENU unit vector of the camera frame's y axis (sensor rows for the live camera; screen down when virtual). */
     fun imageDownEnu(out: DoubleArray = DoubleArray(3)): DoubleArray {
         out[0] = m[3]; out[1] = m[4]; out[2] = m[5]
         return out
     }
 
-    /** ENU unit vector of the camera's "image right" axis. */
+    /** ENU unit vector of the camera frame's x axis (sensor columns for the live camera; screen right when virtual). */
     fun imageRightEnu(out: DoubleArray = DoubleArray(3)): DoubleArray {
         out[0] = m[0]; out[1] = m[1]; out[2] = m[2]
         return out

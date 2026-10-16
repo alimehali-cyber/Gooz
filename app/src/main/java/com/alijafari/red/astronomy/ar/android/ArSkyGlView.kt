@@ -355,7 +355,7 @@ class ArSkyGlView(context: Context) : TextureView(context), TextureView.SurfaceT
                     (-ln(max(tz[1], 1e-6))).toFloat(),
                     (-ln(max(tz[2], 1e-6))).toFloat()
                 )
-                val natural = SkyRenderModel.magArcsec2ToLuminance(21.95)
+                val natural = SkyRenderModel.magArcsec2ToLuminance(SkyRenderModel.NATURAL_ZENITH_MAG_ARCSEC2)
                 val total = SkyRenderModel.magArcsec2ToLuminance(SkyRenderModel.bortleZenithMagArcsec2(l.bortle))
                 GLES30.glUniform1f(u("uNightNatural"), natural.toFloat())
                 GLES30.glUniform1f(u("uNightArtificial"), max(0.0, total - natural).toFloat())

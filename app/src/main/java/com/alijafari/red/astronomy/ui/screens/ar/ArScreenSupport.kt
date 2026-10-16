@@ -150,10 +150,9 @@ object ArScreenSupport {
     ): FinderData {
         val bore = camera.boresightEnu()
         val sep = Math.toDegrees(V3.angleBetween(bore, placed.enu)).toFloat()
-        val c = DoubleArray(3)
-        camera.toCamera(placed.enu[0], placed.enu[1], placed.enu[2], c)
-        // Screen direction: x right, y down (camera frame); 0 rad = up, +π/2 = right.
-        val angle = atan2(c[0], -c[1]).toFloat()
+        val c = DoubleArray(2)
+        // Screen direction (x right, y down) through the real projection; 0 rad = up, +π/2 = right.
+        val angle = if (camera.screenDirection(placed.enu[0], placed.enu[1], placed.enu[2], c)) atan2(c[0], -c[1]).toFloat() else 0f
         val arrived = if (previouslyArrived) sep <= 3.0f else sep <= 1.5f
         val below = placed.altDeg < 0.0
         val (fa, en) = when {

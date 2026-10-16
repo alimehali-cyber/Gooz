@@ -67,11 +67,11 @@ float airmass(float altDeg) {
 }
 
 float nightBackground(float altDeg) {
+    // Krisciunas & Schaefer (1991) eq. 2, identical to SkyRenderModel.nightBackgroundLuminance.
     float alt = max(altDeg, 0.5);
-    float z = radians(90.0 - alt);
-    float s = 6371.0 / (6371.0 + 90.0) * sin(z);
-    float vanRhijn = 1.0 / sqrt(max(1e-3, 1.0 - s * s));
-    float airglow = uNightNatural * vanRhijn * clamp(uZenithTv, 0.2, 1.0);
+    float sz = sin(radians(90.0 - alt));
+    float x = 1.0 / sqrt(max(1e-3, 1.0 - 0.96 * sz * sz));
+    float airglow = uNightNatural * x * pow(clamp(uZenithTv, 0.05, 1.0), x - 1.0);
     float dome = uNightArtificial * (1.0 + 4.0 * exp(-alt / 9.0));
     return airglow + dome;
 }
@@ -106,7 +106,9 @@ void main() {
             float dec = asin(clamp(g.z, -1.0, 1.0));
             vec2 uv = vec2(fract(0.5 - ra / (2.0 * PI)), 0.5 - dec / PI);
             vec3 mw = textureLod(uMilkyWay, uv, uMwLod).rgb;
-            mw = pow(max(mw, vec3(0.0)), vec3(2.2));
+            // Exact sRGB decoding (IEC 61966-2-1), as SkyRenderModel.srgbToLinear.
+            mw = clamp(mw, 0.0, 1.0);
+            mw = mix(mw / 12.92, pow((mw + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), mw));
             vec3 mwL = uMwPeak * pow(mw, vec3(uMwGamma));
             col += mwL * exp(-uTau * airmass(altDeg));
         }
