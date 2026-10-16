@@ -1472,6 +1472,7 @@ object CanonicalAstroCatalog {
                             bestViewingMonthEn = obj.bestViewingMonthEn.ifBlank { bestMonthFromEngine?.let { monthNamesEn[it - 1] } ?: "" },
                             bestViewingMonthFa = obj.bestViewingMonthFa.ifBlank { bestMonthFromEngine?.let { monthNamesFa[it - 1] } ?: "" }
                         )
+                )
                 if (obj.type == ObjectType.STAR) {
                     if (!list.any { it.canonicalId == canonId }) list.add(__candidate)
                 } else {
