@@ -320,7 +320,7 @@ fun createDynamicSkyColorScheme(sunAltitudeDeg: Double): androidx.compose.materi
 
 @Composable
 fun REDTheme(
-    themeMode: ThemeMode = ThemeMode.DARK_NAVY,
+    themeMode: ThemeMode = ThemeMode.DARK,
     sunAltitudeDeg: Double = -20.0,
     userLatitude: Double = 30.1141,
     userLongitude: Double = 51.5217,
@@ -333,17 +333,15 @@ fun REDTheme(
     }
 
     val colorScheme = when (themeMode) {
-        ThemeMode.DARK_NAVY -> SpaceColorScheme
-        ThemeMode.OLED_BLACK -> OledSpaceColorScheme
+        ThemeMode.GLASS -> SpaceColorScheme
         ThemeMode.LIGHT -> LightSpaceColorScheme
-        ThemeMode.PAPERCRAFT_PASTEL -> PapercraftPastelColorScheme
-        ThemeMode.DYNAMIC_SKY -> createDynamicSkyColorScheme(sunAltitudeDeg)
-        ThemeMode.DYNAMIC_SILK -> createDynamicSilkColorScheme(celestialLighting)
+        ThemeMode.DARK -> OledSpaceColorScheme
     }
 
     val redColorTokens = when (themeMode) {
-        ThemeMode.DARK_NAVY -> RedDarkColorTokens
-        ThemeMode.OLED_BLACK -> RedDarkColorTokens.copy(
+        ThemeMode.GLASS -> RedDarkColorTokens
+        ThemeMode.LIGHT -> RedLightColorTokens
+        ThemeMode.DARK -> RedDarkColorTokens.copy(
             background = Color.Black,
             backgroundSecondary = Color(0xFF060608),
             backgroundTertiary = Color(0xFF0C0C10),
@@ -354,55 +352,6 @@ fun REDTheme(
             border = Color(0xFF27272A),
             separator = Color(0xFF18181B)
         )
-        ThemeMode.LIGHT -> RedLightColorTokens
-        ThemeMode.PAPERCRAFT_PASTEL -> RedLightColorTokens.copy(
-            background = PapercraftBackground,
-            backgroundSecondary = PapercraftSurfaceVariant,
-            backgroundTertiary = PapercraftSurface,
-            surface = PapercraftSurface,
-            surfaceElevated = PapercraftSurfaceVariant,
-            surfaceGrouped = PapercraftSurfaceVariant,
-            textPrimary = PapercraftTextPrimary,
-            textSecondary = PapercraftTextSecondary,
-            border = PapercraftOutline,
-            separator = PapercraftOutline.copy(alpha = 0.5f)
-        )
-        // Every palette of the dynamic sky is a deep sky — the day state is a mid-night navy, not a
-        // bright one. Taking the *light* token set for the day state (which this used to do) paired the
-        // light palette's dark accents, dark borders and dark tertiary text with dark navy surfaces:
-        // blue/gold accent icons and rules disappeared into the background. One dark set, with the sky
-        // supplying the four surface/text values, keeps every accent and hairline readable all day.
-        ThemeMode.DYNAMIC_SKY -> RedDarkColorTokens.copy(
-            background = colorScheme.background,
-            backgroundSecondary = colorScheme.surface,
-            surface = colorScheme.surface,
-            surfaceElevated = colorScheme.surfaceVariant,
-            surfaceGrouped = colorScheme.surfaceVariant,
-            surfaceVariant = colorScheme.surfaceVariant,
-            textPrimary = colorScheme.onSurface,
-            textSecondary = colorScheme.onSurfaceVariant
-        )
-        ThemeMode.DYNAMIC_SILK -> if (celestialLighting.isDark) {
-            RedDarkColorTokens.copy(
-                background = celestialLighting.backgroundColor,
-                surface = celestialLighting.surfaceColor,
-                surfaceElevated = celestialLighting.surfaceVariantColor,
-                textPrimary = celestialLighting.textPrimaryColor,
-                textSecondary = celestialLighting.textSecondaryColor,
-                textTertiary = celestialLighting.textTertiaryColor,
-                border = celestialLighting.outlineColor
-            )
-        } else {
-            RedLightColorTokens.copy(
-                background = celestialLighting.backgroundColor,
-                surface = celestialLighting.surfaceColor,
-                surfaceElevated = celestialLighting.surfaceVariantColor,
-                textPrimary = celestialLighting.textPrimaryColor,
-                textSecondary = celestialLighting.textSecondaryColor,
-                textTertiary = celestialLighting.textTertiaryColor,
-                border = celestialLighting.outlineColor
-            )
-        }
     }
 
     // Every token set goes through the contrast repair, so no theme — bundled or dynamic — can hand a

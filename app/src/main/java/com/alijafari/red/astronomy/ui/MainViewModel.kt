@@ -30,7 +30,7 @@ import java.util.Locale
 data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
     val calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
-    val themeMode: ThemeMode = ThemeMode.DYNAMIC_SILK,
+    val themeMode: ThemeMode = ThemeMode.DARK,
     val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.REAL_SKY,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 4,
@@ -128,9 +128,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 SkyCanvasTheme.REAL_SKY
             },
             themeMode = try {
-                ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DYNAMIC_SILK.name) ?: ThemeMode.DYNAMIC_SILK.name)
+                ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DARK.name) ?: ThemeMode.DARK.name)
             } catch (e: Exception) {
-                ThemeMode.DYNAMIC_SILK
+                ThemeMode.DARK
             },
             bortleClass = prefs.getInt("bortle_class", 3),
             userLocation = run {

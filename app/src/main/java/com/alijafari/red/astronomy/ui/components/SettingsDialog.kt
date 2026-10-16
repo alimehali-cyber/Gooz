@@ -151,12 +151,9 @@ fun SettingsDialog(
     }
 
     val appThemeLabel = when (uiState.themeMode) {
-        ThemeMode.DARK_NAVY -> if (isFa) "سرمه‌ای" else "Deep Navy"
-        ThemeMode.OLED_BLACK -> if (isFa) "مشکی خالص OLED" else "Pitch OLED"
-        ThemeMode.DYNAMIC_SILK -> if (isFa) "ابریشم پویا (Silk)" else "Dynamic Silk"
-        ThemeMode.DYNAMIC_SKY -> if (isFa) "آسمان پویا" else "Dynamic Sky"
+        ThemeMode.GLASS -> if (isFa) "شیشه‌ای (iOS 27)" else "Glass (iOS 27)"
         ThemeMode.LIGHT -> if (isFa) "روشن" else "Light"
-        ThemeMode.PAPERCRAFT_PASTEL -> if (isFa) "کاغذ دست‌ساز" else "Papercraft"
+        ThemeMode.DARK -> if (isFa) "تاریک (OLED)" else "Dark (OLED)"
     }
 
     val skyCanvasThemeLabel = when (uiState.skyCanvasTheme) {
@@ -280,34 +277,19 @@ fun SettingsDialog(
                     testTag = "settings_section_app_theme"
                 ) {
                     SettingsOptionRow(
-                        title = if (isFa) "سرمه‌ای (پیش‌فرض زیگ)" else "Deep Navy (ZIG Default)",
-                        isSelected = uiState.themeMode == ThemeMode.DARK_NAVY,
-                        onClick = { viewModel.setThemeMode(ThemeMode.DARK_NAVY) }
+                        title = if (isFa) "شیشه‌ای (iOS 27)" else "Glass (iOS 27)",
+                        isSelected = uiState.themeMode == ThemeMode.GLASS,
+                        onClick = { viewModel.setThemeMode(ThemeMode.GLASS) }
                     )
                     SettingsOptionRow(
-                        title = if (isFa) "مشکی خالص OLED" else "Pitch OLED",
-                        isSelected = uiState.themeMode == ThemeMode.OLED_BLACK,
-                        onClick = { viewModel.setThemeMode(ThemeMode.OLED_BLACK) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "ابریشم پویا (Silk)" else "Dynamic Silk",
-                        isSelected = uiState.themeMode == ThemeMode.DYNAMIC_SILK,
-                        onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SILK) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "آسمان پویا" else "Dynamic Sky",
-                        isSelected = uiState.themeMode == ThemeMode.DYNAMIC_SKY,
-                        onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SKY) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "روشن (Light)" else "Light",
+                        title = if (isFa) "روشن" else "Light",
                         isSelected = uiState.themeMode == ThemeMode.LIGHT,
                         onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
                     )
                     SettingsOptionRow(
-                        title = if (isFa) "کاغذ دست‌ساز (Papercraft)" else "Papercraft",
-                        isSelected = uiState.themeMode == ThemeMode.PAPERCRAFT_PASTEL,
-                        onClick = { viewModel.setThemeMode(ThemeMode.PAPERCRAFT_PASTEL) }
+                        title = if (isFa) "تاریک (OLED)" else "Dark (OLED)",
+                        isSelected = uiState.themeMode == ThemeMode.DARK,
+                        onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
                     )
                 }
 

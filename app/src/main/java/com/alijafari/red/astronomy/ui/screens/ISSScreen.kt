@@ -132,14 +132,14 @@ fun ISSScreen(
     }
 
     val activeThemeMode = when (mapTheme) {
-        MapTheme.DARK -> ThemeMode.DARK_NAVY
+        MapTheme.DARK -> ThemeMode.DARK
         MapTheme.LIGHT -> ThemeMode.LIGHT
         MapTheme.AUTO -> uiState.themeMode
     }
 
     val mapPalette = remember(activeThemeMode, celestialLighting) {
         when (activeThemeMode) {
-            ThemeMode.DYNAMIC_SILK -> {
+            ThemeMode.GLASS -> {
                 val isDark = celestialLighting.isDark
                 SatelliteMapPalette(
                     oceanColor = celestialLighting.backgroundColor,
@@ -155,23 +155,6 @@ fun ISSScreen(
                     containerBg = celestialLighting.surfaceVariantColor,
                     containerBorder = celestialLighting.outlineColor,
                     isDarkBackground = isDark
-                )
-            }
-            ThemeMode.PAPERCRAFT_PASTEL -> {
-                SatelliteMapPalette(
-                    oceanColor = PapercraftBackground,
-                    landColor = PapercraftSurface,
-                    landStroke = PapercraftOutline,
-                    gridColor = PapercraftOutline.copy(alpha = 0.5f),
-                    equatorColor = PapercraftTertiary,
-                    nightShadowColor = Color(0x352C2523),
-                    cityLightColor = PapercraftSecondary,
-                    orbitTrackColor = PapercraftPrimary,
-                    userPinColor = PapercraftTertiary,
-                    userTextColor = PapercraftTextPrimary,
-                    containerBg = PapercraftSurfaceVariant,
-                    containerBorder = PapercraftOutline,
-                    isDarkBackground = false
                 )
             }
             ThemeMode.LIGHT -> {
@@ -191,7 +174,7 @@ fun ISSScreen(
                     isDarkBackground = false
                 )
             }
-            ThemeMode.OLED_BLACK -> {
+            ThemeMode.DARK -> {
                 SatelliteMapPalette(
                     oceanColor = Color(0xFF000000),
                     landColor = Color(0xFF101014),
@@ -208,7 +191,7 @@ fun ISSScreen(
                     isDarkBackground = true
                 )
             }
-            else -> { // DARK_NAVY, DYNAMIC_SKY, etc.
+            else -> { // DARK, GLASS, etc.
                 SatelliteMapPalette(
                     oceanColor = Color(0xFF1E293B),
                     landColor = Color(0xFF334155),
