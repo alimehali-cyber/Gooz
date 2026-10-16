@@ -175,18 +175,13 @@ object PlanetEngine {
         val phaseAngleDeg = acos(cosPhase.coerceIn(-1.0, 1.0)) * RAD2DEG
         val illuminatedFraction = (1.0 + cos(phaseAngleDeg * DEG2RAD)) / 2.0
 
-        // Apparent magnitude (Mallama & Hilton 2018)
-        val i = phaseAngleDeg
-        val mag = when (planet) {
-            PlanetType.MERCURY -> -0.613 + 5 * log10(rAU * geoDistAu) + 0.063 * i - 0.00063 * i * i + 0.00000225 * i * i * i
-            PlanetType.VENUS -> -4.384 + 5 * log10(rAU * geoDistAu) + 0.0009 * i + 0.000239 * i * i - 0.00000065 * i * i * i
-            PlanetType.MARS -> -1.601 + 5 * log10(rAU * geoDistAu) + 0.02267 * i - 0.00013 * i * i
-            PlanetType.JUPITER -> -9.395 + 5 * log10(rAU * geoDistAu) + 0.0005 * i + 0.000005 * i * i
-            PlanetType.SATURN -> -8.914 + 5 * log10(rAU * geoDistAu) + 0.018 * i
-            PlanetType.URANUS -> -7.110 + 5 * log10(rAU * geoDistAu) + 0.001 * i
-            PlanetType.NEPTUNE -> -6.870 + 5 * log10(rAU * geoDistAu) + 0.001 * i
-            PlanetType.PLUTO -> 15.1 + 5 * log10(rAU * geoDistAu)
-        }
+        // Apparent V magnitude (Mallama & Hilton 2018, with the rings of Saturn and the sub-latitudes of Uranus).
+        val helioVec = doubleArrayOf(
+            currentHelio.distanceAu * cos(currentHelio.latitudeDeg * DEG2RAD) * cos(currentHelio.longitudeDeg * DEG2RAD),
+            currentHelio.distanceAu * cos(currentHelio.latitudeDeg * DEG2RAD) * sin(currentHelio.longitudeDeg * DEG2RAD),
+            currentHelio.distanceAu * sin(currentHelio.latitudeDeg * DEG2RAD)
+        )
+        val mag = apparentMagnitude(planet, helioVec, doubleArrayOf(xGeo, yGeo, zGeo), astroTime.jcTt)
 
         val diamArcsec = (2.0 * planet.equatorialRadiusKm / (geoDistAu * 149597870.7)) * 206264.8
 
@@ -208,6 +203,91 @@ object PlanetEngine {
      */
     fun calculatePlanet(planet: PlanetType, jd: Double): PlanetPosition {
         return calculatePlanet(planet, AstroTime.fromJd(jd))
+    }
+
+    /**
+     * Apparent V magnitude from Mallama & Hilton (2018, Astronomy and Computing 25, 10–24), the formulas
+     * used by The Astronomical Almanac, with the coefficients of the authors' reference code Ap_Mag_V3
+     * (also used by Skyfield): Mercury 6th-order and Venus piecewise 4th-order phase curves, Mars,
+     * Jupiter, Saturn with its rings (saturnicentric sub-Sun and sub-Earth latitudes), Uranus with its
+     * sub-latitudes, and Neptune with its secular brightening.
+     *
+     * [helio] and [geo] are the planet's heliocentric and geocentric vectors (AU) in the ecliptic and
+     * equinox of date; [jcTt] is Julian centuries TT from J2000.0.
+     */
+    internal fun apparentMagnitude(planet: PlanetType, helio: DoubleArray, geo: DoubleArray, jcTt: Double): Double {
+        val r = sqrt(helio[0] * helio[0] + helio[1] * helio[1] + helio[2] * helio[2])
+        val d = sqrt(geo[0] * geo[0] + geo[1] * geo[1] + geo[2] * geo[2])
+        val a = acos(((helio[0] * geo[0] + helio[1] * geo[1] + helio[2] * geo[2]) / (r * d)).coerceIn(-1.0, 1.0)) * RAD2DEG
+        val dist = 5.0 * log10(r * d)
+        return when (planet) {
+            PlanetType.MERCURY -> -0.613 + dist + a * (6.3280e-02 + a * (-1.6336e-03 + a * (3.3644e-05 + a * (-3.4265e-07 + a * (1.6893e-09 + a * -3.0334e-12)))))
+            PlanetType.VENUS -> if (a < 163.7) {
+                -4.384 + dist + a * (-1.044e-03 + a * (3.687e-04 + a * (-2.814e-06 + a * 8.938e-09)))
+            } else {
+                236.05828 + dist + a * (-2.81914 + a * 8.39034e-03)
+            }
+            PlanetType.MARS -> if (a <= 50.0) {
+                -1.601 + dist + a * (2.267e-02 - 1.302e-04 * a)
+            } else {
+                -0.367 + dist + a * (-0.02573 + 0.0003445 * a)
+            }
+            PlanetType.JUPITER -> if (a <= 12.0) {
+                -9.395 + dist + (6.16e-04 * a - 3.7e-04) * a
+            } else {
+                val x = a / 180.0
+                -9.428 + dist - 2.5 * log10(((((-1.876 * x + 2.809) * x - 0.062) * x - 0.363) * x - 1.507) * x + 1.0)
+            }
+            PlanetType.SATURN -> {
+                val pole = poleEclipticOfDate(40.589, 83.537, jcTt)
+                val sunLat = subLatitudeDeg(pole, helio)
+                val earthLat = subLatitudeDeg(pole, geo)
+                val product = sunLat * earthLat
+                val beta = if (product >= 0.0) sqrt(product) else 0.0
+                if (a <= 6.5 && beta <= 27.0) {
+                    val sb = sin(beta * DEG2RAD)
+                    -8.914 - 1.825 * sb + 0.026 * a - 0.378 * sb * exp(-2.25 * a) + dist
+                } else if (a <= 6.5) {
+                    -8.95 - 3.7e-4 * a + 6.16e-4 * a * a + dist
+                } else {
+                    -8.94 + a * (2.446e-4 + a * (2.672e-4 + a * (-1.506e-6 + a * 4.767e-9))) + dist
+                }
+            }
+            PlanetType.URANUS -> {
+                val pole = poleEclipticOfDate(257.311, -15.175, jcTt)
+                val f = 0.02293
+                fun planetographic(latC: Double): Double = atan(tan(latC * DEG2RAD) / ((1.0 - f) * (1.0 - f))) * RAD2DEG
+                val subLat = (abs(planetographic(subLatitudeDeg(pole, helio))) + abs(planetographic(subLatitudeDeg(pole, geo)))) / 2.0
+                -7.110 + dist - 0.00084 * subLat + (if (a > 3.1) (1.045e-4 * a + 6.587e-3) * a else 0.0)
+            }
+            PlanetType.NEPTUNE -> {
+                val year = 2000.0 + 100.0 * jcTt
+                val v0 = (-6.89 - 0.0054 * (year - 1980.0)).coerceIn(-7.00, -6.89)
+                v0 + dist + (if (a > 1.9 && year >= 2000.0) 7.944e-3 * a + 9.617e-5 * a * a else 0.0)
+            }
+            PlanetType.PLUTO -> -1.01 + dist + 0.041 * a
+        }
+    }
+
+    /**
+     * A planet's north pole (IAU, ICRF right ascension/declination) in the ecliptic and equinox of date:
+     * rotated to the J2000 ecliptic (ε0 = 23°26′21.448″) and precessed in longitude (IAU 2006 p_A).
+     */
+    private fun poleEclipticOfDate(raDeg: Double, decDeg: Double, jcTt: Double): DoubleArray {
+        val ra = raDeg * DEG2RAD; val dec = decDeg * DEG2RAD
+        val x = cos(dec) * cos(ra); val y = cos(dec) * sin(ra); val z = sin(dec)
+        val e = 23.4392911 * DEG2RAD
+        val xe = x
+        val ye = y * cos(e) + z * sin(e)
+        val ze = -y * sin(e) + z * cos(e)
+        val p = (5028.796195 * jcTt + 1.1054348 * jcTt * jcTt) / 3600.0 * DEG2RAD
+        return doubleArrayOf(xe * cos(p) - ye * sin(p), xe * sin(p) + ye * cos(p), ze)
+    }
+
+    /** Planetocentric latitude (deg) of the point facing the origin of [v] (v = from that body to the planet). */
+    private fun subLatitudeDeg(pole: DoubleArray, v: DoubleArray): Double {
+        val n = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+        return -asin(((pole[0] * v[0] + pole[1] * v[1] + pole[2] * v[2]) / n).coerceIn(-1.0, 1.0)) * RAD2DEG
     }
 
     private fun calculatePlutoFallback(astroTime: AstroTime): PlanetPosition {
@@ -278,7 +358,12 @@ object PlanetEngine {
         val raDeg = normalizeAngle(raRad * RAD2DEG)
         val decDeg = decRad * RAD2DEG
 
-        val mag = 15.1 + 5.0 * log10(rAU * geoDistAu)
+        // Phase angle (Sun–Pluto–Earth) and V magnitude of Pluto + Charon: Explanatory Supplement to the
+        // Astronomical Almanac (1992) Table 7.48.1, V(1,0) = −1.01 (Harris 1961), 0.041 mag/deg
+        // (Binzel & Mulholland 1984); JPL Horizons fits −1.00 / 0.041 for 2020–2026.
+        val dotHg = xPluto * xGeo + yPluto * yGeo + zPluto * zGeo
+        val phaseAngle = acos((dotHg / (rAU * geoDistAu)).coerceIn(-1.0, 1.0)) * RAD2DEG
+        val mag = -1.01 + 5.0 * log10(rAU * geoDistAu) + 0.041 * phaseAngle
         val diamArcsec = (2.0 * pluto.equatorialRadiusKm / (geoDistAu * 149597870.7)) * 206264.8
 
         return PlanetPosition(
@@ -288,8 +373,8 @@ object PlanetEngine {
             distanceAU = geoDistAu,
             heliocentricDistanceAU = rAU,
             magnitude = mag,
-            phaseAngleDeg = 1.0,
-            illuminatedFraction = 0.99,
+            phaseAngleDeg = phaseAngle,
+            illuminatedFraction = (1.0 + cos(phaseAngle * DEG2RAD)) / 2.0,
             angularDiameterArcsec = diamArcsec
         )
     }
