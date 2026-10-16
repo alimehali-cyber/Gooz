@@ -438,6 +438,9 @@ fun CompassARScreen(
         if (!hasCameraPermission || !isCameraEnabled) {
             cameraStreaming = false
             boundCamera = null
+        } else {
+            // A fresh attempt each time the camera is (re-)enabled or permission is granted.
+            cameraBindFailed = false
         }
     }
 
@@ -1226,14 +1229,17 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 1: Live Camera Feed
-        if (hasCameraPermission && isCameraEnabled) {
+        // Layer 1: Live Camera Feed (removed after a bind failure so the simulated sky shows instead of
+        // a black preview; switching the camera off and on retries).
+        if (hasCameraPermission && isCameraEnabled && !cameraBindFailed) {
             AndroidView(
                 factory = { ctx ->
                     val previewView = PreviewView(ctx).apply {
                         scaleType = PreviewView.ScaleType.FILL_CENTER
                         // TextureView-backed so that the night-vision filter also tints the preview.
                         implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                        // Transparent until the first camera frame: the simulated sky stays visible.
+                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     }
                     previewViewInstance = previewView
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
