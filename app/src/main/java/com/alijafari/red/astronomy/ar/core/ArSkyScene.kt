@@ -91,6 +91,9 @@ object ArSkySceneComputer {
     /** Mean V-band extinction coefficient (mag per airmass): Rayleigh + ozone + continental aerosol. */
     const val EXTINCTION_K_V = 0.20
 
+    /** Kilometres per astronomical unit (IAU 2012 Resolution B2). */
+    const val AU_KM = 149_597_870.7
+
     private val planetIds = listOf(
         Triple("planet_mercury", PlanetEngine.PlanetType.MERCURY, BodyOrientation.Body.MERCURY),
         Triple("planet_venus", PlanetEngine.PlanetType.VENUS, BodyOrientation.Body.VENUS),
@@ -140,45 +143,13 @@ object ArSkySceneComputer {
         }
 
         // ---- Sun & Moon --------------------------------------------------------------------------
-        val ls = LunarSolarEngine()
-        val sunPos = ls.calculateSun(at)
-        val sunGeo = V3.fromSpherical(Math.toRadians(sunPos.raDeg), Math.toRadians(sunPos.decDeg))
-        val sunTod = topocentricTod(frame, sunGeo, sunPos.distanceAu)
-        val sunEnu = M3.mulVec(frame.enuFromTod, sunTod)
-        val sunPlaced = placeRefracted(frame, sunEnu)
-        val sunState = ArBodyState(
-            id = "sun", kind = ArBodyKind.SUN, body = null, placed = sunPlaced, magnitude = -26.74,
-            angularRadiusDeg = Math.toDegrees(kotlin.math.asin(695700.0 / (sunPos.distanceAu * 149597870.7))),
-            distanceAu = sunPos.distanceAu, glyph = null, illuminatedFraction = 1.0,
-            extinction = extinction(atmosphere, sunPlaced.altDeg)
-        )
-
-        val moonPos = ls.calculateMoon(at)
-        val moonDistAu = moonPos.distanceKm / 149597870.7
-        val moonGeo = V3.fromSpherical(Math.toRadians(moonPos.raDeg), Math.toRadians(moonPos.decDeg))
-        val moonTod = topocentricTod(frame, moonGeo, moonDistAu)
-        val moonTopoDistAu = topocentricDistanceAu(frame, moonGeo, moonDistAu)
-        val moonEnu = M3.mulVec(frame.enuFromTod, moonTod)
-        val moonPlaced = placeRefracted(frame, moonEnu)
-        val moonExt = extinction(atmosphere, moonPlaced.altDeg)
-        val moonGlyph0 = GlyphGeometry.build(
-            BodyOrientation.Body.MOON, frame.jdTt, moonTod, moonTopoDistAu, sunTod, sunPos.distanceAu, frame.npbMatrix
-        )
-        // Earthshine ∝ Earth's illuminated fraction seen from the Moon (≈ 1 − k), strongly non-linear.
-        val earthshine = 0.022 * (1.0 - moonGlyph0.illuminatedFraction).pow(1.6)
-        val moonGlyph = GlyphGeometry.build(
-            BodyOrientation.Body.MOON, frame.jdTt, moonTod, moonTopoDistAu, sunTod, sunPos.distanceAu, frame.npbMatrix,
-            earthshine = earthshine, tint = moonExt
-        )
-        val moonPhase = moonGlyph.phaseAngleDeg
-        val moonMag = -12.73 + 0.026 * moonPhase + 4e-9 * moonPhase.pow(4)
-        val moonState = ArBodyState(
-            id = "moon", kind = ArBodyKind.MOON, body = BodyOrientation.Body.MOON, placed = moonPlaced,
-            magnitude = moonMag,
-            angularRadiusDeg = Math.toDegrees(kotlin.math.asin(1737.4 / (moonTopoDistAu * 149597870.7))),
-            distanceAu = moonTopoDistAu, glyph = moonGlyph, illuminatedFraction = moonGlyph.illuminatedFraction,
-            extinction = moonExt
-        )
+        val sunMoon = sunAndMoon(frame, at, atmosphere)
+        val sunState = sunMoon.sun
+        val moonState = sunMoon.moon
+        val sunPos = sunMoon.sunPosition
+        val sunTod = sunMoon.sunTod
+        val sunPlaced = sunState.placed
+        val moonPlaced = moonState.placed
 
         val bodies = ArrayList<ArBodyState>(16)
         bodies.add(sunState)
@@ -263,6 +234,64 @@ object ArSkySceneComputer {
             sun = sunState,
             moon = moonState
         )
+    }
+
+    /** The Sun and the Moon for one instant and observer, exactly as the AR sky computes them. */
+    class SunMoon internal constructor(
+        val frame: ArSkyFrame,
+        val sun: ArBodyState,
+        val moon: ArBodyState,
+        internal val sunPosition: LunarSolarEngine.SolarPosition,
+        internal val sunTod: DoubleArray
+    )
+
+    /**
+     * The Sun and the Moon at [timeMs] for [observer] (apparent topocentric places of date, refraction,
+     * extinction, and the Moon's glyph geometry with libration and phase). Shared by the AR sky and the
+     * Sky Canvas so both draw the same Moon.
+     */
+    fun sunAndMoon(timeMs: Long, observer: ArObserver, atmosphere: SkyAtmosphere?): SunMoon =
+        sunAndMoon(ArSkyFrame(ArTimeScales.jdUtcFromEpochMillis(timeMs), observer), AstroTime(timeMs), atmosphere)
+
+    private fun sunAndMoon(frame: ArSkyFrame, at: AstroTime, atmosphere: SkyAtmosphere?): SunMoon {
+        val ls = LunarSolarEngine()
+        val sunPos = ls.calculateSun(at)
+        val sunGeo = V3.fromSpherical(Math.toRadians(sunPos.raDeg), Math.toRadians(sunPos.decDeg))
+        val sunTod = topocentricTod(frame, sunGeo, sunPos.distanceAu)
+        val sunEnu = M3.mulVec(frame.enuFromTod, sunTod)
+        val sunPlaced = placeRefracted(frame, sunEnu)
+        val sunState = ArBodyState(
+            id = "sun", kind = ArBodyKind.SUN, body = null, placed = sunPlaced, magnitude = -26.74,
+            angularRadiusDeg = Math.toDegrees(kotlin.math.asin(695700.0 / (sunPos.distanceAu * 149597870.7))),
+            distanceAu = sunPos.distanceAu, glyph = null, illuminatedFraction = 1.0,
+            extinction = extinction(atmosphere, sunPlaced.altDeg)
+        )
+
+        val moonPos = ls.calculateMoon(at)
+        val moonDistAu = moonPos.distanceKm / 149597870.7
+        val moonGeo = V3.fromSpherical(Math.toRadians(moonPos.raDeg), Math.toRadians(moonPos.decDeg))
+        val moonTod = topocentricTod(frame, moonGeo, moonDistAu)
+        val moonTopoDistAu = topocentricDistanceAu(frame, moonGeo, moonDistAu)
+        val moonEnu = M3.mulVec(frame.enuFromTod, moonTod)
+        val moonPlaced = placeRefracted(frame, moonEnu)
+        val moonExt = extinction(atmosphere, moonPlaced.altDeg)
+        // Earthshine and the Moon's visibility against the sky are rendered from LunarPhotometry and
+        // HumanVision at draw time (they depend on the sky luminance in front of the Moon).
+        val moonGlyph = GlyphGeometry.build(
+            BodyOrientation.Body.MOON, frame.jdTt, moonTod, moonTopoDistAu, sunTod, sunPos.distanceAu, frame.npbMatrix,
+            tint = moonExt
+        )
+        val moonPhase = moonGlyph.phaseAngleDeg
+        val moonMag = LunarPhotometry.magnitudeV(moonPhase, moonTopoDistAu * AU_KM, sunPos.distanceAu)
+        val moonState = ArBodyState(
+            id = "moon", kind = ArBodyKind.MOON, body = BodyOrientation.Body.MOON, placed = moonPlaced,
+            magnitude = moonMag,
+            angularRadiusDeg = Math.toDegrees(kotlin.math.asin(1737.4 / (moonTopoDistAu * 149597870.7))),
+            distanceAu = moonTopoDistAu, glyph = moonGlyph, illuminatedFraction = moonGlyph.illuminatedFraction,
+            extinction = moonExt
+        )
+
+        return SunMoon(frame, sunState, moonState, sunPos, sunTod)
     }
 
     /** Refracts a copy of [enu] and wraps it with altitude/azimuth. */

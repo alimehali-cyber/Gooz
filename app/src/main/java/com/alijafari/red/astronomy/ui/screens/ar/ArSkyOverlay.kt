@@ -27,7 +27,9 @@ import com.alijafari.red.astronomy.ar.core.ArPlaced
 import com.alijafari.red.astronomy.ar.core.ArRefraction
 import com.alijafari.red.astronomy.ar.core.ArSkyFrame
 import com.alijafari.red.astronomy.ar.core.ArSkyLighting
+import com.alijafari.red.astronomy.ar.core.ArSkySceneComputer
 import com.alijafari.red.astronomy.ar.core.ArSkySnapshot
+import com.alijafari.red.astronomy.ar.core.MoonLook
 import com.alijafari.red.astronomy.ar.core.ArStarCatalog
 import com.alijafari.red.astronomy.ar.core.M3
 import com.alijafari.red.astronomy.ar.core.SkyAtmosphere
@@ -76,6 +78,10 @@ class ArOverlayOptions(
 class ArOverlayState {
     val items = ArrayList<ArDrawnItem>(256)
     internal val spritePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    /** SCREEN blending, for light that only adds to what is behind it (the Moon over the camera image). */
+    internal val screenPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SCREEN)
+    }
     internal val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     internal val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     internal val rect = RectF()
@@ -381,7 +387,8 @@ object ArSkyOverlay {
             if (b.kind == ArBodyKind.PLANET && b.magnitude < 1.5) {
                 drawPoint(nc, state, glyphs, px, py, b.magnitude, 0.6, opts, lighting, pl, snapshot, belowAlpha * 0.8f, haloOnly = true)
             }
-            val sprite = glyphs.bodySprite(b, radius)
+            val moonEnv = if (b.kind == ArBodyKind.MOON) moonEnvironment(b, snapshot, lighting, opts, state) else null
+            val sprite = glyphs.bodySprite(b, radius, moonEnv)
             if (sprite != null) {
                 val scale = radius / sprite.bodyRadiusPx
                 val northAngle = screenAngleOfNorth(snapshot, camera, pl, state)
@@ -400,7 +407,12 @@ object ArSkyOverlay {
                 }
                 nc.scale(scale, scale)
                 val half = sprite.bitmap.width / 2f
-                nc.drawBitmap(sprite.bitmap, -half, -half, state.spritePaint)
+                if (sprite.screenBlend) {
+                    state.screenPaint.alpha = (255 * belowAlpha).toInt()
+                    nc.drawBitmap(sprite.bitmap, -half, -half, state.screenPaint)
+                } else {
+                    nc.drawBitmap(sprite.bitmap, -half, -half, state.spritePaint)
+                }
                 nc.restore()
                 state.spritePaint.alpha = 255
             } else {
@@ -418,6 +430,33 @@ object ArSkyOverlay {
             state.items.add(ArDrawnItem(obj, px, py, extent, pl.altDeg, priority))
         }
     }
+
+    /**
+     * What the Moon is seen through: the modelled sky luminance in front of it and its extinction; over the
+     * simulated sky also that sky's displayed colour, so the disc is composited exactly as the GL sky
+     * draws the sky around it.
+     */
+    private fun moonEnvironment(
+        b: ArBodyState, snapshot: ArSkySnapshot, lighting: ArSkyLighting?, opts: ArOverlayOptions, state: ArOverlayState
+    ): ArGlyphCache.MoonEnvironment {
+        val e = b.placed.enu
+        val sky = lighting?.luminanceAt(e[0], e[1], e[2]) ?: ArGlyphCache.NIGHT_SKY_LUMINANCE
+        val ext = b.extinction
+        val look = MoonLook(
+            distanceKm = b.distanceAu * ArSkySceneComputer.AU_KM,
+            sunDistanceAu = snapshot.sun.distanceAu,
+            skyLuminance = if (sky.isFinite()) sky else ArGlyphCache.NIGHT_SKY_LUMINANCE,
+            transmittance = SkyRenderModel.luminance(ext[0], ext[1], ext[2]),
+            minLitOpacity = if (opts.cameraMode) CAMERA_MIN_LIT_OPACITY else 0.0
+        )
+        val skyDisplay = if (!opts.cameraMode && lighting != null) {
+            DoubleArray(3).also { lighting.displayColorAt(e[0], e[1], e[2], it, state.tmp) }
+        } else null
+        return ArGlyphCache.MoonEnvironment(look, skyDisplay)
+    }
+
+    /** Over the camera image the sunlit Moon stays at least this opaque so it can be found in daylight. */
+    private const val CAMERA_MIN_LIT_OPACITY = 0.35
 
     private fun galileanAlias(id: String): String = when (id) {
         "jup_io" -> "galilean_moon_io"

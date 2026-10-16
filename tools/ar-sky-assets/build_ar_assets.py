@@ -190,6 +190,10 @@ def build_textures(tex_dir, out_dir):
             raise SystemExit("%s: sha1 %s does not match the pinned upstream %s" % (src, got, expect_sha1))
         im = Image.open(src_path)
         dst = os.path.join(out_dir, "textures", out_name)
+        if out_name == "moon.jpg":
+            # Not shipped: the AR/Sky Canvas Moon uses moon_plate.jpg (build_moon_plate_map.py), whose
+            # libration zones and far side come from this map.
+            dst = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sources", "moon_sss_1024x512.jpg")
         if out_name.endswith(".png"):
             im = im.convert("RGBA")
             # Radial ring profile: average the rows, keep a 4-row strip.

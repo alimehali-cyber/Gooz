@@ -1,5 +1,7 @@
 package com.alijafari.red.astronomy.ui.rendering
 
+import com.alijafari.red.astronomy.ar.core.ArObserver
+import com.alijafari.red.astronomy.ar.core.ArSkySceneComputer
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.GalacticEngine
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
@@ -30,7 +32,13 @@ data class SkySceneFrame(
     val catalogStars: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
     val lightingState: LightingState,
     val isSolarEclipse: Boolean,
-    val isLunarEclipse: Boolean
+    val isLunarEclipse: Boolean,
+    /**
+     * The Sun and the Moon as the AR sky computes them (topocentric apparent places, extinction and the
+     * Moon's glyph geometry: phase, bright limb, axis position angle, libration). The photographic Moon
+     * is rendered from this, so the Sky Canvas and the AR screen show the same Moon. Null if unavailable.
+     */
+    val sunMoon: ArSkySceneComputer.SunMoon? = null
 )
 
 object SkySceneModel {
@@ -116,6 +124,18 @@ object SkySceneModel {
             moonData.altitudeDeg > -12.0 && antiSolarSepDeg <= umbralContactLimitDeg
         }
 
+        val sunMoon = try {
+            ArSkySceneComputer.sunAndMoon(
+                TimeEngine.getTimestampFromJulianDate(jd),
+                ArObserver(latitudeDeg, longitudeDeg, elevationM),
+                null
+            )
+        } catch (e: Exception) {
+            // Pure model (also unit-tested off-device): no android.util.Log here.
+            System.err.println("SkySceneModel: Moon geometry unavailable: $e")
+            null
+        }
+
         val lightingState = LightingEngine.computeLightingState(
             sunAltDeg = sunHoriz.altitudeDeg,
             moonAltDeg = moonData.altitudeDeg,
@@ -133,7 +153,8 @@ object SkySceneModel {
             catalogStars = catalogStars,
             lightingState = lightingState,
             isSolarEclipse = isSolarEclipse,
-            isLunarEclipse = isLunarEclipse
+            isLunarEclipse = isLunarEclipse,
+            sunMoon = sunMoon
         )
     }
 }

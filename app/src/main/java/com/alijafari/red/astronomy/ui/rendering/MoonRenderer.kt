@@ -11,7 +11,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
@@ -66,6 +68,88 @@ object MoonRenderer {
                 SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg, isObservatory = true)
                 SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, rotationDeg, isLunarEclipse)
             }
+        }
+    }
+
+    /**
+     * The photographic Moon (the Home Moon card's plate, rendered by [SkyMoonSprites] with the true phase,
+     * libration, axis position angle, earthshine and visibility against the sky), drawn so that celestial
+     * north and west in the sprite land on the screen directions [northDeg] and [westDeg] (canvas angles
+     * from +x towards +y, as returned by [SkyProjection.moonLimbAngleDeg]); mirrored projections are
+     * handled. The moonlight bloom of the Real Sky theme and the aura of the Atmospheric theme are kept,
+     * scaled by how much the eye's glare around the Moon stands out against the sky.
+     */
+    fun drawPhotoMoon(
+        drawScope: DrawScope,
+        center: Offset,
+        radius: Float,
+        sprite: SkyMoonSprites.Sprite,
+        northDeg: Double,
+        westDeg: Double,
+        isLunarEclipse: Boolean,
+        lightingState: LightingState,
+        theme: SkyCanvasTheme,
+        frameTimeMs: Long,
+        illuminationPercent: Double,
+        clipBottomPx: Float? = null
+    ) {
+        val horizonY = clipBottomPx ?: (drawScope.size.height * 0.85f)
+        drawScope.clipRect(left = 0f, top = 0f, right = drawScope.size.width, bottom = horizonY) {
+            val glare = sprite.glareWeight.toFloat().coerceIn(0f, 1f)
+            val phaseFrac = (illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
+            if (theme == SkyCanvasTheme.ATMOSPHERIC_SKY) {
+                val auraRadius = radius * 3.2f
+                val a1 = if (isLunarEclipse) Color(0xFFEF4444).copy(alpha = 0.30f) else Color(0xFFFEF9C3).copy(alpha = 0.35f * lightingState.bloomIntensity * glare)
+                val a2 = if (isLunarEclipse) Color(0xFF991B1B).copy(alpha = 0.10f) else Color(0xFF38BDF8).copy(alpha = 0.12f * lightingState.bloomIntensity * glare)
+                drawScope.drawCircle(
+                    brush = Brush.radialGradient(colors = listOf(a1, a2, Color.Transparent), center = center, radius = auraRadius),
+                    radius = auraRadius,
+                    center = center
+                )
+            } else {
+                // Moonlight bloom: ocular and atmospheric glare, as strong as it stands out against the sky.
+                val bloomAlpha = if (isLunarEclipse) 0.22f * glare else (0.06f + 0.28f * phaseFrac) * lightingState.bloomIntensity.coerceIn(0.35f, 1.0f) * glare
+                if (bloomAlpha > 0.003f) {
+                    val bloomColor = if (isLunarEclipse) Color(0xFFC84B31) else Color(0xFFF4F0E6)
+                    val bloomRadius = radius * (2.6f + 1.2f * phaseFrac)
+                    drawScope.drawCircle(
+                        brush = Brush.radialGradient(
+                            0.0f to bloomColor.copy(alpha = bloomAlpha),
+                            0.42f to bloomColor.copy(alpha = bloomAlpha * 0.35f),
+                            1.0f to Color.Transparent,
+                            center = center,
+                            radius = bloomRadius
+                        ),
+                        radius = bloomRadius,
+                        center = center,
+                        blendMode = BlendMode.Plus
+                    )
+                }
+            }
+
+            // Sprite axes (x = celestial west, y = celestial north) → screen.
+            val nRad = Math.toRadians(northDeg)
+            val nx = cos(nRad).toFloat(); val ny = sin(nRad).toFloat()
+            // West is north turned 90° clockwise on a y-down canvas unless the projection mirrors the sky.
+            var wx = -ny; var wy = nx
+            val wRad = Math.toRadians(westDeg)
+            if (cos(wRad).toFloat() * wx + sin(wRad).toFloat() * wy < 0f) { wx = -wx; wy = -wy }
+            val s = radius / sprite.bodyRadiusPx
+            val half = sprite.light.width / 2f
+            val sx = s * wx; val kx = -s * nx
+            val sy = s * wy; val ky = -s * ny
+            val matrix = android.graphics.Matrix().apply {
+                setValues(floatArrayOf(sx, kx, center.x - (sx + kx) * half, sy, ky, center.y - (sy + ky) * half, 0f, 0f, 1f))
+            }
+            val eclipseFilter = if (isLunarEclipse) android.graphics.PorterDuffColorFilter(
+                android.graphics.Color.rgb(214, 96, 64), android.graphics.PorterDuff.Mode.MULTIPLY
+            ) else null
+            // The Moon's light adds to the sky behind it (SCREEN), as in GlyphRaster.renderMoon.
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SCREEN)
+                colorFilter = eclipseFilter
+            }
+            drawScope.drawIntoCanvas { canvas -> canvas.nativeCanvas.drawBitmap(sprite.light, matrix, paint) }
         }
     }
 

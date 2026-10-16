@@ -42,6 +42,36 @@ class EquirectTexture(val width: Int, val height: Int, private val argb: IntArra
         }
     }
 
+    /**
+     * Mean linear luminance of the hemisphere centred on latitude 0, longitude 0 as seen from that
+     * direction (texels weighted by their projected area), i.e. the mean over the near-side disc at zero
+     * libration. For the Moon map this is the albedo scale: a texel's albedo relative to the disc mean is
+     * its luminance divided by this value.
+     */
+    val nearSideMeanLuminance: Double by lazy {
+        var sum = 0.0; var wsum = 0.0
+        val step = 2
+        var y = 0
+        while (y < height) {
+            val lat = (0.5 - (y + 0.5) / height) * PI
+            val cl = kotlin.math.cos(lat)
+            var x = 0
+            while (x < width) {
+                val lon = ((x + 0.5) / width - 0.5) * 2.0 * PI
+                val mu = cl * kotlin.math.cos(lon)
+                if (mu > 0.0) {
+                    val p = argb[y * width + x]
+                    val l = 0.2126 * LIN[(p shr 16) and 255] + 0.7152 * LIN[(p shr 8) and 255] + 0.0722 * LIN[p and 255]
+                    val w = cl * mu
+                    sum += l * w; wsum += w
+                }
+                x += step
+            }
+            y += step
+        }
+        if (wsum > 0.0) sum / wsum else 0.18
+    }
+
     companion object {
         private val LIN = DoubleArray(256) { SkyRenderModel.srgbToLinear(it / 255.0) }
 
@@ -196,6 +226,226 @@ object GlyphRaster {
                 out[j * sizePx + i] = argb(opacity, r, g, b)
             }
         }
+    }
+
+    /**
+     * The Moon, ray-cast from [texture] (the Home Moon card's photographic plate re-projected onto the
+     * sphere, `ar/textures/moon_plate.jpg`) with the exact phase, libration and axis orientation of [geo],
+     * and composited as the eye sees it through the sky (see [MoonLook], [LunarPhotometry], [HumanVision]):
+     *  - sunlit luminance L = L_full · a · 2μ₀/(μ₀+μ) · f(α) · T, softened over the solar penumbra, where
+     *    a is the texel's albedo relative to the disc mean;
+     *  - earthlit luminance L_es = L_full · a · R_es(θ) · T — lit from the observer's direction, so the
+     *    night side looks like a faint full Moon (unshaded), and 0.15 mag bluer in B−V than sunlight
+     *    (Thejll et al. 2014, A&A 563, A38);
+     *  - the sky's own light B lies in front of both; for the faint night side the eye's veiling glare
+     *    from the sunlit crescent (CIE 146:2002) adds to it;
+     *  - each part is weighted by its share of the light, L/(L+B), times its visibility strength (Crumey
+     *    2014 threshold): the dark side vanishes in daylight and twilight unless the earthshine clears the
+     *    threshold, and the daytime Moon is pale;
+     *  - the Moon's light only ever adds to the sky in front of it (screen composition, 1 − (1−sky)(1−moon)):
+     *    no part of the disc can look darker than the sky around it, the maria included;
+     *  - colours: the sunlit surface at the eye's local adaptation (the plate's own tone, as on the card),
+     *    the night side at the card's level scaled with phase ([MoonLook.nightSideLevel]).
+     *
+     * With [skyDisplay] (the displayed sRGB colour of the sky at the Moon) the disc is composited over it
+     * and is opaque inside the limb — the Moon hides everything beyond the atmosphere. Without it (over a
+     * camera image or an unknown backdrop) the pixels carry the Moon's light alone, premultiplied, to be
+     * drawn with SCREEN blending, which performs the same composition on whatever lies behind.
+     * Pixels are straight sRGB ARGB, [sizePx]², Moon radius [radiusPx] centred, celestial north up.
+     */
+    fun renderMoon(
+        sizePx: Int,
+        radiusPx: Double,
+        texture: EquirectTexture?,
+        fallbackLinear: DoubleArray,
+        geo: Geometry,
+        look: MoonLook,
+        skyDisplay: DoubleArray?,
+        out: IntArray
+    ) {
+        val zb = geo.pole.copyOf(); V3.normalizeInPlace(zb)
+        val xb = geo.primeMeridian.copyOf()
+        val dp = V3.dot(xb, zb)
+        for (i in 0..2) xb[i] -= dp * zb[i]
+        V3.normalizeInPlace(xb)
+        val yb = V3.cross(zb, xb)
+        val m = doubleArrayOf(xb[0], xb[1], xb[2], yb[0], yb[1], yb[2], zb[0], zb[1], zb[2])
+        val sunSprite = geo.sunDir.copyOf(); V3.normalizeInPlace(sunSprite)
+        val sB = M3.mulVec(m, sunSprite)
+        V3.normalizeInPlace(sB)
+
+        // Photometric scale.
+        val phaseDeg = Math.toDegrees(kotlin.math.acos(sunSprite[2].coerceIn(-1.0, 1.0)))
+        val k = LunarPhotometry.illuminatedFraction(phaseDeg)
+        val lFull = LunarPhotometry.fullDiscLuminance(look.distanceKm, look.sunDistanceAu)
+        val fPhase = LunarPhotometry.surfacePhaseCorrection(phaseDeg)
+        val esRatio = LunarPhotometry.earthshineRatio(phaseDeg, look.distanceKm)
+        val omega = LunarPhotometry.discSolidAngle(look.distanceKm)
+        val angRadiusDeg = Math.toDegrees(LunarPhotometry.angularRadiusRad(look.distanceKm))
+        val trans = look.transmittance.coerceIn(0.0, 1.0)
+        val sky = max(look.skyLuminance, 0.0)
+        val nightLevel = MoonLook.nightSideLevel(phaseDeg, look.distanceKm, look.sunDistanceAu)
+        val meanLum = texture?.nearSideMeanLuminance ?: SkyRenderModel.luminance(fallbackLinear[0], fallbackLinear[1], fallbackLinear[2])
+        // Extinction reddens the Moon; with the eye adapted to the Moon it only mildly dims it.
+        val tint = geo.tint
+        val tMax = max(tint[0], max(tint[1], tint[2])).coerceAtLeast(1e-6)
+        val dim = 0.6 + 0.4 * sqrt(tMax.coerceIn(0.0, 1.0))
+        val hue = doubleArrayOf(tint[0] / tMax * dim, tint[1] / tMax * dim, tint[2] / tMax * dim)
+        val esHue = DoubleArray(3) { hue[it] * MoonLook.EARTHSHINE_TINT[it] }
+        // Solar penumbra (0.27° seen from the Moon) or one sprite pixel, whichever is wider.
+        val pen = max(0.0047, 0.75 / radiusPx)
+
+        val tex = DoubleArray(3)
+        val n = DoubleArray(3)
+
+        // ---- Pre-pass on a coarse grid: mean shading of the sunlit area (local adaptation) and the
+        // sunlit flux for the glare integral.
+        val g = 28
+        val cellUnits = 2.0 / g
+        val cellSr = (cellUnits * Math.toRadians(angRadiusDeg)).let { it * it }
+        val litX = DoubleArray(g * g); val litY = DoubleArray(g * g); val litE = DoubleArray(g * g)
+        var litCount = 0
+        var sumLs = 0.0; var sumTf = 0.0; var sumLit = 0.0
+        for (j in 0 until g) for (i in 0 until g) {
+            val sx = -1.0 + (i + 0.5) * cellUnits
+            val sy = 1.0 - (j + 0.5) * cellUnits
+            val r2 = sx * sx + sy * sy
+            if (r2 >= 1.0) continue
+            val sz = sqrt(1.0 - r2)
+            moonNormal(m, sx, sy, sz, n)
+            val mu0 = n[0] * sB[0] + n[1] * sB[1] + n[2] * sB[2]
+            val tf = SkyRenderModel.smoothstep(-pen, pen, mu0)
+            if (tf <= 0.0) continue
+            val ls = 2.0 * max(mu0, 0.0) / (max(mu0, 0.0) + sz)
+            sampleMoon(texture, fallbackLinear, n, tex)
+            val a = SkyRenderModel.luminance(tex[0], tex[1], tex[2]) / meanLum
+            sumLs += ls * tf; sumTf += tf
+            val lum = lFull * a * ls * fPhase * tf * trans
+            sumLit += lum
+            litX[litCount] = sx; litY[litCount] = sy; litE[litCount] = lum * cellSr
+            litCount++
+        }
+        val sNorm = if (sumTf > 1e-9) sumLs / sumTf else 1.0
+        val litMean = if (sumTf > 1e-9) sumLit / sumTf else 0.0
+        val litVisibility = HumanVision.visibilityStrength(litMean, sky, max(k, 1e-3) * omega)
+
+        // Can the earthshine be seen at all? (Brightest terrain, no glare.)
+        val esMax = lFull * 1.8 * esRatio * trans
+        val darkArea = max(1.0 - k, 1e-3) * omega
+        val esPossible = HumanVision.visibilityStrength(esMax, sky, darkArea) > 0.0
+
+        // Veiling glare of the sunlit part over the disc, on a coarse grid (bilinear between nodes).
+        val gv = 24
+        val veil = DoubleArray((gv + 1) * (gv + 1))
+        if (esPossible && litCount > 0) {
+            for (j in 0..gv) for (i in 0..gv) {
+                val vx = -1.0 + i * 2.0 / gv
+                val vy = 1.0 - j * 2.0 / gv
+                var lv = 0.0
+                for (c in 0 until litCount) {
+                    val theta = hypot(vx - litX[c], vy - litY[c]) * angRadiusDeg
+                    lv += litE[c] * HumanVision.glareSpread(theta)
+                }
+                veil[j * (gv + 1) + i] = lv
+            }
+        }
+
+        val c = sizePx / 2.0
+        val acc = DoubleArray(3)
+        val litLin = DoubleArray(3)
+        val litEnc = DoubleArray(3)
+        val esEnc = DoubleArray(3)
+        for (j in 0 until sizePx) {
+            for (i in 0 until sizePx) {
+                val idx = j * sizePx + i
+                val px = (i + 0.5 - c) / radiusPx
+                val py = -(j + 0.5 - c) / radiusPx
+                val rr = hypot(px, py)
+                if (rr > 1.0 + 2.5 / radiusPx) {
+                    out[idx] = 0
+                    continue
+                }
+                val ss = if (abs(rr - 1.0) < 1.6 / radiusPx) 4 else 1
+                acc.fill(0.0)
+                var covered = 0
+                for (sj in 0 until ss) for (si in 0 until ss) {
+                    val sx = px + ((si + 0.5) / ss - 0.5) / radiusPx
+                    val sy = py - ((sj + 0.5) / ss - 0.5) / radiusPx
+                    val r2 = sx * sx + sy * sy
+                    if (r2 >= 1.0) continue
+                    covered++
+                    val sz = sqrt(1.0 - r2)
+                    moonNormal(m, sx, sy, sz, n)
+                    sampleMoon(texture, fallbackLinear, n, tex)
+                    val a = SkyRenderModel.luminance(tex[0], tex[1], tex[2]) / meanLum
+                    val mu0 = n[0] * sB[0] + n[1] * sB[1] + n[2] * sB[2]
+                    val tf = SkyRenderModel.smoothstep(-pen, pen, mu0)
+                    val ls = if (mu0 > 0.0) 2.0 * mu0 / (mu0 + sz) else 0.0
+                    // Sunlit part: physical luminance for the weight, local adaptation for the colour.
+                    val lLit = lFull * a * ls * fPhase * tf * trans
+                    var alphaLit = HumanVision.luminanceShare(lLit, sky) * litVisibility
+                    if (look.minLitOpacity > 0.0) alphaLit = max(alphaLit, look.minLitOpacity * tf)
+                    val shade = ls * tf / sNorm
+                    for (q in 0..2) {
+                        litLin[q] = tex[q] * shade * hue[q]
+                        litEnc[q] = SkyRenderModel.linearToSrgb(litLin[q])
+                    }
+                    // Earthlit part. The sky in front sets its share of the light; the eye's veiling glare
+                    // from the crescent lowers its visibility level (glare is a loss of contrast, and the
+                    // veil itself is not drawn, so it must not darken the earthshine's share).
+                    var wEs = 0.0
+                    if (esPossible && tf < 1.0) {
+                        val lEs = lFull * a * esRatio * trans * (1.0 - tf)
+                        val adapted = sky + bilinearGrid(veil, gv, sx, sy)
+                        wEs = HumanVision.luminanceShare(lEs, sky) *
+                            HumanVision.visibilityStrength(lEs, adapted, darkArea)
+                        if (wEs > 0.0) for (q in 0..2) esEnc[q] = SkyRenderModel.linearToSrgb(tex[q] * esHue[q]) * nightLevel
+                    }
+                    // The Moon's displayed light: sunlit and earthlit parts, each by its weight, screened.
+                    for (q in 0..2) {
+                        val moonLight = 1.0 - (1.0 - alphaLit * litEnc[q]) * (1.0 - wEs * esEnc[q])
+                        acc[q] += if (skyDisplay != null) 1.0 - (1.0 - skyDisplay[q]) * (1.0 - moonLight) else moonLight
+                    }
+                }
+                if (covered == 0) { out[idx] = 0; continue }
+                val nss = (ss * ss).toDouble()
+                if (skyDisplay != null) {
+                    // Opaque disc over the sky (anti-aliased at the limb by coverage).
+                    out[idx] = argb(covered / nss, acc[0] / covered, acc[1] / covered, acc[2] / covered)
+                } else {
+                    // Premultiplied light (averaged over the pixel, empty samples count as no light).
+                    val r = acc[0] / nss; val g2 = acc[1] / nss; val b = acc[2] / nss
+                    val a = max(r, max(g2, b))
+                    out[idx] = if (a <= 1.0 / 512.0) 0 else argb(a, r / a, g2 / a, b / a)
+                }
+            }
+        }
+    }
+
+    /** Body-frame unit normal of the sphere point seen at sprite position (sx, sy, sz). */
+    private fun moonNormal(m: DoubleArray, sx: Double, sy: Double, sz: Double, n: DoubleArray) {
+        n[0] = m[0] * sx + m[1] * sy + m[2] * sz
+        n[1] = m[3] * sx + m[4] * sy + m[5] * sz
+        n[2] = m[6] * sx + m[7] * sy + m[8] * sz
+    }
+
+    private fun sampleMoon(texture: EquirectTexture?, fallback: DoubleArray, n: DoubleArray, out: DoubleArray) {
+        if (texture == null) { out[0] = fallback[0]; out[1] = fallback[1]; out[2] = fallback[2]; return }
+        val lat = asin(n[2].coerceIn(-1.0, 1.0))
+        val lon = atan2(n[1], n[0])
+        texture.sample(lon, lat, out)
+    }
+
+    /** Bilinear lookup in a (g+1)² node grid spanning [−1, 1]² (x right, y up). */
+    private fun bilinearGrid(grid: DoubleArray, g: Int, x: Double, y: Double): Double {
+        val fx = ((x + 1.0) / 2.0 * g).coerceIn(0.0, g.toDouble())
+        val fy = ((1.0 - y) / 2.0 * g).coerceIn(0.0, g.toDouble())
+        val i0 = min(fx.toInt(), g - 1); val j0 = min(fy.toInt(), g - 1)
+        val tx = fx - i0; val ty = fy - j0
+        val w = g + 1
+        val a = grid[j0 * w + i0]; val b = grid[j0 * w + i0 + 1]
+        val d = grid[(j0 + 1) * w + i0]; val e = grid[(j0 + 1) * w + i0 + 1]
+        return (a * (1 - tx) + b * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty
     }
 
     private fun shadeSample(

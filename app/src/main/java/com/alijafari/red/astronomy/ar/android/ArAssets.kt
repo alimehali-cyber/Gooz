@@ -74,7 +74,7 @@ object ArAssets {
         }
     }
 
-    /** Planetary surface map by file name under `assets/ar/textures`, e.g. "moon.jpg". */
+    /** Planetary surface map by file name under `assets/ar/textures`, e.g. "moon_plate.jpg". */
     fun texture(context: Context, name: String): EquirectTexture? {
         synchronized(textures) { textures[name]?.let { return it } }
         val tex = try {

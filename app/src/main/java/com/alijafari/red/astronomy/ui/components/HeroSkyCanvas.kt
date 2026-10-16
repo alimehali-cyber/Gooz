@@ -198,6 +198,9 @@ fun HeroSkyCanvas(
     val currentUserLat by rememberUpdatedState(userLat)
     val currentSkyTheme by rememberUpdatedState(uiState.skyCanvasTheme)
 
+    // The photographic Moon: the Home Moon card's look with the true phase, libration and visibility.
+    val moonSprites = rememberSkyMoonSprites()
+
     // Photographic panorama (Phase 1). Only active behind the internal SkyPanoramaFeature switch.
     // Until the panorama reports READY, the legacy atmosphere and procedural Milky Way below stay
     // visible as the fallback, so there is no black or empty flash. Its state is derived only when
@@ -375,7 +378,9 @@ fun HeroSkyCanvas(
                 frame = skyFrame,
                 theme = uiState.skyCanvasTheme,
                 frameTimeMs = frameTimeMs,
-                panoramaActive = panoramaActive
+                panoramaActive = panoramaActive,
+                moonSprites = moonSprites,
+                bortle = uiState.bortleClass
             )
 
             // Tapped Celestial Target Ring Overlay (Home-only interaction layer)

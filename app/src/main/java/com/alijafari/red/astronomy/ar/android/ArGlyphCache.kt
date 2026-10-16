@@ -7,6 +7,7 @@ import com.alijafari.red.astronomy.ar.core.ArBodyKind
 import com.alijafari.red.astronomy.ar.core.ArBodyState
 import com.alijafari.red.astronomy.ar.core.BodyOrientation
 import com.alijafari.red.astronomy.ar.core.GlyphRaster
+import com.alijafari.red.astronomy.ar.core.MoonLook
 import com.alijafari.red.astronomy.ar.core.SkyRenderModel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -26,7 +27,23 @@ import kotlin.math.sqrt
  */
 class ArGlyphCache(context: Context) {
 
-    class Sprite(val bitmap: Bitmap, /** Body equatorial radius in sprite pixels. */ val bodyRadiusPx: Float)
+    class Sprite(
+        val bitmap: Bitmap,
+        /** Body equatorial radius in sprite pixels. */
+        val bodyRadiusPx: Float,
+        /**
+         * The Moon over the camera image: [bitmap] holds the Moon's light only and must be drawn with SCREEN
+         * blending (it adds to what is behind; see [GlyphRaster.renderMoon]).
+         */
+        val screenBlend: Boolean = false
+    )
+
+    /**
+     * What the Moon is seen through (see [GlyphRaster.renderMoon]): its photometric [look] and, over the
+     * simulated sky, the displayed sRGB colour of that sky at the Moon ([skyDisplay]); null over the
+     * live camera image, whose colour is not known.
+     */
+    class MoonEnvironment(val look: MoonLook, val skyDisplay: DoubleArray?)
 
     private val appContext = context.applicationContext
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { r ->
@@ -56,7 +73,7 @@ class ArGlyphCache(context: Context) {
      * Sprite for a Sun/Moon/planet at a drawn equatorial radius of [radiusPx]. Returns the best sprite
      * available now (maybe null on the very first frames) and schedules a refresh when needed.
      */
-    fun bodySprite(state: ArBodyState, radiusPx: Float): Sprite? {
+    fun bodySprite(state: ArBodyState, radiusPx: Float, moon: MoonEnvironment? = null): Sprite? {
         if (released || !radiusPx.isFinite()) return null
         // Size buckets of ~12 % so zooming does not re-render every frame; minimum 6 px radius.
         val bucket = bucketRadius(radiusPx)
@@ -69,14 +86,20 @@ class ArGlyphCache(context: Context) {
                 append('|').append(keyRound(geo.earthshine * 1000.0))
             }
             append('|').append(q(displayTint(state.extinction), 0.03))
+            if (state.kind == ArBodyKind.MOON && moon != null) {
+                append('|').append(moon.look.quantizedKey())
+                val sd = moon.skyDisplay
+                append('|').append(if (sd != null) q(sd, 2.0 / 255.0) else "camera")
+            }
         }
         val entry = entries.getOrPut(state.id) { Entry() }
         if (entry.key != key && !entry.pending) {
             entry.pending = true
             val snapshotState = state
+            val snapshotMoon = moon
             executor.execute {
                 try {
-                    val sprite = render(snapshotState, bucket)
+                    val sprite = render(snapshotState, bucket, snapshotMoon)
                     if (sprite != null) {
                         entry.sprite = sprite
                         entry.key = key
@@ -97,7 +120,8 @@ class ArGlyphCache(context: Context) {
         entries.clear()
     }
 
-    private fun render(state: ArBodyState, radius: Float): Sprite? {
+    private fun render(state: ArBodyState, radius: Float, moon: MoonEnvironment?): Sprite? {
+        if (state.kind == ArBodyKind.MOON) return renderMoon(state, radius, moon)
         val tint = displayTint(state.extinction)
         if (state.kind == ArBodyKind.SUN) {
             val size = (radius * 6f).roundToInt().coerceIn(16, 1024)
@@ -122,13 +146,40 @@ class ArGlyphCache(context: Context) {
         return Sprite(Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888), radius)
     }
 
+    /**
+     * The Moon from the Home Moon card's photographic plate ([MOON_TEXTURE]), lit and composited for the
+     * sky it is seen through ([GlyphRaster.renderMoon]).
+     */
+    private fun renderMoon(state: ArBodyState, radius: Float, moon: MoonEnvironment?): Sprite? {
+        val glyph = state.glyph ?: return null
+        val env = moon ?: MoonEnvironment(
+            MoonLook(
+                distanceKm = state.distanceAu * AU_KM,
+                sunDistanceAu = 1.0,
+                skyLuminance = NIGHT_SKY_LUMINANCE,
+                transmittance = SkyRenderModel.luminance(state.extinction[0], state.extinction[1], state.extinction[2])
+            ),
+            null
+        )
+        val size = (radius * 2.0 + 6.0).roundToInt().coerceIn(12, 1024)
+        val px = IntArray(size * size)
+        val geometry = GlyphRaster.Geometry(
+            pole = glyph.geometry.pole,
+            primeMeridian = glyph.geometry.primeMeridian,
+            sunDir = glyph.geometry.sunDir,
+            tint = state.extinction
+        )
+        GlyphRaster.renderMoon(
+            size, radius.toDouble(), ArAssets.texture(appContext, MOON_TEXTURE), MOON_FALLBACK_LINEAR,
+            geometry, env.look, env.skyDisplay, px
+        )
+        return Sprite(Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888), radius, screenBlend = env.skyDisplay == null)
+    }
+
     private fun specFor(body: BodyOrientation.Body): GlyphRaster.BodySpec? {
         fun tex(name: String) = ArAssets.texture(appContext, name)
         return when (body) {
-            BodyOrientation.Body.MOON -> GlyphRaster.BodySpec(
-                tex("moon.jpg"), doubleArrayOf(0.45, 0.44, 0.42), GlyphRaster.Shading.LOMMEL_SEELIGER,
-                brightness = 1.25, saturation = 0.55, opacityGain = 3.0
-            )
+            BodyOrientation.Body.MOON -> null // rendered by renderMoon
             BodyOrientation.Body.MERCURY -> GlyphRaster.BodySpec(
                 tex("mercury.jpg"), doubleArrayOf(0.45, 0.43, 0.41), GlyphRaster.Shading.LOMMEL_SEELIGER,
                 brightness = 1.3, saturation = 0.55
@@ -251,6 +302,13 @@ class ArGlyphCache(context: Context) {
             }
         }
         const val STAR_TINT_BINS = 14
+
+        /** The Home Moon card's plate on the sphere (tools/ar-sky-assets/build_moon_plate_map.py). */
+        const val MOON_TEXTURE = "moon_plate.jpg"
+        private val MOON_FALLBACK_LINEAR = doubleArrayOf(0.30, 0.29, 0.28)
+        private const val AU_KM = 149_597_870.7
+        /** Sky luminance assumed in front of the Moon until the sky model is ready (a dark rural night). */
+        const val NIGHT_SKY_LUMINANCE = 3e-4
 
         /** B−V of a tint bin (−0.35 … 2.05). */
         fun binToBv(bin: Int): Double = -0.35 + bin * (2.4 / (STAR_TINT_BINS - 1))

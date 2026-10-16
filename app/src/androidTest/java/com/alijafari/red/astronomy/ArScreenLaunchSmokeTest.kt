@@ -50,7 +50,17 @@ class ArScreenLaunchSmokeTest {
     @Test
     fun persianNight() = openAr(AppLanguage.PERSIAN, 1_792_175_400_000L)
 
-    /** 2026-10-20 16:00 UTC = 19:30 in Tehran: first-quarter Moon high in a dark sky (earthshine side). */
+    /**
+     * 2026-10-20 16:00 UTC = 19:30 in Tehran: waxing gibbous Moon (phase angle 68°, 69 % lit, two days after
+     * first quarter) 38° up near the meridian, Sun 26.5° below the horizon.
+     */
     @Test
     fun englishMoonEvening() = openAr(AppLanguage.ENGLISH, 1_792_512_000_000L)
+
+    /**
+     * 2026-10-14 15:00 UTC = 18:30 in Tehran: four-day crescent (phase angle 134°) 8° up in the west-southwest,
+     * Sun 12.8° below the horizon — the earthlit night side is visible.
+     */
+    @Test
+    fun persianCrescentEarthshine() = openAr(AppLanguage.PERSIAN, 1_791_990_000_000L)
 }

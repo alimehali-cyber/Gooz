@@ -23,6 +23,7 @@ import com.alijafari.red.astronomy.ui.rendering.SkySceneModel
 import com.alijafari.red.astronomy.ui.rendering.SkyRenderTarget
 import com.alijafari.red.astronomy.ui.rendering.SkySceneRenderer
 import com.alijafari.red.astronomy.ui.rendering.SkyTimeModel
+import com.alijafari.red.astronomy.ui.rendering.rememberSkyMoonSprites
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
@@ -75,7 +76,8 @@ fun LiveSkyBackdrop(
     theme: SkyCanvasTheme,
     liveTimeMs: StateFlow<Long>,
     dragOffsetHours: StateFlow<Float>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    bortleClass: Int = 3
 ) {
     // Visibility is decided here, so only this composable recomposes when a tab or an immersive Lab feature changes.
     val visible = LiveSkyPolicy.isBackdropVisible(
@@ -96,7 +98,8 @@ fun LiveSkyBackdrop(
         theme = theme,
         liveTimeMs = liveTimeMs,
         dragOffsetHours = dragOffsetHours,
-        modifier = modifier
+        modifier = modifier,
+        bortleClass = bortleClass
     )
 }
 
@@ -110,7 +113,8 @@ private fun LiveSkyActiveBackdrop(
     theme: SkyCanvasTheme,
     liveTimeMs: StateFlow<Long>,
     dragOffsetHours: StateFlow<Float>,
-    modifier: Modifier
+    modifier: Modifier,
+    bortleClass: Int
 ) {
     // Cheap state only. Neither value triggers astronomy here: the producer below reads the request.
     val liveTime by liveTimeMs.collectAsState()
@@ -136,6 +140,7 @@ private fun LiveSkyActiveBackdrop(
 
     // Non-state flag. Writing it from the draw phase must not trigger recomposition.
     val renderHealth = remember { SkyBackdropRenderHealth() }
+    val moonSprites = rememberSkyMoonSprites()
 
     val currentFrame = frame
     val panoramaEnabled = SkyPanoramaFeature.isEnabledFor(theme)
@@ -171,7 +176,9 @@ private fun LiveSkyActiveBackdrop(
                         theme = theme,
                         frameTimeMs = liveTime,
                         panoramaActive = panoramaActive,
-                        target = SkyRenderTarget.APP_BACKDROP
+                        target = SkyRenderTarget.APP_BACKDROP,
+                        moonSprites = moonSprites,
+                        bortle = bortleClass
                     )
                 } catch (e: Exception) {
                     renderHealth.failed = true

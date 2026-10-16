@@ -15,9 +15,36 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 object SkySceneRenderer {
 
     /**
+     * Azimuth and altitude (degrees) of a point 1° from the Moon towards celestial north
+     * ([towardsNorth]) or celestial west, in the AR frame of [sunMoon] (true equator of date), so the
+     * photographic Moon is oriented exactly as the AR screen orients it.
+     */
+    internal fun offsetAltAz(sunMoon: com.alijafari.red.astronomy.ar.core.ArSkySceneComputer.SunMoon, towardsNorth: Boolean): Pair<Double, Double> {
+        val u = sunMoon.moon.placed.enu
+        val pole = sunMoon.frame.enuFromTod.let { m -> doubleArrayOf(m[2], m[5], m[8]) }
+        // North tangent n = pole − (pole·u)u; east e = n × u (so that e × n = u); west = −e.
+        val d = pole[0] * u[0] + pole[1] * u[1] + pole[2] * u[2]
+        val n = doubleArrayOf(pole[0] - d * u[0], pole[1] - d * u[1], pole[2] - d * u[2])
+        val nl = kotlin.math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).coerceAtLeast(1e-12)
+        for (i in 0..2) n[i] /= nl
+        val t = if (towardsNorth) n else doubleArrayOf(
+            -(n[1] * u[2] - n[2] * u[1]), -(n[2] * u[0] - n[0] * u[2]), -(n[0] * u[1] - n[1] * u[0])
+        )
+        val step = Math.toRadians(1.0)
+        val p = DoubleArray(3) { u[it] * kotlin.math.cos(step) + t[it] * kotlin.math.sin(step) }
+        val alt = Math.toDegrees(kotlin.math.asin(p[2].coerceIn(-1.0, 1.0)))
+        val az = (Math.toDegrees(kotlin.math.atan2(p[0], p[1])) + 360.0) % 360.0
+        return az to alt
+    }
+
+    /**
      * @param panoramaActive true while the photographic panorama on this surface supplies the sky gradient and the
      *   procedural Milky Way is replaced. Both the Home hero and the Live Sky backdrop set this.
      * @param target the surface being drawn. It defaults to the Home hero, so existing Home calls draw as before.
+     * @param moonSprites the photographic Moon (the Home Moon card's look; see [SkyMoonSprites]) for the
+     *   Real Sky and Atmospheric Sky themes; the Moon appears with its first sprite (a fraction of a second).
+     *   Without it, or if it cannot be rendered, the procedural Moon is drawn.
+     * @param bortle the observer's Bortle class, for the night sky in front of the Moon.
      */
     fun drawSky(
         drawScope: DrawScope,
@@ -25,7 +52,9 @@ object SkySceneRenderer {
         theme: SkyCanvasTheme,
         frameTimeMs: Long,
         panoramaActive: Boolean,
-        target: SkyRenderTarget = SkyRenderTarget.HOME_HERO
+        target: SkyRenderTarget = SkyRenderTarget.HOME_HERO,
+        moonSprites: SkyMoonSprites? = null,
+        bortle: Int = 3
     ) {
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
@@ -110,22 +139,51 @@ object SkySceneRenderer {
                 latitudeDeg = userLat
             )
 
-            MoonRenderer.drawMoon(
-                drawScope = drawScope,
-                center = moonCenter,
-                radius = baseMoonRadius,
-                illuminationPercent = moonData.illuminationPercent,
-                phaseAngleRad = moonData.phaseAngleRad,
-                isLunarEclipse = frame.isLunarEclipse,
-                isSolarEclipse = frame.isSolarEclipse,
-                moonPulseScale = moonPulseScale,
-                lightingState = lightingState,
-                frameTimeMs = frameTimeMs,
-                isWaxing = (moonData.ageDays < 14.765),
-                theme = theme,
-                limbScreenAngleDeg = limbScreenAngleDeg,
-                clipBottomPx = clipBottom
-            )
+            val photoTheme = theme == SkyCanvasTheme.REAL_SKY || theme == SkyCanvasTheme.ATMOSPHERIC_SKY
+            val sunMoon = frame.sunMoon
+            val photoRadius = if (theme == SkyCanvasTheme.REAL_SKY) baseMoonRadius * 0.48f else baseMoonRadius
+            val photo = if (photoTheme && !frame.isSolarEclipse && moonSprites != null && sunMoon != null) {
+                moonSprites.sprite(frame, photoRadius, bortle)
+            } else null
+            if (photo != null && sunMoon != null) {
+                // Screen directions of celestial north and west at the Moon on this surface.
+                val (northAz, northAlt) = offsetAltAz(sunMoon, towardsNorth = true)
+                val (westAz, westAlt) = offsetAltAz(sunMoon, towardsNorth = false)
+                val northDeg = projection.moonLimbAngleDeg(moonData.azimuthDeg, moonData.altitudeDeg, northAz, northAlt, canvasW, canvasH, userLat)
+                val westDeg = projection.moonLimbAngleDeg(moonData.azimuthDeg, moonData.altitudeDeg, westAz, westAlt, canvasW, canvasH, userLat)
+                MoonRenderer.drawPhotoMoon(
+                    drawScope = drawScope,
+                    center = moonCenter,
+                    radius = photoRadius,
+                    sprite = photo,
+                    northDeg = northDeg,
+                    westDeg = westDeg,
+                    isLunarEclipse = frame.isLunarEclipse,
+                    lightingState = lightingState,
+                    theme = theme,
+                    frameTimeMs = frameTimeMs,
+                    illuminationPercent = moonData.illuminationPercent,
+                    clipBottomPx = clipBottom
+                )
+            } else if (!(photoTheme && moonSprites != null && sunMoon != null && !frame.isSolarEclipse && !moonSprites.failed)) {
+                // Stylised themes, eclipses of the Sun, or no photographic Moon available.
+                MoonRenderer.drawMoon(
+                    drawScope = drawScope,
+                    center = moonCenter,
+                    radius = baseMoonRadius,
+                    illuminationPercent = moonData.illuminationPercent,
+                    phaseAngleRad = moonData.phaseAngleRad,
+                    isLunarEclipse = frame.isLunarEclipse,
+                    isSolarEclipse = frame.isSolarEclipse,
+                    moonPulseScale = moonPulseScale,
+                    lightingState = lightingState,
+                    frameTimeMs = frameTimeMs,
+                    isWaxing = (moonData.ageDays < 14.765),
+                    theme = theme,
+                    limbScreenAngleDeg = limbScreenAngleDeg,
+                    clipBottomPx = clipBottom
+                )
+            }
         }
 
         // 6. Planet Renderer

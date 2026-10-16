@@ -250,7 +250,8 @@ class MainActivity : ComponentActivity() {
                                     theme = uiState.skyCanvasTheme,
                                     liveTimeMs = viewModel.skyLiveClock.timeMs,
                                     dragOffsetHours = viewModel.skyDragOffsetHours,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    bortleClass = uiState.bortleClass
                                 )
                                 PhotoBackdrop(
                                     mode = uiState.appBackdropMode,
