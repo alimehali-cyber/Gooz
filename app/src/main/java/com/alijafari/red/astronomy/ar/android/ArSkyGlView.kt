@@ -363,7 +363,7 @@ class ArSkyGlView(context: Context) : TextureView(context), TextureView.SurfaceT
                 GLES30.glUniform1f(u("uExposure"), SkyRenderModel.exposure(l.adaptLuminance).toFloat())
                 GLES30.glUniform1f(u("uScotopic"), SkyRenderModel.scotopicWeight(l.adaptLuminance).toFloat())
                 GLES30.glUniform1f(u("uRefrScale"), frame.refractionScale)
-                GLES30.glUniform1f(u("uGroundGain"), 0.16f)
+                GLES30.glUniform1f(u("uGroundGain"), ArSkyLighting.GROUND_GAIN.toFloat())
                 GLES30.glUniform1f(u("uDitherSeed"), ((System.nanoTime() / 1_000_000L) % 997L).toFloat())
                 GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
                 GLES30.glBindVertexArray(0)

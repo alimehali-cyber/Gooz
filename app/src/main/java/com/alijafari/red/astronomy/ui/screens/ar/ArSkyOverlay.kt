@@ -578,7 +578,7 @@ object ArSkyOverlay {
         val paint = state.linePaint
         for (obj in catalogue) {
             if (obj.type != ObjectType.METEOR_SHOWER) continue
-            if (!ArScreenSupport.isShowerActive(obj, opts.timeMs)) continue
+            if (!ArScreenSupport.isShowerActive(obj, snapshot.timeMs)) continue
             val pl = snapshot.placementOf(obj.id) ?: continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]

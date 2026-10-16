@@ -49,7 +49,44 @@ class ArSkyLighting(
     /** Sky surface brightness (V mag/arcsec²) towards an apparent ENU direction. */
     fun magArcsec2At(e: Double, n: Double, u: Double): Double = SkyRenderModel.luminanceToMagArcsec2(luminanceAt(e, n, u))
 
+    /**
+     * Display sRGB (0..1 per channel) of the sky towards an apparent ENU direction, Milky Way excluded,
+     * computed exactly as the GL sky shader does (sky-view LUTs, airglow + light pollution, dark
+     * landscape below the horizon, same exposure, Purkinje shift and tone curve). Used by the Canvas
+     * fallback when OpenGL ES 3 is unavailable. [tmp] is scratch space (3 doubles).
+     */
+    fun displayColorAt(e: Double, n: Double, u: Double, out: DoubleArray, tmp: DoubleArray = DoubleArray(3)) {
+        val elev = asin(u.coerceIn(-1.0, 1.0))
+        val az = atan2(e, n)
+        if (elev >= 0.0) {
+            lutLookup(sunLut, elev, az - sunAzRad, tmp)
+            out[0] = tmp[0]; out[1] = tmp[1]; out[2] = tmp[2]
+            if (moonScale > 0.0) {
+                lutLookup(moonLut, elev, az - moonAzRad, tmp)
+                out[0] += tmp[0] * moonScale; out[1] += tmp[1] * moonScale; out[2] += tmp[2] * moonScale
+            }
+            val nb = SkyRenderModel.nightBackgroundLuminance(Math.toDegrees(elev), bortle, zenithTransmittance[1])
+            out[0] += nb; out[1] += nb; out[2] += nb * 1.08
+        } else {
+            val h0 = Math.toRadians(0.5)
+            lutLookup(sunLut, h0, az - sunAzRad, tmp)
+            out[0] = tmp[0]; out[1] = tmp[1]; out[2] = tmp[2]
+            if (moonScale > 0.0) {
+                lutLookup(moonLut, h0, az - moonAzRad, tmp)
+                out[0] += tmp[0] * moonScale; out[1] += tmp[1] * moonScale; out[2] += tmp[2] * moonScale
+            }
+            val nb = SkyRenderModel.nightBackgroundLuminance(0.5, bortle, zenithTransmittance[1])
+            val depth = (-elev / Math.toRadians(25.0)).coerceIn(0.0, 1.0)
+            val g = GROUND_GAIN * (1.0 - 0.75 * depth)
+            out[0] = (out[0] + nb) * g; out[1] = (out[1] + nb) * g; out[2] = (out[2] + nb) * g
+        }
+        SkyRenderModel.toneMap(out[0], out[1], out[2], adaptLuminance, out)
+    }
+
     companion object {
+        /** Fraction of the near-horizon sky radiance returned by the dark landscape below the horizon. */
+        const val GROUND_GAIN = 0.16
+
         private fun lutLookup(lut: FloatArray, elev: Double, dAz: Double, out: DoubleArray) {
             val u = abs(AngleUtil.wrapPi(dAz)) / PI * SkyAtmosphere.SKY_LUT_W - 0.5
             val v = SkyAtmosphere.elevationToV(elev) * SkyAtmosphere.SKY_LUT_H - 0.5
