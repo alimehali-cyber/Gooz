@@ -66,7 +66,7 @@ class MoonShowcaseRenderTest {
         "4_quarter_dusk" to 1792335600000L,        // 2026-10-18 15:00 UTC, Sun −13.9° (nautical twilight)
         "5_gibbous_night" to 1792512000000L,       // 2026-10-20 16:00 UTC, Sun −26.5°
         "6_full_night" to 1792958400000L,          // 2026-10-25 20:00 UTC (23:30 Tehran)
-        "7_gibbous_day" to 1793167200000L          // 2026-10-28 06:00 UTC (09:30 Tehran)
+        "7_gibbous_day" to 1793336400000L          // 2026-10-30 05:00 UTC (08:30 Tehran): waning gibbous 28° up, Sun +21.9°
     )
 
     @Test

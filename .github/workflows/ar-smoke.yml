@@ -1,11 +1,12 @@
 name: AR screen emulator smoke test
 
 # Opens the AR sky screen of the real app on an Android emulator (with and without runtime
-# permissions, Persian and English, day and night) and reports any crash of the app process.
+# permissions, Persian and English, day and night) and reports any crash of the app process, any
+# "Application Not Responding" and an in-process profile of the main thread.
 # Independent of the APK build workflow: it never gates or replaces build.yml.
+# Run on demand only (Actions → "AR screen emulator smoke test" → Run workflow): a push runs just the
+# APK build.
 on:
-  push:
-    branches: [ "arena/8b6f8086-lm-arena" ]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ permissions:
 jobs:
   ar-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 70
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,3 +74,10 @@ jobs:
             gh api "repos/${{ github.repository }}/check-runs" --method POST --input "$f" > /dev/null \
               || echo "::warning title=Check run::could not publish $f"
           done
+
+      - name: Fail on crash, ANR or failed scenario
+        if: always()
+        run: |
+          verdict=$(cat ar-smoke-out/verdict.txt 2>/dev/null || echo missing)
+          echo "verdict: $verdict"
+          test "$verdict" = "ok"
