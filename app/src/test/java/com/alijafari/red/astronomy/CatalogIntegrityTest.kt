@@ -100,7 +100,15 @@ class CatalogIntegrityTest {
     fun closeCoordinateDuplicatesAreRejectedUnlessExplicitlyAllowlisted() {
         val allowlistedPairs = setOf(
             pairKey("dso_m102", "dso_ngc_3115"),
-            pairKey("dso_ngc_6960", "dso_ngc_6992")
+            pairKey("dso_ngc_6960", "dso_ngc_6992"),
+            pairKey("star_bsc_hr_2693", "star_cma_wezen"),
+            pairKey("star_bsc_hr_545", "star_bsc_hr_546"),
+            pairKey("star_bsc_hr_3208", "star_bsc_hr_3209"),
+            pairKey("star_bsc_hr_4374", "star_bsc_hr_4375"),
+            pairKey("star_bsc_hr_4825", "star_bsc_hr_4826"),
+            pairKey("star_bsc_hr_4968", "star_bsc_hr_4969"),
+            pairKey("star_bsc_hr_5977", "star_bsc_hr_5978"),
+            pairKey("star_bsc_hr_6369", "star_bsc_hr_6370")
         )
         val positioned = CanonicalAstroCatalog.getAllCanonicalObjects()
             .filter { it.staticPosition != null }

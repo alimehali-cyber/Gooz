@@ -949,6 +949,8 @@ fun CompassARScreen(
     // AR Sky Zoom State: physical camera zoom while the camera is live, virtual zoom otherwise.
     var zoomFactor by remember { mutableFloatStateOf(1.0f) }
     var showZoomIndicator by remember { mutableStateOf(false) }
+    var previousZoomFactor by remember { mutableFloatStateOf(zoomFactor) }
+    var lastZoomChangeMs by remember { mutableLongStateOf(0L) }
     val cameraLive = hasCameraPermission && isCameraEnabled && cameraStreaming
 
     LaunchedEffect(zoomFactor, boundCamera) {
@@ -964,11 +966,16 @@ fun CompassARScreen(
         }
     }
     LaunchedEffect(zoomFactor) {
-        if (zoomFactor != 1.0f) {
-            showZoomIndicator = true
-            delay(1500L)
-            showZoomIndicator = false
+        if (zoomFactor != previousZoomFactor) {
+            previousZoomFactor = zoomFactor
+            lastZoomChangeMs = System.currentTimeMillis()
         }
+    }
+    LaunchedEffect(lastZoomChangeMs) {
+        if (lastZoomChangeMs == 0L) return@LaunchedEffect
+        showZoomIndicator = true
+        delay(1500L)
+        showZoomIndicator = false
     }
 
     // Night vision (deep red, preserves dark adaptation); local to the AR screen.
@@ -1027,6 +1034,7 @@ fun CompassARScreen(
     // AR Object Visibility Filters Persistence
     val prefs = arPrefs
     var filterStars by remember { mutableStateOf(prefs.getBoolean("filter_stars", true)) }
+    var filterUnnamedStars by remember { mutableStateOf(prefs.getBoolean("filter_unnamed_stars", true)) }
     var filterConstellations by remember { mutableStateOf(prefs.getBoolean("filter_constellations", true)) }
     var filterPlanets by remember { mutableStateOf(prefs.getBoolean("filter_planets", true)) }
     var filterMoons by remember { mutableStateOf(prefs.getBoolean("filter_moons", true)) }
@@ -1043,6 +1051,7 @@ fun CompassARScreen(
 
     fun setAllFilters(value: Boolean) {
         filterStars = value
+        filterUnnamedStars = value
         filterConstellations = value
         filterPlanets = value
         filterMoons = value
@@ -1053,6 +1062,7 @@ fun CompassARScreen(
         filterObjectNames = value
         prefs.edit()
             .putBoolean("filter_stars", value)
+            .putBoolean("filter_unnamed_stars", value)
             .putBoolean("filter_constellations", value)
             .putBoolean("filter_planets", value)
             .putBoolean("filter_moons", value)
@@ -1394,6 +1404,7 @@ fun CompassARScreen(
                         zoom = if (cameraLive) (boundCamera?.cameraInfo?.zoomState?.value?.zoomRatio?.toDouble() ?: 1.0) else zoomFactor.toDouble(),
                         density = density,
                         showStars = filterStars,
+                        showUnnamedStars = filterUnnamedStars,
                         showConstellations = filterConstellations,
                         showPlanets = filterPlanets,
                         showMoon = filterMoons,
@@ -2107,6 +2118,13 @@ fun CompassARScreen(
                                             selected = filterStars,
                                             onClick = { updateFilter("filter_stars", !filterStars) { filterStars = it } },
                                             label = { Text(if (isFa) "⭐ ستارگان" else "⭐ Stars") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterUnnamedStars,
+                                            onClick = { updateFilter("filter_unnamed_stars", !filterUnnamedStars) { filterUnnamedStars = it } },
+                                            label = { Text(if (isFa) "✦ ستارگان بی‌نام" else "✦ Unnamed Stars") }
                                         )
                                     }
                                     item {

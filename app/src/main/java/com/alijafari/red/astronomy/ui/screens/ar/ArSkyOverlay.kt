@@ -60,6 +60,7 @@ class ArOverlayOptions(
     val zoom: Double,
     val density: Float,
     val showStars: Boolean,
+    val showUnnamedStars: Boolean = true,
     val showConstellations: Boolean,
     val showPlanets: Boolean,
     val showMoon: Boolean,
@@ -259,6 +260,7 @@ object ArSkyOverlay {
         // The snapshot's arrays are indexed by its own catalogue; never iterate past them.
         val count = min(stars.size, min(e.size / 3, snapshot.starMag.size))
         for (i in 0 until count) {
+            if (!opts.showUnnamedStars && stars.name(i) == null) continue
             val x = e[i * 3].toDouble(); val y = e[i * 3 + 1].toDouble(); val z = e[i * 3 + 2].toDouble()
             if (x * bore[0] + y * bore[1] + z * bore[2] < cosLimit) continue
             val belowHorizon = z < -0.003

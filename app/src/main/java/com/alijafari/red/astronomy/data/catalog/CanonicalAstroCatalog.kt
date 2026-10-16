@@ -1388,7 +1388,7 @@ object CanonicalAstroCatalog {
         }
 
         // 2. Stars, Deep Sky, Meteor Showers, Asterisms
-        val extraObjects = StarCatalog.getStars() + DeepSkyCatalog.getDeepSkyObjects() +
+        val extraObjects = StarCatalog.getStars() + BscNamedStarCatalog.getStars() + DeepSkyCatalog.getDeepSkyObjects() +
                 MeteorShowerCatalog.getMeteorShowers() + AsterismCatalog.getAsterisms()
 
         for (obj in extraObjects) {

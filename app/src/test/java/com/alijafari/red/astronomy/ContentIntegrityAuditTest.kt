@@ -36,7 +36,7 @@ class ContentIntegrityAuditTest {
     fun unionListHasExactlyThreeHundredThirtySixReachableObjects() {
         assertEquals(
             "Canonical union-list size changed unexpectedly; the audit scope is the full union",
-            336,
+            632,
             allObjects.size
         )
     }
