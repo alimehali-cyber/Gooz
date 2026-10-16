@@ -57,7 +57,7 @@ class ArGlyphCache(context: Context) {
      * available now (maybe null on the very first frames) and schedules a refresh when needed.
      */
     fun bodySprite(state: ArBodyState, radiusPx: Float): Sprite? {
-        if (released) return null
+        if (released || !radiusPx.isFinite()) return null
         // Size buckets of ~12 % so zooming does not re-render every frame; minimum 6 px radius.
         val bucket = bucketRadius(radiusPx)
         val geo = state.glyph?.geometry
@@ -66,7 +66,7 @@ class ArGlyphCache(context: Context) {
             if (geo != null) {
                 append('|').append(q(geo.sunDir, 0.01)).append('|').append(q(geo.pole, 0.01))
                 append('|').append(q(geo.primeMeridian, if (state.kind == ArBodyKind.MOON) 0.004 else 0.03))
-                append('|').append(((geo.earthshine) * 1000).roundToInt())
+                append('|').append(keyRound(geo.earthshine * 1000.0))
             }
             append('|').append(q(displayTint(state.extinction), 0.03))
         }
@@ -255,13 +255,17 @@ class ArGlyphCache(context: Context) {
         /** B−V of a tint bin (−0.35 … 2.05). */
         fun binToBv(bin: Int): Double = -0.35 + bin * (2.4 / (STAR_TINT_BINS - 1))
 
-        fun bvToBin(bv: Double): Int = ((bv + 0.35) / (2.4 / (STAR_TINT_BINS - 1))).roundToInt().coerceIn(0, STAR_TINT_BINS - 1)
+        fun bvToBin(bv: Double): Int {
+            if (!bv.isFinite()) return bvToBin(0.6) // unknown colour: a solar-type star
+            return ((bv + 0.35) / (2.4 / (STAR_TINT_BINS - 1))).roundToInt().coerceIn(0, STAR_TINT_BINS - 1)
+        }
 
         /** PSF sprite pixels per core radius (the PSF core σ is 0.085 of the sprite). */
         const val PSF_SPRITE_PER_CORE_RADIUS = 3.2f
 
         fun bucketRadius(radiusPx: Float): Float {
-            val r = max(radiusPx, 6f)
+            // Non-finite input must never reach roundToInt() (it throws on NaN).
+            val r = if (radiusPx.isFinite()) radiusPx.coerceIn(6f, 4096f) else 6f
             val step = 1.12
             val n = (kotlin.math.ln(r / 6.0) / kotlin.math.ln(step)).roundToInt()
             return (6.0 * step.pow(n)).toFloat()
@@ -279,6 +283,10 @@ class ArGlyphCache(context: Context) {
         }
 
         private fun q(v: DoubleArray, step: Double): String =
-            v.joinToString(",") { (it / step).roundToInt().toString() }
+            v.joinToString(",") { keyRound(it / step).toString() }
+
+        /** Rounding for cache keys: NaN/∞ map to a sentinel instead of throwing. */
+        private fun keyRound(v: Double): Int =
+            if (v.isFinite()) v.coerceIn(-1e9, 1e9).roundToInt() else Int.MIN_VALUE
     }
 }

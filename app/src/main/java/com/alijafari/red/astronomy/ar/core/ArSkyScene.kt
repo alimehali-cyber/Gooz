@@ -37,21 +37,46 @@ class ArBodyState(
 /** A J2000 catalogue position to be placed (deep-sky objects, named stars, radiants, …). */
 class ArStaticTarget(val id: String, val raDeg: Double, val decDeg: Double)
 
-/** Everything computed for one instant; read-only, shared with the render thread. */
+/**
+ * Everything computed for one instant; read-only, shared with the render thread.
+ *
+ * The snapshot carries the exact star catalogue and constellation figures it was computed from, and
+ * the per-star / per-figure arrays are indexed by *those* lists only. Renderers must take the star
+ * and figure lists from the snapshot, never from separately held state: the catalogue is loaded
+ * asynchronously, so a snapshot computed before it arrived has no stars even though the catalogue may
+ * already be in memory by the time the snapshot is drawn.
+ */
 class ArSkySnapshot(
     val timeMs: Long,
     val frame: ArSkyFrame,
+    /** The star catalogue that [starEnu] and [starMag] are indexed by (null: not loaded yet, no stars). */
+    val stars: ArStarCatalog?,
     /** 3 floats per catalogue star: apparent refracted ENU. */
     val starEnu: FloatArray,
     /** Observed magnitude per star (catalogue V + extinction relative to the zenith). */
     val starMag: FloatArray,
     val bodies: List<ArBodyState>,
     val placements: Map<String, ArPlaced>,
+    /** The constellation figures that [constellationLabelEnu] is indexed by (their segments index [stars]). */
+    val constellations: List<ArConstellation>,
     /** 3 floats per constellation: ENU of its label anchor (unrefracted; labels only). */
     val constellationLabelEnu: FloatArray,
     val sun: ArBodyState,
     val moon: ArBodyState
 ) {
+    /** Number of stars with positions in this snapshot. */
+    val starCount: Int get() = stars?.size ?: 0
+
+    init {
+        val n = stars?.size ?: 0
+        require(starEnu.size == n * 3 && starMag.size == n) {
+            "Star arrays (${starEnu.size}, ${starMag.size}) do not match the catalogue ($n stars)"
+        }
+        require(constellationLabelEnu.size == constellations.size * 3) {
+            "Constellation labels (${constellationLabelEnu.size}) do not match the figures (${constellations.size})"
+        }
+    }
+
     fun placementOf(id: String): ArPlaced? = placements[id]
 }
 
@@ -228,10 +253,12 @@ object ArSkySceneComputer {
         return ArSkySnapshot(
             timeMs = timeMs,
             frame = frame,
+            stars = stars,
             starEnu = starEnu,
             starMag = starMag,
             bodies = bodies,
             placements = placements,
+            constellations = constellations,
             constellationLabelEnu = labels,
             sun = sunState,
             moon = moonState

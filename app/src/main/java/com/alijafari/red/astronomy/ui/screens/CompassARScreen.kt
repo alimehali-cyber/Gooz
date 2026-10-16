@@ -3,6 +3,8 @@ package com.alijafari.red.astronomy.ui.screens
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.util.Log
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -63,6 +65,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -85,6 +88,7 @@ import com.alijafari.red.astronomy.ui.components.ARSensorCalibrationDialog
 import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
 import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.theme.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -240,6 +244,35 @@ private fun isVisibleByArFilter(
     }
 }
 
+private const val AR_TAG = "CompassAR"
+
+/**
+ * The [Activity] hosting a view's composition. `LocalContext` cannot be used for this: the app
+ * replaces it with a locale-configured context (`createConfigurationContext`), which is neither an
+ * Activity nor a wrapper around one.
+ */
+private fun Context.findHostActivity(): Activity? {
+    var current: Context = this
+    while (true) {
+        if (current is Activity) return current
+        current = (current as? ContextWrapper)?.baseContext ?: return null
+    }
+}
+
+/**
+ * Runs background AR work, returning null (and logging) if it fails. Coroutine cancellation is
+ * re-thrown; every other failure is contained — including Errors such as OutOfMemoryError or
+ * ExceptionInInitializerError, which a `catch (e: Exception)` would let escape and crash the app.
+ */
+private inline fun <T> arBackground(what: String, block: () -> T): T? = try {
+    block()
+} catch (c: CancellationException) {
+    throw c
+} catch (t: Throwable) {
+    Log.e(AR_TAG, "$what failed", t)
+    null
+}
+
 /** Inputs of one AR sky computation; the worker recomputes whenever these change. */
 private data class ArSkyInputs(
     val timeMs: Long,
@@ -313,7 +346,8 @@ fun CompassARScreen(
     val textMeasurer = rememberTextMeasurer(cacheSize = 96)
 
     // Keep screen awake
-    val activity = context as? Activity
+    val hostView = LocalView.current
+    val activity = remember(hostView) { hostView.context.findHostActivity() }
     DisposableEffect(Unit) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
@@ -413,7 +447,7 @@ fun CompassARScreen(
     }
 
     fun isCameraPermanentlyDenied(): Boolean {
-        val activityContext = context as? Activity ?: return false
+        val activityContext = activity ?: return false
         return cameraPermissionAsked &&
                 !hasCameraPermission &&
                 !activityContext.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)
@@ -684,13 +718,12 @@ fun CompassARScreen(
     var starCatalog by remember { mutableStateOf<ArStarCatalog?>(null) }
     var constellationFigures by remember { mutableStateOf<List<ArConstellation>>(emptyList()) }
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            val s = ArAssets.stars(context)
-            val c = ArAssets.constellations(context)
-            withContext(Dispatchers.Main) {
-                starCatalog = s
-                constellationFigures = c
-            }
+        val loaded = withContext(Dispatchers.IO) {
+            arBackground("Loading the star catalogue") { ArAssets.stars(context) to ArAssets.constellations(context) }
+        }
+        if (loaded != null) {
+            starCatalog = loaded.first
+            constellationFigures = loaded.second
         }
     }
     val glyphCache = remember { ArGlyphCache(context) }
@@ -723,7 +756,7 @@ fun CompassARScreen(
             }
             last = inputs
             val result = withContext(Dispatchers.Default) {
-                try {
+                arBackground("AR sky computation") {
                     val obs = inputs.observer
                     val sats = ArScreenSupport.satellites(inputs.timeMs, obs.latitudeDeg, obs.longitudeDeg, obs.heightM)
                     val satMap = HashMap<String, Pair<Double, Double>>()
@@ -739,9 +772,6 @@ fun CompassARScreen(
                         )
                         Triple(snap, light, sats)
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    null
                 }
             }
             if (result != null) {
@@ -1060,14 +1090,10 @@ fun CompassARScreen(
         } else {
             val obs = observerForSky
             val t = activeTimeMs
+            val stars = starCatalog
             orbitPaths = withContext(Dispatchers.Default) {
-                try {
-                    ArScreenSupport.path(target, t, obs, starCatalog)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    Pair(emptyList(), emptyList())
-                }
-            }
+                arBackground("Path of ${target.id}") { ArScreenSupport.path(target, t, obs, stars) }
+            } ?: Pair(emptyList(), emptyList())
         }
     }
     val (orbitPastPoints, orbitFuturePoints) = orbitPaths
@@ -1107,10 +1133,10 @@ fun CompassARScreen(
         val snap = skySnapshot
         val width = arViewportSize.width.toFloat()
         val height = arViewportSize.height.toFloat()
-        if (cam == null || snap == null || width <= 0f || height <= 0f || !isControlsVisible || isAlignmentMode) {
+        val margin = 28f * currentDensity
+        if (cam == null || snap == null || width <= 2f * margin || height <= 2f * margin || !isControlsVisible || isAlignmentMode) {
             emptyList()
         } else {
-            val margin = 28f * currentDensity
             val centerX = width / 2f
             val centerY = height / 2f
             val bore = cam.boresightEnu()
@@ -1360,8 +1386,6 @@ fun CompassARScreen(
                     snapshot = snap,
                     lighting = skyLighting,
                     camera = cam,
-                    stars = starCatalog,
-                    constellations = constellationFigures,
                     catalogue = allCatalog,
                     satellites = arSatellites,
                     glyphs = glyphCache,
@@ -2452,12 +2476,7 @@ fun CompassARScreen(
                 val t = activeTimeMs
                 val tz = uiState.userLocation.timezoneId
                 riseSet = withContext(Dispatchers.Default) {
-                    try {
-                        ArScreenSupport.riseSet(obj, t, o, tz)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        null
-                    }
+                    arBackground("Rise/set of ${obj.id}") { ArScreenSupport.riseSet(obj, t, o, tz) }
                 }
             }
             val satInfo = if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {

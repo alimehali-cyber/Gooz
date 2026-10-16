@@ -79,7 +79,8 @@ def main() -> int:
             m = re.search(r"FATAL EXCEPTION.*?(?=\n\S|\Z)", crash, re.S)
             block = crash[crash.find("FATAL EXCEPTION"):][:3500] if "FATAL EXCEPTION" in crash else inst[-3500:]
             print(f"::error title=AR smoke crash {label}::{esc(block)}")
-        lines = app_pid_lines(logcat)
+        # Thread dumps printed after a crash (THREAD_STATE) would crowd out the lines that matter.
+        lines = [ln for ln in app_pid_lines(logcat) if " THREAD_STATE" not in ln]
         text_parts.append(
             f"\n\n## {label}: {status}\n\n### instrumentation\n```\n{inst[-4000:]}\n```\n"
             f"### crash buffer\n```\n{crash[:20000]}\n```\n"

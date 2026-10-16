@@ -34,7 +34,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -1304,7 +1304,9 @@ private fun FullscreenSkyViewer(
     onDismiss: () -> Unit
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    val activity = LocalContext.current.findActivity()
+    // Not LocalContext: the app replaces it with a locale-configured context that wraps no Activity.
+    val hostView = LocalView.current
+    val activity = remember(hostView) { hostView.context.findActivity() }
 
     DisposableEffect(activity) {
         val previousOrientation = activity?.requestedOrientation

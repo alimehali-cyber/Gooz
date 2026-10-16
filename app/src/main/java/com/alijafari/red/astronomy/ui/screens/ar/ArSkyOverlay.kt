@@ -103,6 +103,9 @@ object ArSkyOverlay {
     /**
      * Draws the whole AR sky overlay (everything except the GL sky background and the HUD) and records
      * the drawn items in [state] for hit-testing.
+     *
+     * Stars and constellation figures are always taken from [snapshot] itself (see [ArSkySnapshot]):
+     * its per-star arrays are only valid for the catalogue it was computed with.
      */
     fun draw(
         scope: DrawScope,
@@ -110,8 +113,6 @@ object ArSkyOverlay {
         snapshot: ArSkySnapshot,
         lighting: ArSkyLighting?,
         camera: ArCameraModel,
-        stars: ArStarCatalog?,
-        constellations: List<ArConstellation>,
         catalogue: List<CelestialObject>,
         satellites: List<ArSatelliteInfo>,
         glyphs: ArGlyphCache,
@@ -129,6 +130,8 @@ object ArSkyOverlay {
         val darkness = if (opts.cameraMode) (1.0 - 0.6 * SkyRenderModel.smoothstep(-6.0, 2.0, sunAlt))
         else (1.0 - SkyRenderModel.smoothstep(-9.0, -1.0, sunAlt))
 
+        val stars = snapshot.stars
+        val constellations = snapshot.constellations
         scope.drawIntoCanvas { canvas ->
             val nc = canvas.nativeCanvas
             if (opts.showConstellations) drawConstellations(nc, state, snapshot, camera, constellations, opts, darkness, w, h)
@@ -169,12 +172,15 @@ object ArSkyOverlay {
         paint.strokeWidth = 1.05f * opts.density
         paint.color = android.graphics.Color.argb((255 * 0.38 * darkness).toInt().coerceIn(0, 255), 143, 172, 224)
         val e = snapshot.starEnu
+        val n = snapshot.starCount
         for (c in constellations) {
             val s = c.segments
             var k = 0
             while (k + 1 < s.size) {
-                val a = s[k] * 3; val b = s[k + 1] * 3
+                val ia = s[k]; val ib = s[k + 1]
                 k += 2
+                if (ia !in 0 until n || ib !in 0 until n) continue
+                val a = ia * 3; val b = ib * 3
                 if (!opts.cameraMode && e[a + 2] < -0.004f && e[b + 2] < -0.004f) continue
                 drawSegment(nc, state, camera, e[a].toDouble(), e[a + 1].toDouble(), e[a + 2].toDouble(),
                     e[b].toDouble(), e[b + 1].toDouble(), e[b + 2].toDouble(), paint, w, h)
@@ -244,7 +250,9 @@ object ArSkyOverlay {
         val margin = 24f * opts.density
         val moon = snapshot.moon.placed.enu
         val moonCos = cos(Math.toRadians(snapshot.moon.angularRadiusDeg))
-        for (i in 0 until stars.size) {
+        // The snapshot's arrays are indexed by its own catalogue; never iterate past them.
+        val count = min(stars.size, min(e.size / 3, snapshot.starMag.size))
+        for (i in 0 until count) {
             val x = e[i * 3].toDouble(); val y = e[i * 3 + 1].toDouble(); val z = e[i * 3 + 2].toDouble()
             if (x * bore[0] + y * bore[1] + z * bore[2] < cosLimit) continue
             val belowHorizon = z < -0.003
@@ -299,7 +307,7 @@ object ArSkyOverlay {
             if (obj.type != ObjectType.STAR) continue
             val idx = obj.hdId?.let { stars?.indexOfHd(it) } ?: -1
             val x: Double; val y: Double; val z: Double
-            if (idx >= 0) {
+            if (idx >= 0 && idx * 3 + 2 < snapshot.starEnu.size) {
                 x = snapshot.starEnu[idx * 3].toDouble(); y = snapshot.starEnu[idx * 3 + 1].toDouble(); z = snapshot.starEnu[idx * 3 + 2].toDouble()
             } else {
                 val pl = snapshot.placementOf(obj.id) ?: continue
@@ -608,6 +616,7 @@ object ArSkyOverlay {
             val labels = snapshot.constellationLabelEnu
             val color = Color(0xFF9DB6E6).copy(alpha = (0.62 * darkness).toFloat())
             for ((i, c) in constellations.withIndex()) {
+                if (i * 3 + 2 >= labels.size) break
                 if (c.rank > 2 && opts.zoom < 1.6) continue
                 val x = labels[i * 3].toDouble(); val y = labels[i * 3 + 1].toDouble(); val z = labels[i * 3 + 2].toDouble()
                 if (!opts.cameraMode && z < 0.02) continue
