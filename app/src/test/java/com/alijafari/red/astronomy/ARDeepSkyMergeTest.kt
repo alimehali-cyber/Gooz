@@ -26,7 +26,7 @@ class ARDeepSkyMergeTest {
         assertEquals(17, report.mergedCatalogDuplicateCount)
         assertEquals(224, report.insertedCount)
         assertEquals(239, report.finalDeepSkyCount)
-        assertEquals(336, report.finalCatalogCount)
+        assertEquals(632, report.finalCatalogCount)
         assertTrue(report.duplicateCanonicalIds.isEmpty())
     }
 

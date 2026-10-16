@@ -1418,8 +1418,7 @@ object CanonicalAstroCatalog {
                 val bestMonthFromEngine = matchedEngineDso?.let { deepSkyEngineForMetadata.bestViewingMonth(it).coerceIn(1, 12) }
                 val angularSizeArcmin = obj.angularSizeArcmin ?: matchedEngineDso?.sizeArcmin
 
-                list.addOrMergeCatalogIdentity(
-                    CanonicalAstroObject(
+                val __candidate = CanonicalAstroObject(
                         canonicalId = canonId,
                         legacyIds = listOf(obj.id),
                         type = obj.type,
@@ -1473,8 +1472,11 @@ object CanonicalAstroCatalog {
                             bestViewingMonthEn = obj.bestViewingMonthEn.ifBlank { bestMonthFromEngine?.let { monthNamesEn[it - 1] } ?: "" },
                             bestViewingMonthFa = obj.bestViewingMonthFa.ifBlank { bestMonthFromEngine?.let { monthNamesFa[it - 1] } ?: "" }
                         )
-                    )
-                )
+                if (obj.type == ObjectType.STAR) {
+                    if (!list.any { it.canonicalId == canonId }) list.add(__candidate)
+                } else {
+                    list.addOrMergeCatalogIdentity(__candidate)
+                }
             }
         }
 

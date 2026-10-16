@@ -695,7 +695,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_546",
             type = ObjectType.STAR,
-            nameEn = "Mesarthim",
+            nameEn = "Mesarthim (HR 546)",
             nameFa = "میسارثیم ۵۴۶",
             raDeg = 28.382500,
             decDeg = 19.293612,
@@ -831,7 +831,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_596",
             type = ObjectType.STAR,
-            nameEn = "Alrescha",
+            nameEn = "Alrescha (HR 596)",
             nameFa = "الریسچا ۵۹۶",
             raDeg = 30.511667,
             decDeg = 2.763611,
@@ -2429,7 +2429,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_1880",
             type = ObjectType.STAR,
-            nameEn = "Meissa",
+            nameEn = "Meissa (HR 1880)",
             nameFa = "مییسسا ۱۸۸۰",
             raDeg = 83.785416,
             decDeg = 9.935000,
@@ -3347,7 +3347,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_3209",
             type = ObjectType.STAR,
-            nameEn = "Tegmine",
+            nameEn = "Tegmine (HR 3209)",
             nameFa = "تیگمینی ۳۲۰۹",
             raDeg = 123.052917,
             decDeg = 17.647778,
@@ -4401,7 +4401,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_4375",
             type = ObjectType.STAR,
-            nameEn = "Alula Australis",
+            nameEn = "Alula Australis (HR 4375)",
             nameFa = "الولا اوسترالیس ۴۳۷۵",
             raDeg = 169.545837,
             decDeg = 31.529167,
@@ -4945,7 +4945,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_4764",
             type = ObjectType.STAR,
-            nameEn = "Gacrux",
+            nameEn = "Gacrux (HR 4764)",
             nameFa = "گاکروکس ۴۷۶۴",
             raDeg = 187.819580,
             decDeg = -57.081112,
@@ -5081,7 +5081,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_4826",
             type = ObjectType.STAR,
-            nameEn = "Porrima",
+            nameEn = "Porrima (HR 4826)",
             nameFa = "پورریما ۴۸۲۶",
             raDeg = 190.414993,
             decDeg = -1.449444,
@@ -5183,7 +5183,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_4915",
             type = ObjectType.STAR,
-            nameEn = "Chara",
+            nameEn = "Chara (HR 4915)",
             nameFa = "چارا ۴۹۱۵",
             raDeg = 194.007080,
             decDeg = 38.318333,
@@ -5285,7 +5285,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_4969",
             type = ObjectType.STAR,
-            nameEn = "Diadem",
+            nameEn = "Diadem (HR 4969)",
             nameFa = "دیادیم ۴۹۶۹",
             raDeg = 197.497086,
             decDeg = 17.529444,
@@ -5727,7 +5727,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_5506",
             type = ObjectType.STAR,
-            nameEn = "Izar",
+            nameEn = "Izar (HR 5506)",
             nameFa = "یزار ۵۵۰۶",
             raDeg = 221.246674,
             decDeg = 27.074167,
@@ -6407,7 +6407,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_5978",
             type = ObjectType.STAR,
-            nameEn = "Graffias",
+            nameEn = "Graffias (HR 5978)",
             nameFa = "گراففیاس ۵۹۷۸",
             raDeg = 241.092087,
             decDeg = -11.373055,
@@ -6543,7 +6543,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_6027",
             type = ObjectType.STAR,
-            nameEn = "Jabbah",
+            nameEn = "Jabbah (HR 6027)",
             nameFa = "جابباه ۶۰۲۷",
             raDeg = 242.998749,
             decDeg = -19.460556,
@@ -6747,7 +6747,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_6149",
             type = ObjectType.STAR,
-            nameEn = "Marfik",
+            nameEn = "Marfik (HR 6149)",
             nameFa = "مارفیک ۶۱۴۹",
             raDeg = 247.728333,
             decDeg = 1.983889,
@@ -6883,7 +6883,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_6370",
             type = ObjectType.STAR,
-            nameEn = "Arrakis",
+            nameEn = "Arrakis (HR 6370)",
             nameFa = "ارراکیس ۶۳۷۰",
             raDeg = 256.332092,
             decDeg = 54.470276,
@@ -8277,7 +8277,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_7447",
             type = ObjectType.STAR,
-            nameEn = "Al Thalimain",
+            nameEn = "Al Thalimain (HR 7447)",
             nameFa = "ال ثالیماین ۷۴۴۷",
             raDeg = 294.180420,
             decDeg = -1.286389,
@@ -9943,7 +9943,7 @@ object BscNamedStarCatalog {
         CelestialObject(
             id = "star_bsc_hr_8781",
             type = ObjectType.STAR,
-            nameEn = "Markab",
+            nameEn = "Markab (HR 8781)",
             nameFa = "مارکاب ۸۷۸۱",
             raDeg = 346.190430,
             decDeg = 15.205277,
