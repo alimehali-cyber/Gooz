@@ -58,7 +58,8 @@ object AtmosphereRenderer {
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
-        val horizonY = height * HeroSkyProjection.HORIZON_FRACTION
+        // The horizon belongs to the surface's projection: the full-bleed scene moves it up, the card keeps 0.85.
+        val horizonY = projection.horizonY(width, height)
         val sunAlt = lightingState.sunAltitudeDeg
         val overlayScale = if (panoramaMode) {
             1f - SkyPanoramaSkyModel.nightWeight(sunAlt)

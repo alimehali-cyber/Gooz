@@ -138,6 +138,33 @@ class SkyProjectionTest {
     }
 
     @Test
+    fun theFullBleedSceneMovesTheHorizonAndKeepsTheSkyMapping() {
+        val frame = SkySceneModel.compute(TimeEngine.getJulianDate(1_700_000_000_000L), lat, 13.4, 0.0)
+        val scene = SkyRenderTarget.HOME_SCENE.projectionFor(frame)
+
+        assertTrue(SkyRenderTarget.HOME_SCENE.drawsScene)
+        assertFalse(SkyRenderTarget.HOME_HERO.drawsScene)
+        assertEquals(900f * SkySceneLayout.HORIZON_FRACTION, scene.clipBottomPx(900f), 0f)
+        assertEquals(900f * SkySceneLayout.HORIZON_FRACTION, scene.horizonY(400f, 900f), 0f)
+
+        // The mapping is the same cylindrical Home mapping: only the row altitude 0° lands on has moved.
+        val onHorizon = scene.project(180.0, 0.0, 400f, 900f, lat)
+        assertEquals(400f * 0.5f, onHorizon.x, 0.01f)
+        assertEquals(900f * SkySceneLayout.HORIZON_FRACTION, onHorizon.y, 0.01f)
+        val zenith = scene.project(180.0, 89.0, 400f, 900f, lat)
+        assertTrue("zenith must stay near the top", zenith.y < 900f * SkySceneLayout.HORIZON_FRACTION * 0.5f)
+
+        // The composition agrees with the projection and puts the observer on, not above, the ground.
+        val composition = SkySceneLayout.composition(400f, 900f)
+        assertEquals(scene.horizonY(400f, 900f), composition.horizonY, 0.01f)
+        assertTrue(composition.groundTopY > composition.horizonY)
+        assertTrue(composition.figureFeetY > composition.groundTopY)
+        assertTrue(composition.figureFeetY < composition.heightPx * 0.8f)
+        assertTrue(composition.figureCenterX > 400f * 0.5f)
+        assertTrue(SkySceneLayout.composition(400f, 900f, figureOnRight = false).figureCenterX < 400f * 0.5f)
+    }
+
+    @Test
     fun homeAndBackdropPanoramaStatesDifferOnlyByFraming() {
         val frame = SkySceneModel.compute(TimeEngine.getJulianDate(1_700_000_000_000L), lat, 13.4, 0.0)
         val home = SkyPanoramaState.fromSceneFrame(frame, SkyPanoramaFraming.HOME_ZENITH)

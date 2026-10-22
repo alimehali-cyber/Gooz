@@ -30,6 +30,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -56,17 +58,13 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
+import com.alijafari.red.astronomy.ui.components.SkyCanvasPresentation
 import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
 import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
+import kotlin.math.roundToInt
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
-
-/**
- * The Moon render is inset inside its square card, which leaves the date line room below it and keeps the
- * card's heavy corners visible instead of being covered by the lunar disc.
- */
-private const val MoonRenderFillFraction = 0.68f
 
 // ------------------------------------------------------------------------------------------------
 // Recompute budgets for the Home screen
@@ -311,190 +309,33 @@ fun HomeScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // The whole screen is a BoxWithConstraints so the scene can claim a fixed share of the viewport: a
+    // LazyColumn item is measured with an unbounded height, so the height has to be decided out here.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sceneHeight = (maxHeight * 0.56f).coerceIn(320.dp, 600.dp)
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("home_screen_column"),
-            contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
+            contentPadding = PaddingValues(bottom = RedSpacing.xs),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
-            // 0. HOME HEADER — Centered RED Title, Contextual Location Pill & Essential Actions
+            // 0. THE SKY — the full-bleed scene. It starts at the very top of the window, runs behind the
+            //    status bar, carries the header and the readout, and the Moon card overlaps its bottom edge.
+            //    Everything else on Home starts below it.
             item {
-                val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-                val latHem = if (uiState.userLocation.latitude >= 0.0) "N" else "S"
-                val lonHem = if (uiState.userLocation.longitude >= 0.0) "E" else "W"
-                val coordsRaw = String.format(
-                    java.util.Locale.US,
-                    "%.2f°%s, %.2f°%s",
-                    kotlin.math.abs(uiState.userLocation.latitude),
-                    latHem,
-                    kotlin.math.abs(uiState.userLocation.longitude),
-                    lonHem
+                HomeSkyHero(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    isFa = isFa,
+                    sceneHeight = sceneHeight,
+                    moonData = moonCardData,
+                    sunHoriz = moonCardSunHoriz,
+                    moonJd = moonCardJd,
+                    onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
+                    onOpenSearch = { isSearchOpen = true }
                 )
-                val coordsText = if (isFa) coordsRaw.toPersianDigits() else coordsRaw
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs)
-                        .testTag("home_red_header"),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
-                ) {
-                        // Top Action Bar with Centered "RED"
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Favorites bookmark action (Start)
-                            IconButton(
-                                onClick = { viewModel.setShowFavoritesDialog(true) },
-                                modifier = Modifier
-                                    .align(Alignment.CenterStart)
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .testTag("top_favorites_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.BookmarkBorder,
-                                    contentDescription = stringResource(R.string.favorites_and_history),
-                                    tint = RedTheme.colors.textPrimary,
-                                    modifier = Modifier.size(RedIconSize.sm)
-                                )
-                            }
-
-                            // Centered brand title
-                            Text(
-                                text = if (isFa) "زیگ" else "ZIG",
-                                style = TextStyle(
-                                    fontFamily = LocalAppFontFamily.current,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
-                                    letterSpacing = if (isFa) 0.sp else 3.sp
-                                ),
-                                color = RedTheme.colors.textPrimary,
-                                modifier = Modifier.testTag("home_red_title")
-                            )
-
-                            // Essential actions (End): the Sky Search action opens the search overlay,
-                            // Settings opens the settings sheet.
-                            Row(
-                                modifier = Modifier.align(Alignment.CenterEnd),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = { isSearchOpen = true },
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .testTag("top_search_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Search,
-                                        contentDescription = if (isFa) "جستجوی اجرام آسمان" else "Search the sky",
-                                        tint = RedTheme.colors.textPrimary,
-                                        modifier = Modifier.size(RedIconSize.sm)
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { viewModel.setShowSettingsDialog(true) },
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .testTag("top_settings_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Settings,
-                                        contentDescription = stringResource(R.string.settings),
-                                        tint = RedTheme.colors.textPrimary,
-                                        modifier = Modifier.size(RedIconSize.sm)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Understated, quiet location selector beneath RED
-                        Surface(
-                            onClick = { viewModel.setShowLocationSelector(true) },
-                            shape = RoundedCornerShape(RedCornerRadius.pill),
-                            color = RedTheme.colors.surfaceElevated.copy(alpha = 0.7f),
-                            border = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
-                            modifier = Modifier.testTag("home_location_selector_button")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.LocationOn,
-                                    contentDescription = "Location",
-                                    tint = RedTheme.colors.accentRed,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Text(
-                                    text = locationName,
-                                    style = RedTypographyTokens.bodySecondary.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.sp
-                                    ),
-                                    color = RedTheme.colors.textPrimary
-                                )
-                                Text(
-                                    text = "•",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textTertiary
-                                )
-                                Text(
-                                    text = coordsText,
-                                    style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                    color = RedTheme.colors.textSecondary
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "Change Location",
-                                    tint = RedTheme.colors.textTertiary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            // 1. MOON + SKY CARDS — the two hero cards side by side, directly under the location selector.
-            //    Both are glass squares wearing the one card radius. Tapping the Moon card opens the Moon
-            //    window; the sky card's own button opens the fullscreen landscape sky.
-            item {
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val cardGap = RedSpacing.md
-                    val cardSize = ((maxWidth - cardGap) / 2).coerceAtLeast(120.dp)
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("home_hero_cards_row"),
-                        horizontalArrangement = Arrangement.spacedBy(cardGap)
-                    ) {
-                        MoonPhaseCard(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            moonData = moonCardData,
-                            sunHoriz = moonCardSunHoriz,
-                            jd = moonCardJd,
-                            onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
-                            modifier = Modifier.size(cardSize)
-                        )
-
-                        SkyCanvasCard(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onExpand = { viewModel.setShowSkyViewer(true) },
-                            modifier = Modifier.size(cardSize)
-                        )
-                    }
-                }
             }
 
             // 2. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
@@ -509,7 +350,9 @@ fun HomeScreen(
                 }
 
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = RedSpacing.lg),
                     verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
                     RedSectionHeader(
@@ -580,7 +423,9 @@ fun HomeScreen(
             // 3. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
             item {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = RedSpacing.lg),
                     verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
                     RedSectionHeader(
@@ -1187,11 +1032,256 @@ private fun TonightEventRow(
 }
 
 /**
- * The Moon card: a glass square carrying only the render and the date it is drawn for.
+ * The full-bleed Home scene: the sky canvas, the header that rides on it, the expand affordance, and the
+ * Moon card that overlaps its lower edge.
  *
- * Drag the Moon to scrub days — the same ±30 day gesture the Moon screen had — and tap the card to open
- * the Moon window with everything else. The render's dark side is transparent, so no black disc sits
- * behind the Moon; the card's glass shows straight through it.
+ * This is the screen's whole top band. It is edge to edge — no horizontal padding, no rounded corners, and
+ * it starts at y = 0 so the sky runs under the status bar — which is what makes it read as a place rather
+ * than as a card. The feed begins underneath it (see the LazyColumn in [HomeScreen]).
+ *
+ * The scene's own layers live in [HeroSkyCanvas] with [SkyCanvasPresentation.SCENE]: a low horizon, the
+ * layered ground band, drifting cloud veils, the observer, and the time/condition readout. The header here
+ * is only the app chrome: brand, actions, location.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeSkyHero(
+    uiState: MainUiState,
+    viewModel: MainViewModel,
+    isFa: Boolean,
+    sceneHeight: Dp,
+    moonData: MoonEngine.MoonData,
+    sunHoriz: CoordinateEngine.Horizontal,
+    moonJd: Double,
+    onScrubDays: (Float) -> Unit,
+    onOpenSearch: () -> Unit
+) {
+    val cardHeight = 132.dp
+    // How far the Moon card rides up over the scene. The scene stays a full rectangle; only the card moves.
+    // A generous overlap keeps the ground to a strip: with the horizon at 0.70 of the scene, the visible
+    // ground is about 26 dp tall and everything else is under the card.
+    val cardOverlap = 96.dp
+
+    val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
+    val coordsText = remember(uiState.userLocation, isFa) {
+        val latHem = if (uiState.userLocation.latitude >= 0.0) "N" else "S"
+        val lonHem = if (uiState.userLocation.longitude >= 0.0) "E" else "W"
+        val raw = String.format(
+            java.util.Locale.US,
+            "%.2f°%s, %.2f°%s",
+            kotlin.math.abs(uiState.userLocation.latitude),
+            latHem,
+            kotlin.math.abs(uiState.userLocation.longitude),
+            lonHem
+        )
+        if (isFa) raw.toPersianDigits() else raw
+    }
+    val scrim = Color.Black
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(sceneHeight + cardHeight - cardOverlap)
+            .testTag("home_sky_scene")
+    ) {
+        HeroSkyCanvas(
+            uiState = uiState,
+            viewModel = viewModel,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(sceneHeight),
+            presentation = SkyCanvasPresentation.SCENE
+        )
+
+        // The top scrim. Clouds drift under this band, so the status bar and the header keep their contrast
+        // on every sky the app can draw — the failure mode of the reference design that put moving clouds
+        // behind the city name.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(sceneHeight * 0.34f)
+                .background(
+                    Brush.verticalGradient(
+                        0.0f to scrim.copy(alpha = 0.38f),
+                        0.55f to scrim.copy(alpha = 0.14f),
+                        1.0f to Color.Transparent
+                    )
+                )
+        )
+
+        // --- HEADER: brand, actions, location ------------------------------------------------
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
+            verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick = { viewModel.setShowFavoritesDialog(true) },
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .testTag("top_favorites_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.BookmarkBorder,
+                        contentDescription = stringResource(R.string.favorites_and_history),
+                        tint = Color.White,
+                        modifier = Modifier.size(RedIconSize.sm)
+                    )
+                }
+
+                Text(
+                    text = if (isFa) "زیگ" else "ZIG",
+                    style = TextStyle(
+                        fontFamily = LocalAppFontFamily.current,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        letterSpacing = if (isFa) 0.sp else 3.sp,
+                        color = Color.White,
+                        shadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 1f), 8f)
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .testTag("home_red_title")
+                )
+
+                Row(
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onOpenSearch,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .testTag("top_search_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = if (isFa) "جستجوی اجرام آسمان" else "Search the sky",
+                            tint = Color.White,
+                            modifier = Modifier.size(RedIconSize.sm)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.setShowSettingsDialog(true) },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .testTag("top_settings_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = stringResource(R.string.settings),
+                            tint = Color.White,
+                            modifier = Modifier.size(RedIconSize.sm)
+                        )
+                    }
+                }
+            }
+
+            // Location sits under the brand, on the sky, the way a weather app puts the city above the
+            // temperature — the readout itself is drawn by the canvas, just above the horizon.
+            Surface(
+                onClick = { viewModel.setShowLocationSelector(true) },
+                shape = RoundedCornerShape(RedCornerRadius.pill),
+                color = scrim.copy(alpha = 0.26f),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.30f)),
+                modifier = Modifier.testTag("home_location_selector_button")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.LocationOn,
+                        contentDescription = "Location",
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = locationName,
+                        style = RedTypographyTokens.bodySecondary.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        ),
+                        color = Color.White
+                    )
+                    Text(
+                        text = "•",
+                        style = RedTypographyTokens.caption,
+                        color = Color.White.copy(alpha = 0.55f)
+                    )
+                    Text(
+                        text = coordsText,
+                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                        color = Color.White.copy(alpha = 0.72f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Change Location",
+                        tint = Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+
+        // --- EXPAND: open the fullscreen landscape sky viewer --------------------------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = RedSpacing.lg, bottom = cardHeight - cardOverlap + RedSpacing.md)
+                .size(38.dp)
+                .liquidGlass(
+                    shape = CircleShape,
+                    style = LiquidGlassDefaults.Pill,
+                    clearGlass = true,
+                    fallbackColor = Color.Black.copy(alpha = 0.38f),
+                    fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
+                    glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
+                )
+                .clickable { viewModel.setShowSkyViewer(true) }
+                .testTag("home_sky_expand_button"),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.FitScreen,
+                contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open the sky fullscreen",
+                tint = Color(0xFFF8FAFF),
+                modifier = Modifier.size(17.dp)
+            )
+        }
+
+        // --- THE MOON CARD: the first card of the feed, riding on the scene ------------------
+        MoonPhaseCard(
+            uiState = uiState,
+            viewModel = viewModel,
+            moonData = moonData,
+            sunHoriz = sunHoriz,
+            jd = moonJd,
+            onScrubDays = onScrubDays,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = RedSpacing.lg)
+                .fillMaxWidth()
+                .height(cardHeight)
+        )
+    }
+}
+
+/**
+ * The Moon card: a wide glass row carrying the Moon's true phase and the date it is drawn for.
+ *
+ * Drag the Moon to scrub days — the same ±30 day gesture the Moon screen had — and tap the card to open the
+ * Moon window with everything else. The render's dark side is transparent, so no black disc sits behind the
+ * Moon; the card's glass shows straight through it.
  */
 @Composable
 private fun MoonPhaseCard(
@@ -1213,6 +1303,12 @@ private fun MoonPhaseCard(
             if (isFa) it.toPersianDigits() else it
         }
     }
+    val phaseName = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn
+    val illuminationText = if (isFa) {
+        "${moonData.illuminationPercent.roundToInt()}٪ روشن".toPersianDigits()
+    } else {
+        "${moonData.illuminationPercent.roundToInt()}% illuminated"
+    }
 
     LiquidGlassSurface(
         modifier = modifier.testTag("home_moon_card"),
@@ -1221,16 +1317,16 @@ private fun MoonPhaseCard(
         fallbackColor = RedTheme.colors.surfaceElevated,
         onClick = { viewModel.setShowMoonWindow(true) }
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(RedSpacing.sm),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(RedSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(MoonRenderFillFraction)
+                    .fillMaxHeight()
                     .aspectRatio(1f)
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures { change, dragAmount ->
@@ -1249,47 +1345,38 @@ private fun MoonPhaseCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(RedSpacing.sm))
-
-            Text(
-                text = dateText,
-                style = RedTypographyTokens.caption.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp
-                ),
-                color = RedTheme.colors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                Text(
+                    text = phaseName,
+                    style = RedTypographyTokens.bodyPrimary.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    ),
+                    color = RedTheme.colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = illuminationText,
+                    style = RedTypographyTokens.caption.copy(fontSize = 12.sp),
+                    color = RedTheme.colors.textSecondary,
+                    maxLines = 1
+                )
+                Text(
+                    text = dateText,
+                    style = RedTypographyTokens.caption.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp
+                    ),
+                    color = RedTheme.colors.textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
-    }
-}
-
-/**
- * The Sky Canvas card. The one surface in the app that never wears the soft white tint: the sky has to be
- * read through it, so it stays optically pure whatever the tint setting says.
- */
-@Composable
-private fun SkyCanvasCard(
-    uiState: MainUiState,
-    viewModel: MainViewModel,
-    onExpand: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    LiquidGlassSurface(
-        modifier = modifier.testTag("home_sky_card"),
-        shape = RoundedCornerShape(RedCornerRadius.window),
-        style = LiquidGlassDefaults.Card,
-        clearGlass = true,
-        fallbackColor = RedTheme.colors.surfaceElevated
-    ) {
-        HeroSkyCanvas(
-            uiState = uiState,
-            viewModel = viewModel,
-            modifier = Modifier.fillMaxSize(),
-            compact = true,
-            onExpand = onExpand
-        )
     }
 }
 

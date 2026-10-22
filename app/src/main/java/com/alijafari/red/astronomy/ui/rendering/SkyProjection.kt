@@ -26,6 +26,13 @@ interface SkyProjection {
     /** Lowest pixel row where objects may be drawn. Everything below it is clipped. */
     fun clipBottomPx(height: Float): Float
 
+    /**
+     * Pixel row where altitude 0° sits. Layers that need to agree with the horizon — the atmosphere
+     * gradients, the ground band, the mist shelf — read it from here instead of assuming a fraction, so a
+     * surface can move its horizon without leaving a stale line behind.
+     */
+    fun horizonY(width: Float, height: Float): Float = height * HeroSkyProjection.HORIZON_FRACTION
+
     /** Vertical anchor of the anti-solar Belt of Venus glow, given the projected anti-solar point. */
     fun beltAnchorY(antiCenter: Offset, horizonY: Float): Float
 
@@ -50,19 +57,26 @@ interface SkyProjection {
 }
 
 /**
- * The Home Sky Canvas mapping. Every call forwards to the existing [HeroSkyProjection] and the existing engine, so the
- * Home hero draws exactly what it drew before this interface existed.
+ * The Home Sky Canvas mapping, with a configurable horizon.
+ *
+ * The same cylindrical, equator-facing mapping as [HeroSkyProjection], but the row that altitude 0° maps to
+ * is an argument: [horizonFraction] of the canvas height. The full-bleed Home scene uses a low horizon
+ * ([SkySceneLayout.HORIZON_FRACTION]) so the sky dominates the frame; the legacy Home card keeps 0.85.
  */
-object HeroProjection : SkyProjection {
+class SceneProjection(
+    private val horizonFraction: Float = HeroSkyProjection.HORIZON_FRACTION
+) : SkyProjection {
 
     override fun project(azimuthDeg: Double, altitudeDeg: Double, width: Float, height: Float, latitudeDeg: Double): Offset =
-        HeroSkyProjection.project(azimuthDeg, altitudeDeg, width, height, latitudeDeg)
+        HeroSkyProjection.project(azimuthDeg, altitudeDeg, width, height, latitudeDeg, horizonFraction)
 
-    // Home hides below-horizon objects with its horizon clip, so the object position is the plain projection.
+    // The horizon clip hides below-horizon objects, so the object position is the plain projection.
     override fun objectPosition(azimuthDeg: Double, altitudeDeg: Double, width: Float, height: Float, latitudeDeg: Double): Offset =
         project(azimuthDeg, altitudeDeg, width, height, latitudeDeg)
 
-    override fun clipBottomPx(height: Float): Float = height * HeroSkyProjection.HORIZON_FRACTION
+    override fun clipBottomPx(height: Float): Float = height * horizonFraction
+
+    override fun horizonY(width: Float, height: Float): Float = height * horizonFraction
 
     override fun beltAnchorY(antiCenter: Offset, horizonY: Float): Float = horizonY - 18f
 
@@ -81,6 +95,12 @@ object HeroProjection : SkyProjection {
         sunAltitudeDeg = sunAltitudeDeg
     )
 }
+
+/**
+ * The Home Sky Canvas card mapping. Every call forwards to the existing [HeroSkyProjection] and the existing engine,
+ * so the Home hero draws exactly what it drew before this interface existed.
+ */
+object HeroProjection : SkyProjection by SceneProjection()
 
 /**
  * The projection of the panorama camera. A sky direction lands on the pixel where the photograph shows that same
@@ -126,6 +146,11 @@ class CameraProjection(
     // No horizon clip is needed: the photograph covers the whole screen, and objects are culled by altitude above.
     override fun clipBottomPx(height: Float): Float = height
 
+    override fun horizonY(width: Float, height: Float): Float {
+        if (width <= 0f || height <= 0f) return height
+        return project(0.0, 0.0, width, height, latitudeDeg).y.coerceIn(0f, height)
+    }
+
     override fun beltAnchorY(antiCenter: Offset, horizonY: Float): Float = antiCenter.y
 
     override fun moonLimbAngleDeg(
@@ -163,14 +188,27 @@ enum class SkyRenderTarget(
     /** Whether the horizon landscape silhouette is drawn. Home keeps it; the backdrop has none. */
     val drawsLandscape: Boolean,
     /** The camera used by the panorama layer on this surface. */
-    val panoramaFraming: SkyPanoramaFraming
+    val panoramaFraming: SkyPanoramaFraming,
+    /**
+     * Whether this target is the full-bleed Home scene: a low horizon, the layered ground band, the cloud
+     * veils and the observer. The card and the backdrop keep the older single-silhouette landscape.
+     */
+    val drawsScene: Boolean = false
 ) {
     HOME_HERO(drawsLandscape = true, panoramaFraming = SkyPanoramaFraming.HOME_ZENITH),
+    /** The full-bleed Home scene behind the header and the feed. */
+    HOME_SCENE(drawsLandscape = true, panoramaFraming = SkyPanoramaFraming.HOME_ZENITH, drawsScene = true),
     APP_BACKDROP(drawsLandscape = false, panoramaFraming = SkyPanoramaFraming.APP_BACKDROP);
 
     /** The projection for a computed frame on this target. */
     fun projectionFor(frame: SkySceneFrame): SkyProjection = when (this) {
         HOME_HERO -> HeroProjection
+        HOME_SCENE -> sceneProjection
         APP_BACKDROP -> CameraProjection(frame.lastDeg, frame.latitudeDeg, panoramaFraming)
+    }
+
+    companion object {
+        /** One immutable projection for every scene frame: only the canvas size varies. */
+        val sceneProjection: SceneProjection = SceneProjection(SkySceneLayout.HORIZON_FRACTION)
     }
 }

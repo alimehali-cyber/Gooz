@@ -1,12 +1,16 @@
 package com.alijafari.red.astronomy.ui.rendering
 
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 
 /**
  * Draws the shared Sky Canvas layers for a [SkySceneFrame]: atmosphere, Milky Way, stars, Sun, Moon,
- * planets and, on the Home hero only, the horizon landscape. The layers are drawn in that order.
+ * planets and the ground. The layers are drawn in that order.
+ *
+ * Two entry points: [drawSky] paints everything that changes with the clock and the observer, and
+ * [drawSceneMotion] paints the cheap moving layers (cloud veils, the observer) on a faster tick.
  *
  * The sky model is shared by every surface. What differs per surface is chosen by a [SkyRenderTarget]: the
  * projection of sky directions onto pixels, the clip below which objects are hidden, and whether the landscape is
@@ -196,14 +200,72 @@ object SkySceneRenderer {
             projection = projection
         )
 
-        // 7. Horizon Landscape Silhouette Layer. Home only: the backdrop is uninterrupted sky to the bottom edge.
-        if (target.drawsLandscape) {
-            LandscapeRenderer.drawHorizonLandscape(
+        // 7. Ground. The full-bleed scene gets the layered ground band (ridges, mist shelf, grass); the card
+        //    and the fullscreen viewer keep the older single-silhouette landscape; the backdrop has neither.
+        when {
+            target.drawsScene -> SceneGroundRenderer.draw(
+                drawScope = drawScope,
+                composition = SkySceneLayout.composition(
+                    widthPx = canvasW,
+                    heightPx = canvasH,
+                    horizonFraction = SkySceneLayout.HORIZON_FRACTION,
+                    figureOnRight = true
+                ),
+                theme = theme,
+                lighting = lightingState
+            )
+            target.drawsLandscape -> LandscapeRenderer.drawHorizonLandscape(
                 drawScope = drawScope,
                 lightingState = lightingState,
                 frameTimeMs = frameTimeMs,
                 theme = theme
             )
         }
+    }
+
+    /**
+     * The moving half of the full-bleed scene: cloud veils drifting above the stars and the observer
+     * breathing on the grass line.
+     *
+     * It is a separate pass from [drawSky] on purpose. The sky is expensive (hundreds of stars, the Milky
+     * Way, the Moon sprite) and only changes when the clock or the observer changes, so it is drawn on a
+     * slow tick; this pass runs on a faster tick and repaints only a handful of sprites and paths. The
+     * caller therefore gets motion without repainting the astronomy.
+     *
+     * Clouds are clipped to the sky: they must never spill onto the ground band.
+     */
+    fun drawSceneMotion(
+        drawScope: DrawScope,
+        frame: SkySceneFrame,
+        theme: SkyCanvasTheme,
+        frameTimeMs: Long,
+        figureOnRight: Boolean = true
+    ) {
+        val canvasW = drawScope.size.width
+        val canvasH = drawScope.size.height
+        val composition = SkySceneLayout.composition(
+            widthPx = canvasW,
+            heightPx = canvasH,
+            horizonFraction = SkySceneLayout.HORIZON_FRACTION,
+            figureOnRight = figureOnRight
+        )
+
+        drawScope.clipRect(left = 0f, top = 0f, right = canvasW, bottom = composition.horizonY) {
+            CloudVeilRenderer.draw(
+                drawScope = this,
+                theme = theme,
+                lighting = frame.lightingState,
+                frameTimeMs = frameTimeMs,
+                composition = composition
+            )
+        }
+
+        ObserverRenderer.draw(
+            drawScope = drawScope,
+            composition = composition,
+            theme = theme,
+            lighting = frame.lightingState,
+            frameTimeMs = frameTimeMs
+        )
     }
 }

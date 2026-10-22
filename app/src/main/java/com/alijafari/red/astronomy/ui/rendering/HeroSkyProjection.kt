@@ -54,7 +54,8 @@ object HeroSkyProjection {
         altitudeDeg: Double,
         canvasWidth: Float,
         canvasHeight: Float,
-        latitudeDeg: Double = 0.0
+        latitudeDeg: Double = 0.0,
+        horizonFraction: Float = HORIZON_FRACTION
     ): Offset {
         if (canvasWidth <= 0f || canvasHeight <= 0f) {
             return Offset.Zero
@@ -75,7 +76,7 @@ object HeroSkyProjection {
 
         val x = ((0.5 + relAz / 360.0) * canvasWidth).toFloat()
 
-        val horizonY = canvasHeight * HORIZON_FRACTION
+        val horizonY = canvasHeight * horizonFraction.coerceIn(0.05f, 0.98f)
         val scale = (horizonY - TOP_MARGIN_PX) / 90.0f
         val y = horizonY - (altitudeDeg.toFloat() * scale)
 
@@ -110,7 +111,7 @@ object HeroSkyProjection {
     /**
      * Returns the horizon line Y coordinate on the canvas.
      */
-    fun getHorizonY(canvasHeight: Float): Float {
-        return canvasHeight * HORIZON_FRACTION
+    fun getHorizonY(canvasHeight: Float, horizonFraction: Float = HORIZON_FRACTION): Float {
+        return canvasHeight * horizonFraction.coerceIn(0.05f, 0.98f)
     }
 }
