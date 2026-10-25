@@ -25,7 +25,7 @@ import kotlin.math.sqrt
  *  2. it leaves each axis exactly tangent to it (G1 at the edge join);
  *  3. it leaves each axis with **zero curvature** (G2 at the edge join — the whole point);
  *  4. curvature is continuous across the four internal segment joins (G2 inside the corner);
- *  5. it stays on the analytic superellipse `x^4 + (1 - y)^4 = 1` to well under a pixel;
+ *  5. it stays on the analytic superellipse `x^n + (1 - y)^n = 1` to well under a pixel;
  *  6. it is convex and its half-curve is an exact mirror of its other half;
  *  7. it is visibly squarer than the circular corner `RoundedCornerShape` would have drawn.
  */
@@ -116,10 +116,13 @@ class SquircleGeometryTest {
     }
 
     @Test
-    fun `exponent is the squircle proper`() {
-        // Lamé: 2 is a circle, 4 is the squircle, infinity is a square. Anything else is not "the"
-        // squircle and would make the app's corners a different curve from the documented one.
-        assertEquals(4.0, exponent, 0.0)
+    fun `exponent is the documented heavy squircle`() {
+        // Lamé: 2 is a circle, 4 is the squircle proper, 5 is the heavier curve this app wears and
+        // infinity is a square. Pinned exactly so the corner the app draws cannot drift away from the
+        // one the documentation and the fitted control points describe. `n` only ever moves together
+        // with a refit of CORNER_HALF — the deviation and G2 assertions below enforce that.
+        assertEquals(5.0, exponent, 0.0)
+        assertTrue("a squircle needs n > 2", exponent > 2.0)
     }
 
     @Test
@@ -175,7 +178,7 @@ class SquircleGeometryTest {
 
     @Test
     fun `corner tracks the analytic superellipse to well under a pixel`() {
-        // 0.01 % of the radius is ~0.01 px at the app's 34 dp radius on a 3x display.
+        // 0.01 % of the radius is ~0.012 px at the app's 40 dp radius on a 3x display.
         val tolerance = 0.0005 // 0.05 % of r
         var worst = 0.0
         for (segment in cornerSegments()) {

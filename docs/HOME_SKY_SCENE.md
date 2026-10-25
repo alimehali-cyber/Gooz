@@ -1,8 +1,9 @@
 # Home Sky Scene — full-bleed hero
 
 **Scope:** Home only. The sky canvas stopped being a card and became the top of the screen: one
-edge-to-edge scene that runs behind the status bar, carries the header and the readout, and has the Moon
-card riding on its lower edge. Everything else on Home starts below it.
+edge-to-edge scene that runs behind the status bar and carries the header and the readout. Directly
+beneath it sit two square glass cards — the Moon and the next eclipse — and everything else on Home
+starts below them.
 
 No weather data was added. Every number and every layer is derived from what ZIG already computes:
 `SkySceneFrame` (Sun, Moon, planets, stars, Milky Way), `LightingState` (Sun altitude, star visibility,
@@ -11,9 +12,9 @@ moon glow) and the scene clock.
 ![Home sky scene, night and daylight](home-sky-scene.png)
 
 *The same composition at astronomical night and at noon, rendered from the constants below: the same
-edge-to-edge scene, the readout at caption scale above the horizon, and the Moon card in its 34 dp
-squircle riding over the scene's lower edge. The clouds and the mist follow the theme; the Sun altitude
-drives the light.*
+edge-to-edge scene, the readout at caption scale above the horizon, and the pair of 40 dp squircle cards
+(the Moon, the next eclipse) sitting underneath the canvas. The clouds and the mist follow the theme; the
+Sun altitude drives the light.*
 
 ---
 
@@ -29,12 +30,14 @@ drives the light.*
 │  2 Aban · Moon 64% up                    │
 ├──────────────────────────────────────────┤ ← horizon  (0.70 × scene)
 │  distant ridge · mist shelf · ridge      │
-│  grass line + tufts                      │
-│  ╭────────────────────────────────────╮  │ ← Moon card overlaps by 96 dp
-│  │  ◗  Waxing gibbous                 │  │
-│  │     64% illuminated · 12 Aban      │  │
-│  ╰────────────────────────────────────╯  │
-└──────────────────────────────────────────┘ scene height = 56 % of viewport
+│  grass line + tufts            ⤢         │ ← expand affordance
+└──────────────────────────────────────────┘ scene height = 52 % of viewport
+  ╭────────────────────╮ ╭────────────────────╮
+  │                    │ │      \   |   /     │   two square cards,
+  │        ◗           │ │       ◐ corona     │   same size, same
+  │   the Moon as it   │ │   the next eclipse │   gutter as the feed
+  │      is now        │ │   drawn for its type│
+  ╰────────────────────╯ ╰────────────────────╯
    What's Up Tonight …                      feed
 ```
 
@@ -46,8 +49,36 @@ Constants live in `SkySceneLayout` (`ui/rendering/SkySceneComposition.kt`):
 | `GROUND_TOP_FRACTION` | 0.052 | solid ground starts this far below the horizon |
 | `FAR_RIDGE_FRACTION` / `MID_RIDGE_FRACTION` | 0.034 / 0.020 | ridge amplitudes |
 
-`HomeScreen` computes the height (`56 %` of the viewport, clamped to 320–600 dp) outside the
-`LazyColumn`, because lazy items are measured with an unbounded height.
+`HomeScreen` computes the height (`52 %` of the viewport, clamped to 312–560 dp) outside the
+`LazyColumn`, because lazy items are measured with an unbounded height. The same `BoxWithConstraints`
+computes the pair's size: half the feed width minus the two gutters and the gap, clamped to 132–210 dp,
+so the two cards are square on every screen.
+
+### The pair of cards
+
+| Card | Shows | Gesture |
+|---|---|---|
+| Moon | `MoonPhaseRender` at full tile size and nothing else — no phase name, no percentage, no date | drag scrubs ±30 days (shared with the Moon window); tap opens the Moon window |
+| Eclipse | `EclipseRender`, drawn for the type of the *next* eclipse at this location | tap opens the eclipse window for that eclipse |
+
+Both are `squircleShape(RedCornerRadius.window)` glass tiles of identical size, so the pair reads as one
+band. Neither has a caption: the numbers belong to the readout on the sky above and to the windows the
+cards open, and a label on a card this small would cover the only thing worth looking at.
+
+The eclipse tile stands for the soonest eclipse of **either** family, not for the family the "Upcoming
+Eclipses" list below happens to be showing. A hero tile that changed when a chip further down the feed
+was tapped would be a surprise; the next eclipse is a fact about the sky, not about the list.
+
+`EclipseRender` draws the two families differently, because they are two different physical pictures:
+
+- **solar** — drawn, because the subject is light, not a surface: a limb-brightened corona with ~44
+  deterministic streamers of varying length and width, the chromosphere ring, and a diamond ring at one
+  point of the limb for totality; a ring of fire with Baily's beads for annularity; two overlapping discs
+  for a partial.
+- **lunar** — the app's real Moon photograph, shaded by a radial gradient applied with `BlendMode.Multiply`
+  inside an offscreen layer. Multiplying keeps the maria visible (it darkens the photograph instead of
+  painting over it), and where the gradient is centred is what makes totality read as a copper disc with
+  a bright limb while a partial eclipse keeps one limb in full sunlight.
 
 ## 2. Layers
 
@@ -110,10 +141,10 @@ and that the ground band sits below the horizon.
 
 ## 5. Tuning
 
-- Taller / shorter scene: `HomeSkyHero` (0.56) and the 320–600 dp clamp.
+- Taller / shorter scene: `HomeSkyHero` (0.52) and the 312–560 dp clamp in `HomeScreen`.
 - Sky-to-ground balance: `SkySceneLayout.HORIZON_FRACTION`.
-- How much the Moon card rides up, and therefore how much ground stays visible: `cardOverlap` in
-  `HomeSkyHero`. With 96 dp of a 132 dp card overlapping, the ground strip above the card is ≈ 50 dp on
-  a 900 dp-tall phone and the card's lower 36 dp sits over the feed's first pixel row.
+- Size of the two cards: `heroCardSize` in `HomeScreen`. They are square by construction — one formula
+  sets both their width and their height — and they never overlap the canvas, so the whole ground band
+  stays visible.
 - Cloud presence per theme: `ScenePalette.cloudStrength`.
 - Motion cost: `SCENE_MOTION_FRAME_MS` in `HeroSkyCanvas` (42 ms ≈ 24 fps).

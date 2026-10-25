@@ -29,8 +29,15 @@ import androidx.compose.ui.unit.dp
  * the flat part ends and the curve begins, which is why such corners read as "natural" rather than
  * as a rectangle with surgery performed on it.
  *
- * `n = 2` is a circle, `n = 4` is the squircle proper, `n → ∞` is a square. This file uses
- * **[Squircle.EXPONENT] = 4** everywhere, so every container in the app shares a single curve.
+ * `n = 2` is a circle, `n = 4` is Lamé's squircle proper, `n → ∞` is a square. This file uses
+ * **[Squircle.EXPONENT] = 5** everywhere, so every container in the app shares a single curve.
+ * Exponent is the one dial that changes how *heavy* a corner reads at a fixed radius: the curve still
+ * runs the full radius along each edge, but at `n = 5` it holds the edge longer and turns later, so
+ * the corner carries more mass. Two measured effects on the unit corner box — curvature at the 45°
+ * point, which is what the eye reads as corner strength, rises from `2.5227` at `n = 4` to `3.2490`
+ * (**+28.8 %**), and the diagonal crossing moves out from `0.8409 r` to `0.8706 r`. Past `n ≈ 6` the
+ * corner starts to read as a clipped box rather than a curve, so this is the heaviest setting the
+ * system uses.
  *
  * ## How it is drawn
  *
@@ -46,9 +53,9 @@ import androidx.compose.ui.unit.dp
  * positions, tangent directions and curvatures. Measured against the analytic curve on the unit
  * corner box:
  *
- *  - maximum positional deviation **0.0098 % of the radius** — 0.01 px at the app's 34 dp radius on
+ *  - maximum positional deviation **0.0081 % of the radius** — 0.01 px at the app's 40 dp radius on
  *    a 3x display, i.e. two orders of magnitude below one pixel;
- *  - residual curvature discontinuity at the interior nodes **< 3e-6 relative** (single-precision
+ *  - residual curvature discontinuity at the interior nodes **< 5e-6 relative** (single-precision
  *    noise; the float64 fit is exact to 1e-14);
  *  - curvature at the two edge joins is **exactly 0**, so those joins are G2 as well;
  *  - both ends are exactly tangent to their edges, so the curve meets each edge at G1 by
@@ -69,24 +76,26 @@ import androidx.compose.ui.unit.dp
 object Squircle {
 
     /**
-     * Lamé exponent. `2` = circle, `4` = the squircle proper, `∞` = square.
+     * Lamé exponent. `2` = circle, `4` = the squircle proper, `5` = the heavy squircle this app wears,
+     * `∞` = square.
      *
      * One value for the whole app: a corner should look the same at every size, so there is no
-     * per-radius tuning knob that could drift.
+     * per-radius tuning knob that could drift. Raising it is how a corner gains weight without
+     * gaining radius — see the file header for the measured numbers.
      */
-    const val EXPONENT: Float = 4f
+    const val EXPONENT: Float = 5f
 
     /**
      * Where a corner crosses its own diagonal, as a multiple of its radius: `2^(-1/n)`.
      *
      * This is the number that makes a squircle read squarer than a circle at the same radius. A
      * circular corner turns through 45° at `0.7071 r` from the edge join and is already standing
-     * vertical by `1.0 r`. The squircle is still only at `0.8409 r` when it reaches the diagonal, so
+     * vertical by `1.0 r`. The squircle is still only at `0.8706 r` when it reaches the diagonal, so
      * its curve keeps running outward toward the box corner instead of leaving the edge early — and
-     * then it comes back to vertical over the remaining `0.1591 r`. Same radius, visibly squarer,
+     * then it comes back to vertical over the remaining `0.1294 r`. Same radius, visibly squarer,
      * with no kink anywhere.
      */
-    const val EXTENT_RATIO: Float = 0.8408964f
+    const val EXTENT_RATIO: Float = 0.8705506f
 
     /**
      * The first half of the corner as two cubic Béziers, in the canonical unit corner box.
@@ -99,15 +108,15 @@ object Squircle {
     internal val CORNER_HALF: FloatArray = floatArrayOf(
         // Segment A — leaves the edge with zero curvature, so the edge join is G2.
         0.000000000000000f, 0.000000000000000f,
-        0.205914331155562f, 0.000000000000000f,
-        0.330381281442422f, 0.000000000000000f,
-        0.438451099378409f, 0.009369864355307f,
+        0.252049456513361f, 0.000000000000000f,
+        0.360353846483799f, 0.000000000000000f,
+        0.449610105958251f, 0.003701909074992f,
 
         // Segment B — arrives on the 45° diagonal with matching curvature to its mirror image.
-        0.438451099378409f, 0.009369864355307f,
-        0.597960262775687f, 0.023199620461181f,
-        0.740894757840677f, 0.059101927333248f,
-        0.840896415253715f, 0.159103584746285f
+        0.449610105958251f, 0.003701909074992f,
+        0.632252803152206f, 0.011277026632061f,
+        0.777198453623326f, 0.036097426266564f,
+        0.870550447618998f, 0.129449321026811f
     )
 
     /**
@@ -117,20 +126,20 @@ object Squircle {
     @PublishedApi
     internal val CORNER: FloatArray = floatArrayOf(
         // Segment A: its three control points (p1, p2, p3); p0 is the corner's start on the edge.
-        0.205914331155562f, 0.000000000000000f,
-        0.330381281442422f, 0.000000000000000f,
-        0.438451099378409f, 0.009369864355307f,
+        0.252049456513361f, 0.000000000000000f,
+        0.360353846483799f, 0.000000000000000f,
+        0.449610105958251f, 0.003701909074992f,
         // Segment B.
-        0.597960262775687f, 0.023199620461181f,
-        0.740894757840677f, 0.059101927333248f,
-        0.840896415253715f, 0.159103584746285f,
+        0.632252803152206f, 0.011277026632061f,
+        0.777198453623326f, 0.036097426266564f,
+        0.870550447618998f, 0.129449321026811f,
         // Segment C = mirror(Segment B): (x, y) -> (1 - y, 1 - x), walked back from the diagonal.
-        1f - 0.059101927333248f, 1f - 0.740894757840677f,
-        1f - 0.023199620461181f, 1f - 0.597960262775687f,
-        1f - 0.009369864355307f, 1f - 0.438451099378409f,
+        1f - 0.036097426266564f, 1f - 0.777198453623326f,
+        1f - 0.011277026632061f, 1f - 0.632252803152206f,
+        1f - 0.003701909074992f, 1f - 0.449610105958251f,
         // Segment D = mirror(Segment A).
-        1f - 0.000000000000000f, 1f - 0.330381281442422f,
-        1f - 0.000000000000000f, 1f - 0.205914331155562f,
+        1f - 0.000000000000000f, 1f - 0.360353846483799f,
+        1f - 0.000000000000000f, 1f - 0.252049456513361f,
         1f - 0.000000000000000f, 1f - 0.000000000000000f
     )
 }

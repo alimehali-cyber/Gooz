@@ -214,12 +214,20 @@ object SceneGroundRenderer {
         }
     }
 
-    /** Small deterministic 0..1 value. */
+    /**
+     * Small deterministic 0..1 value.
+     *
+     * The mask clears the sign bit, so the value is in `0 .. 2^31-1`; dividing by `2^31` is what puts it
+     * in `0 .. 1`. The divisor was `2^24-1` once, which mapped the same value to `0 .. 128` — the grass
+     * line was then laid out over 128 screen widths, and 95 of the 96 tufts were drawn outside the
+     * canvas (only one of them was ever visible). Any change here changes the silhouette of the ground,
+     * so it is worth re-reading this comment before "tidying" the constant.
+     */
     private fun pseudoRandom(seed: Int): Float {
         var x = seed * 1_103_515_245 + 12_345
         x = x xor (x ushr 13)
         x *= 0x5bd1e995
         x = x xor (x ushr 15)
-        return (x and 0x7FFFFFFF) / 16_777_215f
+        return (x and 0x7FFFFFFF) / 2_147_483_648f
     }
 }

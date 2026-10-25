@@ -17,9 +17,9 @@ object SkySceneLayout {
      * Canvas fraction where altitude 0° maps on the Home scene.
      *
      * The legacy Home card keeps [HeroSkyProjection.HORIZON_FRACTION] (0.85). The scene puts its horizon at
-     * 0.70 of its own height, and the scene itself takes about 0.56 of the viewport, so altitude 0° lands at
-     * roughly 39 % of the screen — high enough that the sky owns the top of the phone, low enough that the
-     * ground is a strip the first card can overlap instead of an empty field.
+     * 0.70 of its own height, and the scene itself takes about 0.52 of the viewport, so altitude 0° lands at
+     * roughly 36 % of the screen — high enough that the sky owns the top of the phone, low enough that the
+     * ground is a strip below the stars instead of an empty field.
      */
     const val HORIZON_FRACTION = 0.70f
 

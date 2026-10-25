@@ -99,7 +99,7 @@ Scale (default size): Large Title 34, Title 1 28, Title 2 22, Title 3 20, Headli
 ### 3.2 Token architecture (existing, refined)
 
 - `RedSpacing`: 4/8/12/16/20/24/32/40/48 (8pt grid).
-- `RedCornerRadius`: xs 4, sm 8, md 10, window 34 (glass medium/large), pill 999.
+- `RedCornerRadius`: xs 6, sm 10, md 13, window 40 (cards/sheets/windows), pill 999.
 - `RedElevation`: none/subtle/card/popover/modal/floating.
 - `RedColorTokens`: semantic backgrounds, surfaces, text, borders, accents, status.
 - `RedTheme`: Compose accessor.
@@ -108,7 +108,7 @@ Scale (default size): Large Title 34, Title 1 28, Title 2 22, Title 3 20, Headli
 ### 3.2b Corner geometry: squircle everywhere
 
 Every rounded rectangle in the app is a **squircle** — Lamé's superellipse
-`|x/a|ⁿ + |y/a|ⁿ = 1` at **n = 4** — not a circular-arc round rect.
+`|x/a|ⁿ + |y/a|ⁿ = 1` at **n = 5** — not a circular-arc round rect.
 
 A `RoundedCornerShape` corner is an arc: curvature jumps from `0` on the straight edge to `1/r` at
 the join. That is a G1 join, and it is the small roughness the eye picks up in a screen full of
@@ -127,9 +127,23 @@ and back — a G2 join — so the corner reads as one curve instead of "a rectan
 Accuracy, measured against the analytic curve on the unit corner box and asserted on every build by
 `SquircleGeometryTest`:
 
-- maximum positional deviation **0.0098 % of r** (0.01 px at 34 dp on a 3x display);
+- maximum positional deviation **0.0081 % of r** (0.012 px at 40 dp on a 3x display);
 - curvature continuity at the internal joins to single-precision noise;
 - curvature **exactly 0** where the corner meets an edge, so the edge join is G2 too.
+
+**Weight.** Two dials set how heavy a corner reads, and both were pushed up together when the design
+asked for heavier corners:
+
+| Dial | Before | After | Effect |
+|---|---|---|---|
+| `Squircle.EXPONENT` | 4 | 5 | curvature at the 45° point 2.5227 → 3.2490 (+28.8 %); diagonal crossing 0.8409 r → 0.8706 r |
+| `RedCornerRadius.window` | 34 dp | 40 dp | +18 % radius on every card, sheet and window |
+
+The exponent is what makes the corner *stronger* at a fixed radius: the curve still runs the whole
+radius along each edge, but it holds the edge longer and turns later, so more of the corner's mass
+sits out near the box corner. Raising the radius is what makes it *bigger*. Doing only one of the two
+was the earlier, lighter reading of the design; doing both is what shipped. `n = 5` is the ceiling —
+by `n ≈ 6` a corner reads as a clipped box rather than a curve.
 
 **Capsules are the one exception.** A capsule is a rectangle whose radius has reached half its short
 side; its ends are semicircular by definition. Smoothing them would visibly flatten every pill, badge
@@ -208,7 +222,7 @@ Variant key: **G** = Glass, **L** = Light, **D** = Dark (OLED).
 
 ### 5.1 Home Screen
 
-- **G:** Hero sky canvas full-bleed; moon card as floating glass capsule (radius 34) over sky; list of top objects as translucent rows with glass header; bottom nav glass pill. Strong diffusion + darkened edge. Text adaptive ink.
+- **G:** Hero sky canvas full-bleed; underneath it a pair of square glass tiles (radius 40) — the Moon and the next eclipse — with no captions; list of top objects as translucent rows with glass header; bottom nav glass pill. Strong diffusion + darkened edge. Text adaptive ink.
 - **L:** White background; grouped table sections (iOS style) with 12-radius cards; moon card white with subtle shadow; section headers 13pt semibold gray; bottom nav translucent white.
 - **D:** Pure black background; cards `#1C1C1E` with 1pt `#27272A` border; moon card black with gray border; text white/secondary; bottom nav black glass.
 

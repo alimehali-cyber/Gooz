@@ -32,16 +32,20 @@ object RedSpacing {
 // Outer radius R -> Nested element radius r = R - padding
 object RedCornerRadius {
     val none: Dp = 0.dp
-    val xs: Dp = 4.dp       // Small badges, tags
-    val sm: Dp = 8.dp       // Inner items, nested chips, small controls
-    val md: Dp = 10.dp      // Standard buttons, text inputs, nested section blocks
+    val xs: Dp = 6.dp       // Small badges, tags
+    val sm: Dp = 10.dp      // Inner items, nested chips, small controls
+    val md: Dp = 13.dp      // Standard buttons, text inputs, nested section blocks
     /**
      * The one radius every card and window in the app wears — the Home moon card set the standard.
      * [lg], [xl] and [xxl] are aliases of it so the three historical "container" steps of the scale
      * cannot drift apart again: a card is a card, whichever token the call site happens to use.
      * Small controls above keep their own radii, so the concentric hierarchy still reads.
+     *
+     * The whole scale was stepped up once, together with [Squircle.EXPONENT], when the corners were
+     * asked to read heavier: every step grew by roughly the same factor, so the hierarchy is intact
+     * and the biggest containers grew the most in absolute terms, which is where the eye notices.
      */
-    val window: Dp = 34.dp      // iOS 27 liquid glass medium/large radius
+    val window: Dp = 40.dp      // Cards, sheets, windows — the heavy container step
     val lg: Dp = window     // Primary cards, list grouped containers
     val xl: Dp = window     // Hero cards, sheet dialogs
     val xxl: Dp = window    // Floating bars, modals
