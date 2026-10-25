@@ -9,7 +9,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -159,21 +158,24 @@ class SquircleShape(
 
     override fun createOutline(
         size: Size,
-        topLeft: CornerSize,
-        topRight: CornerSize,
-        bottomRight: CornerSize,
-        bottomLeft: CornerSize,
-        layoutDirection: LayoutDirection,
-        density: Density
+        topStart: Float,
+        topEnd: Float,
+        bottomEnd: Float,
+        bottomStart: Float,
+        layoutDirection: LayoutDirection
     ): Outline {
         if (size.minDimension <= 0f) return Outline.Generic(Path())
+        // The base class resolves CornerSize to pixels and clamps overlapping corners; it leaves the
+        // start/end -> left/right mapping to us, so that is done here, once, exactly as
+        // RoundedCornerShape does it.
+        val ltr = layoutDirection == LayoutDirection.Ltr
         return Outline.Generic(
             buildSquirclePath(
                 size = size,
-                tl = topLeft.toPx(size, density),
-                tr = topRight.toPx(size, density),
-                br = bottomRight.toPx(size, density),
-                bl = bottomLeft.toPx(size, density)
+                tl = if (ltr) topStart else topEnd,
+                tr = if (ltr) topEnd else topStart,
+                br = if (ltr) bottomEnd else bottomStart,
+                bl = if (ltr) bottomStart else bottomEnd
             )
         )
     }
@@ -225,7 +227,7 @@ internal fun emitSquircleOutline(
     bl: Float,
     moveTo: (Float, Float) -> Unit,
     lineTo: (Float, Float) -> Unit,
-    curveTo: (Float, Float, Float, Float, Float, Float) -> Unit,
+    cubicTo: (Float, Float, Float, Float, Float, Float) -> Unit,
     close: () -> Unit
 ) {
     val maxRadius = size.minDimension / 2f
@@ -250,19 +252,19 @@ internal fun emitSquircleOutline(
 
     // Top edge -> top-right corner -> right edge.
     lineTo(right - rtr, 0f)
-    appendSquircleCorner(right - rtr, 0f, rtr, 0f, 0f, rtr, curveTo)
+    appendSquircleCorner(right - rtr, 0f, rtr, 0f, 0f, rtr, cubicTo)
 
     // Right edge -> bottom-right corner -> bottom edge.
     lineTo(right, bottom - rbr)
-    appendSquircleCorner(right, bottom - rbr, 0f, rbr, -rbr, 0f, curveTo)
+    appendSquircleCorner(right, bottom - rbr, 0f, rbr, -rbr, 0f, cubicTo)
 
     // Bottom edge -> bottom-left corner -> left edge.
     lineTo(rbl, bottom)
-    appendSquircleCorner(rbl, bottom, -rbl, 0f, 0f, -rbl, curveTo)
+    appendSquircleCorner(rbl, bottom, -rbl, 0f, 0f, -rbl, cubicTo)
 
     // Left edge -> top-left corner -> back to the start.
     lineTo(0f, rtl)
-    appendSquircleCorner(0f, rtl, 0f, -rtl, rtl, 0f, curveTo)
+    appendSquircleCorner(0f, rtl, 0f, -rtl, rtl, 0f, cubicTo)
 
     close()
 }
@@ -290,8 +292,8 @@ internal fun buildSquirclePath(
         bl = bl,
         moveTo = { x, y -> path.moveTo(dx + x, dy + y) },
         lineTo = { x, y -> path.lineTo(dx + x, dy + y) },
-        curveTo = { x1, y1, x2, y2, x3, y3 ->
-            path.curveTo(dx + x1, dy + y1, dx + x2, dy + y2, dx + x3, dy + y3)
+        cubicTo = { x1, y1, x2, y2, x3, y3 ->
+            path.cubicTo(dx + x1, dy + y1, dx + x2, dy + y2, dx + x3, dy + y3)
         },
         close = { path.close() }
     )
@@ -313,13 +315,13 @@ private inline fun appendSquircleCorner(
     ay: Float,
     bx: Float,
     by: Float,
-    curveTo: (Float, Float, Float, Float, Float, Float) -> Unit
+    cubicTo: (Float, Float, Float, Float, Float, Float) -> Unit
 ) {
     if (ax == 0f && ay == 0f && bx == 0f && by == 0f) return
     val c = Squircle.CORNER
     var i = 0
     while (i < c.size) {
-        curveTo(
+        cubicTo(
             originX + ax * c[i] + bx * c[i + 1],
             originY + ay * c[i] + by * c[i + 1],
             originX + ax * c[i + 2] + bx * c[i + 3],

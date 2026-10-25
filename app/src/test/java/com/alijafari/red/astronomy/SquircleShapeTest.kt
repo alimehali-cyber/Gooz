@@ -40,7 +40,7 @@ class SquircleShapeTest {
             tl = tl, tr = tr, br = br, bl = bl,
             moveTo = { x, y -> move = x to y },
             lineTo = { x, y -> lines.add(x to y) },
-            curveTo = { x1, y1, x2, y2, x3, y3 -> curves.add(floatArrayOf(x1, y1, x2, y2, x3, y3)) },
+            cubicTo = { x1, y1, x2, y2, x3, y3 -> curves.add(floatArrayOf(x1, y1, x2, y2, x3, y3)) },
             close = { closed = true }
         )
         return Outline(move, lines, curves, closed)
