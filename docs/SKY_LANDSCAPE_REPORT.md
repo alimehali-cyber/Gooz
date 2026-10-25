@@ -316,11 +316,14 @@ its own time-of-day variants, not as the ground of the main screen.
 
 ## 8. Appendix — the silhouette as it stands
 
-The diagnostic render beside this document, [`home-landscape-silhouette.png`](home-landscape-silhouette.png),
-draws the *shipped* composition from the constants in §1 at 360 × 420 dp, and directly beneath it the
-same stack rebuilt with a ridged-multifractal silhouette and per-layer aerial perspective — the same
-frame, so the difference is the silhouette, not the colour script. It is an illustration of option D/E,
-not a proposal already implemented.
+![The Home ground silhouette as shipped, and a ridged-multifractal reference](home-landscape-silhouette.png)
+
+The figure draws the *shipped* composition from the constants in §1 at 360 × 420 dp, and directly
+beneath it the same stack rebuilt with a ridged-multifractal silhouette and per-layer aerial
+perspective — the same frame, so the difference is the silhouette, not the colour script. The ridge
+alphas are lifted and the foot of the ground is lightened for print; the geometry, the amplitudes and
+the horizon are the shipped ones. The lower panel is an illustration of options D/E, not a proposal
+already implemented.
 
 Reading it left to right, the current skyline reaches its baseline seven times; the reference reaches its
 baseline twice, and its mass sits in one place. That, more than any colour choice, is the difference
