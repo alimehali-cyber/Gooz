@@ -740,6 +740,125 @@ private fun CelestialObjectIcon(
     )
 }
 
+@Composable
+private fun TonightEventRow(
+    event: WhatsUpTonightEngine.TonightEvent,
+    isTopRanked: Boolean,
+    isFa: Boolean,
+    onClick: () -> Unit
+) {
+    val eventIcon = when {
+        event.targetObject != null -> when (event.targetObject.type) {
+            ObjectType.PLANET, ObjectType.DWARF_PLANET -> Icons.Outlined.Public
+            ObjectType.MOON -> Icons.Outlined.NightsStay
+            ObjectType.SUN -> Icons.Outlined.WbSunny
+            ObjectType.STAR, ObjectType.ASTERISM -> Icons.Outlined.Star
+            ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
+            ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> Icons.Outlined.AutoAwesome
+            ObjectType.SATELLITE -> Icons.Outlined.Sensors
+            ObjectType.METEOR_SHOWER -> Icons.Outlined.FlashOn
+            ObjectType.CONSTELLATION -> Icons.Outlined.Grain
+            ObjectType.REFERENCE_POINT -> Icons.Outlined.Place
+        }
+        event.id.contains("solar") -> Icons.Outlined.WbSunny
+        event.id.contains("lunar") -> Icons.Outlined.NightsStay
+        event.id.contains("meteor") -> Icons.Outlined.FlashOn
+        event.id.contains("iss") -> Icons.Outlined.Sensors
+        else -> Icons.Outlined.AutoAwesome
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                imageVector = eventIcon,
+                contentDescription = null,
+                tint = if (isTopRanked) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = if (isFa) event.titleFa else event.titleEn,
+                    style = RedTypographyTokens.bodyPrimary.copy(
+                        fontWeight = if (isTopRanked) FontWeight.SemiBold else FontWeight.Medium
+                    ),
+                    color = RedTheme.colors.textPrimary
+                )
+                Text(
+                    text = if (isFa) event.explanationFa else event.explanationEn,
+                    style = RedTypographyTokens.caption,
+                    color = RedTheme.colors.textSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isFa) event.timeOrDateStrFa else event.timeOrDateStrEn,
+                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                        color = RedTheme.colors.accentRed
+                    )
+                    Text(
+                        text = "•",
+                        style = RedTypographyTokens.caption,
+                        color = RedTheme.colors.textTertiary
+                    )
+                    Text(
+                        text = if (isFa) event.visibilityTextFa else event.visibilityTextEn,
+                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                        color = RedTheme.colors.textSecondary
+                    )
+                }
+            }
+        }
+
+        when (event.visibilityStatus) {
+            WhatsUpTonightEngine.EventVisibilityStatus.OPTIMAL -> {
+                RedStatusBadge(
+                    text = if (isFa) "عالی" else "Optimal",
+                    statusColor = RedTheme.colors.statusSuccess,
+                    containerColor = RedTheme.colors.statusSuccessContainer
+                )
+            }
+            WhatsUpTonightEngine.EventVisibilityStatus.GOOD -> {
+                RedStatusBadge(
+                    text = if (isFa) "خوب" else "Good",
+                    statusColor = RedTheme.colors.accentRed,
+                    containerColor = RedTheme.colors.accentRed.copy(alpha = 0.12f)
+                )
+            }
+            WhatsUpTonightEngine.EventVisibilityStatus.MARGINAL -> {
+                RedStatusBadge(
+                    text = if (isFa) "متوسط" else "Marginal",
+                    statusColor = RedTheme.colors.statusWarning,
+                    containerColor = RedTheme.colors.statusWarningContainer
+                )
+            }
+            WhatsUpTonightEngine.EventVisibilityStatus.NOT_VISIBLE -> {
+                RedBadge(
+                    text = if (isFa) "غیرقابل رصد" else "Not Visible",
+                    backgroundColor = RedTheme.colors.surfaceGrouped,
+                    textColor = RedTheme.colors.textTertiary,
+                    borderColor = RedTheme.colors.border
+                )
+            }
+        }
+    }
+}
+
+
 /**
  * The full-bleed Home scene: the sky canvas, the header that rides on it, the expand affordance, and the
  * pair of cards that sit underneath it.
