@@ -10,7 +10,6 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.FitScreen
@@ -49,13 +48,15 @@ import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaStatus
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.liquidGlass
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.*
 import kotlin.random.Random
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Idle frame interval of the full-bleed scene: ~24 fps. Slow cloud drift and a breathing figure need no
@@ -287,7 +288,7 @@ fun HeroSkyCanvas(
 
     BoxWithConstraints(
         modifier = modifier
-            .clip(if (isScene) RectangleShape else RoundedCornerShape(RedCornerRadius.window))
+            .clip(if (isScene) RectangleShape else squircleShape(RedCornerRadius.window))
             .testTag("hero_sky_canvas_container")
             .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
@@ -437,7 +438,7 @@ fun HeroSkyCanvas(
                 state = skyPanoramaState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(if (isScene) RectangleShape else RoundedCornerShape(RedCornerRadius.window)),
+                    .clip(if (isScene) RectangleShape else squircleShape(RedCornerRadius.window)),
                 onStatusChanged = { status -> panoramaReady = status == SkyPanoramaStatus.READY }
             )
         }
@@ -467,8 +468,7 @@ fun HeroSkyCanvas(
                     drawScope = this,
                     frame = skyFrame,
                     theme = uiState.skyCanvasTheme,
-                    frameTimeMs = motionTimeMs,
-                    figureOnRight = !isFa
+                    frameTimeMs = motionTimeMs
                 )
             }
         }
@@ -529,10 +529,10 @@ fun HeroSkyCanvas(
         }
 
         // --- SCENE READOUT ---
-        // The typographic block over the sky. A weather app puts a temperature here; ZIG puts the instant the
-        // scene is drawn for, the phase of the night and the Moon — the numbers this app actually knows.
-        // It sits just above the horizon on the side opposite the observer, and it follows the finger while
-        // time is scrubbed, so the numbers and the sky never disagree.
+        // Caption scale, on purpose. The scene is the product; the instant it is drawn for is the
+        // caption. The clock is still the first thing the eye finds, but it sits at reading size with an
+        // editorial hairline between it and the sky's own state, so the frame stays the sky's. The
+        // numbers come from the same state the sky is drawn from, so they can never disagree with it.
         if (isScene) {
             val timeText = TimeEngine.formatTime24h(simulatedTimeMs, isFa, userTimeZone)
                 .let { if (isFa) it.toPersianDigits() else it }
@@ -546,52 +546,93 @@ fun HeroSkyCanvas(
                 if (isFa) "ماه زیر افق" else "Moon below horizon"
             }.let { if (isFa) it.toPersianDigits() else it }
 
+            // True while the finger is travelling in time: the dot says so instead of a caption nobody
+            // reads mid-gesture.
+            val isReadingSimulatedInstant = isDragging || abs(currentOffsetHours) > 0.05f
+            val readoutAccent = when (uiState.skyCanvasTheme) {
+                SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFFFBBF24)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+                SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
+                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
+            }
+
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(
                         start = 20.dp,
                         end = 20.dp,
-                        bottom = (maxHeight * (1f - horizonFraction)) + 18.dp
+                        bottom = (maxHeight * (1f - horizonFraction)) + 12.dp
                     )
-                    .widthIn(max = maxWidth * 0.62f)
+                    .widthIn(max = maxWidth * 0.72f)
                     .testTag("home_sky_readout"),
                 horizontalAlignment = Alignment.Start
             ) {
-                Text(
-                    text = timeText,
-                    style = TextStyle(
-                        fontFamily = LocalAppFontFamily.current,
-                        fontWeight = FontWeight.Light,
-                        fontSize = 46.sp,
-                        lineHeight = 50.sp,
-                        letterSpacing = if (isFa) 0.sp else (-1.5).sp,
-                        color = Color.White,
-                        shadow = Shadow(Color.Black.copy(alpha = 0.45f), Offset(0f, 2f), 12f)
-                    ),
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = timeText,
+                        style = TextStyle(
+                            fontFamily = LocalAppFontFamily.current,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 26.sp,
+                            lineHeight = 28.sp,
+                            letterSpacing = if (isFa) 0.sp else 0.5.sp,
+                            color = Color.White,
+                            shadow = Shadow(Color.Black.copy(alpha = 0.38f), Offset(0f, 1f), 6f)
+                        ),
+                        maxLines = 1
+                    )
+
+                    // The hairline that separates "when" from "what". One device pixel wide, the height
+                    // of the clock's cap height, so it reads as a rule in a table rather than as a chip.
+                    Spacer(modifier = Modifier.width(9.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(17.dp)
+                            .background(Color.White.copy(alpha = 0.30f))
+                    )
+                    Spacer(modifier = Modifier.width(9.dp))
+
+                    if (isReadingSimulatedInstant) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(readoutAccent)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                    }
+
+                    Text(
+                        text = conditionText,
+                        style = TextStyle(
+                            fontFamily = LocalAppFontFamily.current,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp,
+                            letterSpacing = if (isFa) 0.sp else 0.2.sp,
+                            color = Color.White.copy(alpha = 0.92f),
+                            shadow = Shadow(Color.Black.copy(alpha = 0.34f), Offset(0f, 1f), 5f)
+                        ),
+                        maxLines = 1
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = conditionText,
-                    style = TextStyle(
-                        fontFamily = LocalAppFontFamily.current,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 16.sp,
-                        color = Color.White.copy(alpha = 0.96f),
-                        shadow = Shadow(Color.Black.copy(alpha = 0.40f), Offset(0f, 1f), 8f)
-                    ),
-                    maxLines = 1
-                )
-                Spacer(modifier = Modifier.height(3.dp))
+
                 Text(
                     text = "$dateText  ·  $moonText",
                     style = TextStyle(
                         fontFamily = LocalAppFontFamily.current,
                         fontWeight = FontWeight.Normal,
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.78f),
-                        shadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 1f), 6f)
+                        fontSize = 10.sp,
+                        lineHeight = 13.sp,
+                        letterSpacing = if (isFa) 0.sp else 0.15.sp,
+                        color = Color.White.copy(alpha = 0.66f),
+                        shadow = Shadow(Color.Black.copy(alpha = 0.30f), Offset(0f, 1f), 4f)
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -633,7 +674,7 @@ fun HeroSkyCanvas(
                         viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
                     }
                 },
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 color = Color(0xEE0F172A),
                 border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.7f)),
                 shadowElevation = 8.dp,
@@ -717,7 +758,7 @@ fun HeroSkyCanvas(
             ) {
                 // Stationary Current / Simulated Time pill
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RedShapes.capsule,
                     color = Color(0x66000000),
                     border = BorderStroke(
                         width = if (isTimeOffsetActive) 0.8.dp else 0.5.dp,
@@ -781,7 +822,7 @@ fun HeroSkyCanvas(
                     if (isFa) it.toPersianDigits() else it
                 }
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RedShapes.capsule,
                     color = Color(0x66000000),
                     border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
                 ) {

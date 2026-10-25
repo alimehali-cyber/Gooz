@@ -10,8 +10,8 @@ moon glow) and the scene clock.
 
 ![Home sky scene, night and daylight](home-sky-scene.png)
 
-*The same composition at astronomical night and at noon, rendered from the constants below. The figure's
-clothing and pose follow the Sun altitude; the clouds and the mist follow the theme.*
+*The same composition at astronomical night and at noon, rendered from the constants below. The clouds
+and the mist follow the theme; the Sun altitude drives the light.*
 
 ---
 
@@ -23,8 +23,7 @@ clothing and pose follow the Sun altitude; the clouds and the mist follow the th
 │  ZIG            ⌕  ⚙                     │  header (HomeScreen)
 │  ◉ Tehran • 35.69°N, 51.39°E             │
 │                                          │
-│  22:41                       observer    │  readout (canvas) + figure
-│  Astronomical night           ▲          │
+│  22:41 │ Astronomical night              │  readout (canvas)
 │  2 Aban · Moon 64% up                    │
 ├──────────────────────────────────────────┤ ← horizon  (0.70 × scene)
 │  distant ridge · mist shelf · ridge      │
@@ -42,8 +41,6 @@ Constants live in `SkySceneLayout` (`ui/rendering/SkySceneComposition.kt`):
 | Constant | Value | Meaning |
 |---|---|---|
 | `HORIZON_FRACTION` | 0.70 | where altitude 0° lands inside the scene (≈ 39 % of the screen) |
-| `FIGURE_HEIGHT_FRACTION` | 0.190 | observer height, as a share of the scene |
-| `FIGURE_CENTER_FRACTION` | 0.745 | observer centre (mirrored in RTL) |
 | `GROUND_TOP_FRACTION` | 0.052 | solid ground starts this far below the horizon |
 | `FAR_RIDGE_FRACTION` / `MID_RIDGE_FRACTION` | 0.034 / 0.020 | ridge amplitudes |
 
@@ -56,7 +53,7 @@ Drawn in `HeroSkyCanvas`, which now has three independent draw nodes:
 
 1. **Sky** (`SkySceneRenderer.drawSky`) — atmosphere, Milky Way, stars, Sun, Moon, planets, ground.
    Repaints on the 1 Hz shared clock, or per frame while the finger scrubs time.
-2. **Motion** (`SkySceneRenderer.drawSceneMotion`, scene only) — cloud veils and the observer.
+2. **Motion** (`SkySceneRenderer.drawSceneMotion`, scene only) — the drifting cloud veils.
    ~24 fps while idle. Separate node, so the astronomy is never repainted for a drifting cloud.
 3. **Interaction** — selection ring and stardust. Only alive while the user is touching the canvas.
 
@@ -78,12 +75,19 @@ night so a star map is never veiled into a cloudy sky.
 **These are atmosphere, not a forecast.** ZIG has no weather feed; the layer must never be described as
 cloud cover.
 
-### Observer — `ObserverRenderer`
+### Readout — caption scale
 
-One vector figure on the grass line: contact shadow, legs, shoes, torso, arms, head, cap, rim light.
-Pose comes from the real Sun altitude — `SHADING_EYES` in daylight, `PHONE` through twilight,
-`LOOKING_UP` at astronomical night. It breathes (5.2 s) and shifts weight (17 s) on the motion clock,
-in Double seconds wrapped to a day, so the float phase never degrades.
+The typographic block sits above the horizon on the left, at caption scale, because the scene is the
+product and the instant it is drawn for is the caption:
+
+- the clock at 26 sp medium (it used to be 46 sp light, which competed with the sky);
+- a 1 dp vertical hairline separating *when* from *what*;
+- the sky's own state at 11 sp;
+- the date and the Moon at 10 sp, on one line.
+
+A small accent dot appears between the hairline and the state while the finger is scrubbing time, so a
+simulated instant is marked without adding a caption nobody reads mid-gesture. Every value comes from
+the same state the sky is drawn from, so the numbers and the sky can never disagree.
 
 ## 3. Projection
 
@@ -100,7 +104,7 @@ horizon from the surface that owns it.
 ```
 
 `theFullBleedSceneMovesTheHorizonAndKeepsTheSkyMapping` asserts the horizon moved, the mapping did not,
-and the composition puts the observer on the grass line.
+and that the ground band sits below the horizon.
 
 ## 5. Tuning
 
@@ -109,6 +113,5 @@ and the composition puts the observer on the grass line.
 - How much the Moon card rides up, and therefore how much ground stays visible: `cardOverlap` in
   `HomeSkyHero`. With 96 dp of a 132 dp card overlapping, the ground strip above the card is ≈ 50 dp on
   a 900 dp-tall phone and the card's lower 36 dp sits over the feed's first pixel row.
-- Figure size, side, stance: `SkySceneLayout` + `ObserverRenderer`.
 - Cloud presence per theme: `ScenePalette.cloudStrength`.
 - Motion cost: `SCENE_MOTION_FRAME_MS` in `HeroSkyCanvas` (42 ms ≈ 24 fps).

@@ -13,7 +13,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,12 +35,14 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlin.math.max
 
 private fun isNetworkAvailable(context: Context): Boolean {
     val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
@@ -196,7 +197,7 @@ fun SatelliteDetailScreen(
 
                 if (!isOnline) {
                     Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.full),
+                        shape = RedShapes.capsule,
                         color = RedTheme.colors.statusError.copy(alpha = 0.15f),
                         border = BorderStroke(0.5.dp, RedTheme.colors.statusError.copy(alpha = 0.35f))
                     ) {
@@ -235,7 +236,7 @@ fun SatelliteDetailScreen(
             // 1. Hero Status Card
             LiquidGlassSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 fallbackColor = Color(0xFF0F172A),
                 fallbackBorder = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
                 style = LiquidGlassDefaults.Card,
@@ -286,7 +287,7 @@ fun SatelliteDetailScreen(
                         val badgeBg = if (state.isNakedEyeVisible) Color(0xFF2DC653) else Color(0xFF64748B)
                         val badgeText = if (state.isNakedEyeVisible) (if (isFa) "با چشم غیرمسلح" else "Naked Eye Visible") else (if (isFa) "قابل مشاهده نیست" else "Not Visible")
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = squircleShape(12.dp),
                             color = badgeBg.copy(alpha = 0.2f),
                             border = BorderStroke(1.dp, badgeBg.copy(alpha = 0.5f))
                         ) {
@@ -318,7 +319,7 @@ fun SatelliteDetailScreen(
             if (currentPasses == null) {
                 LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
                     style = LiquidGlassDefaults.Card,
@@ -334,7 +335,7 @@ fun SatelliteDetailScreen(
             } else if (currentPasses.isEmpty()) {
                 LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
                     style = LiquidGlassDefaults.Card,
@@ -395,7 +396,7 @@ fun SatelliteDetailScreen(
 
             LiquidGlassSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                 fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
                 style = LiquidGlassDefaults.Card,
@@ -504,7 +505,7 @@ fun SatelliteDetailScreen(
 
             LiquidGlassSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                 fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.25f)),
                 style = LiquidGlassDefaults.Card,
@@ -589,7 +590,7 @@ private fun NextPassTimelineProgressBar(
 
     LiquidGlassSurface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         fallbackBorder = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.35f)),
         style = LiquidGlassDefaults.Card,
@@ -660,7 +661,7 @@ private fun NextPassTimelineProgressBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
+                        .clip(squircleShape(4.dp)),
                     color = Color(pass.classification.colorHex),
                     trackColor = Color(pass.classification.colorHex).copy(alpha = 0.2f),
                 )
@@ -755,7 +756,7 @@ fun DetailedVisiblePassCard(
 
     LiquidGlassSurface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         fallbackBorder = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f)),
         style = LiquidGlassDefaults.Card,
@@ -792,7 +793,7 @@ fun DetailedVisiblePassCard(
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = squircleShape(10.dp),
                     color = Color(pass.classification.colorHex).copy(alpha = 0.2f),
                     border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.5f))
                 ) {

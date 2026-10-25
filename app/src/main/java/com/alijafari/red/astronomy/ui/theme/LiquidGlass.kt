@@ -51,7 +51,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -343,7 +342,7 @@ object LiquidGlassDefaults {
 @Composable
 fun Modifier.liquidGlass(
     backdrop: Backdrop? = LocalLiquidGlassBackdrop.current,
-    shape: Shape = RoundedCornerShape(RedCornerRadius.window),
+    shape: Shape = squircleShape(RedCornerRadius.window),
     style: LiquidGlassStyle = LiquidGlassDefaults.NavigationBar,
     fallbackColor: Color = RedTheme.colors.surfaceElevated,
     fallbackBorder: BorderStroke = BorderStroke(1.dp, RedTheme.colors.border),
@@ -439,7 +438,7 @@ fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = LocalLiquidGlassBackdrop.current,
     style: LiquidGlassStyle = LiquidGlassDefaults.Card,
-    shape: Shape = RoundedCornerShape(RedCornerRadius.window),
+    shape: Shape = squircleShape(RedCornerRadius.window),
     fallbackColor: Color = RedTheme.colors.surfaceElevated,
     fallbackBorder: BorderStroke = BorderStroke(1.dp, RedTheme.colors.border),
     fallbackShadowElevation: Dp = RedElevation.floating,

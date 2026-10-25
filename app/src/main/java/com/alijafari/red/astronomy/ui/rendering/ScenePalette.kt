@@ -33,17 +33,6 @@ internal data class ScenePalette(
     val cutEdge: Color
 )
 
-/** Clothing and rim colours for the observer. */
-internal data class FigurePalette(
-    val jacket: Color,
-    val trousers: Color,
-    val skin: Color,
-    val shoe: Color,
-    val cap: Color,
-    /** Rim light that separates the figure from the sky. */
-    val rim: Color
-)
-
 private val NightFarRidge = Color(0xFF111C30)
 private val NightMidRidge = Color(0xFF0A131F)
 private val NightGroundTop = Color(0xFF122019)
@@ -158,59 +147,5 @@ internal fun scenePalette(theme: SkyCanvasTheme, lighting: LightingState): Scene
                 grass = lerp(palette.grass, warm, 0.30f * twilight)
             )
         } else palette
-    }
-}
-
-/** Clothing for the observer, following the theme and the brightness of the scene. */
-internal fun figurePalette(theme: SkyCanvasTheme, lighting: LightingState): FigurePalette {
-    val day = lighting.ambientBrightness.coerceIn(0f, 1f)
-    return when (theme) {
-        SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> {
-            val ink = lerp(Color(0xFF0A0A0A), Color(0xFF18181B), day)
-            FigurePalette(
-                jacket = ink,
-                trousers = ink,
-                skin = lerp(Color(0xFF3F3F46), Color(0xFF52525B), day),
-                shoe = Color(0xFF000000),
-                cap = ink,
-                rim = lerp(Color(0xFFCBD5E1), Color.Black, day)
-            )
-        }
-
-        SkyCanvasTheme.KIDS_WATERCOLOR -> FigurePalette(
-            jacket = lerp(Color(0xFF2D2A6E), Color(0xFFFFB4A2), day),
-            trousers = lerp(Color(0xFF1D1B4B), Color(0xFF457B9D), day),
-            skin = lerp(Color(0xFF7A5A44), Color(0xFFE8B48C), day),
-            shoe = Color(0xFF1D3557),
-            cap = lerp(Color(0xFF2D2A6E), Color(0xFFFFD670), day),
-            rim = Color(0x66FFE3EC)
-        )
-
-        SkyCanvasTheme.OBSERVATORY -> FigurePalette(
-            jacket = lerp(Color(0xFF2A0808), Color(0xFF7F1D1D), day),
-            trousers = Color(0xFF210404),
-            skin = lerp(Color(0xFF4A2A20), Color(0xFFC08A5E), day),
-            shoe = Color(0xFF120000),
-            cap = Color(0xFF3B0404),
-            rim = Color(0x55EF4444)
-        )
-
-        SkyCanvasTheme.PAPERCRAFT_DIORAMA -> FigurePalette(
-            jacket = if (day < 0.35f) Color(0xFF3C4358) else Color(0xFFE0A458),
-            trousers = if (day < 0.35f) Color(0xFF262C3A) else Color(0xFF3A405A),
-            skin = if (day < 0.35f) Color(0xFF6E5544) else Color(0xFFE8C39E),
-            shoe = Color(0xFF221B19),
-            cap = if (day < 0.35f) Color(0xFF333A4C) else Color(0xFFC8894A),
-            rim = Color(0x22FFFFFF)
-        )
-
-        else -> FigurePalette(
-            jacket = lerp(Color(0xFF232C46), Color(0xFFE0A458), day),
-            trousers = lerp(Color(0xFF161B28), Color(0xFF33405A), day),
-            skin = lerp(Color(0xFF5C4636), Color(0xFFDCA173), day),
-            shoe = Color(0xFF0E1118),
-            cap = lerp(Color(0xFF1E2638), Color(0xFFC8894A), day),
-            rim = lerp(Color(0xFF9DBBE8), Color.White, day)
-        )
     }
 }

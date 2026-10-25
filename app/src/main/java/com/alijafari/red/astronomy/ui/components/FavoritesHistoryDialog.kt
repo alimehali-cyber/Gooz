@@ -3,7 +3,6 @@ package com.alijafari.red.astronomy.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,11 +19,12 @@ import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
-import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.AccentPrimary
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
-import com.alijafari.red.astronomy.ui.theme.AccentPrimary
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 @Composable
 fun FavoritesHistoryDialog(
@@ -85,7 +85,7 @@ fun FavoritesHistoryDialog(
                         ) {
                             items(favoriteObjects) { obj ->
                                 LiquidGlassSurface(
-                                    shape = RoundedCornerShape(RedCornerRadius.window),
+                                    shape = squircleShape(RedCornerRadius.window),
                                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                                     style = LiquidGlassDefaults.Card,
                                     fallbackShadowElevation = RedElevation.none,
@@ -163,7 +163,7 @@ fun FavoritesHistoryDialog(
                         ) {
                             items(uiState.observationLogs) { log ->
                                 LiquidGlassSurface(
-                                    shape = RoundedCornerShape(RedCornerRadius.window),
+                                    shape = squircleShape(RedCornerRadius.window),
                                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                                     style = LiquidGlassDefaults.Card,
                                     fallbackShadowElevation = RedElevation.none,

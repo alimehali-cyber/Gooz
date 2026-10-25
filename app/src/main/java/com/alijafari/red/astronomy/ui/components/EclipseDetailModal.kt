@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -29,13 +28,15 @@ import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
 import com.alijafari.red.astronomy.astro_engine.EclipseVisibility
 import com.alijafari.red.astronomy.domain.AppLanguage
-import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.StatusExcellent
 import com.alijafari.red.astronomy.ui.theme.StatusGood
 import com.alijafari.red.astronomy.ui.theme.StatusWarning
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -59,11 +60,11 @@ fun EclipseDetailModal(
                 .fillMaxWidth(0.92f)
                 .wrapContentHeight()
                 .padding(vertical = 16.dp)
-                .clip(RoundedCornerShape(RedCornerRadius.window))
+                .clip(squircleShape(RedCornerRadius.window))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(RedCornerRadius.window)
+                    shape = squircleShape(RedCornerRadius.window)
                 )
                 .testTag("eclipse_detail_dialog"),
             fallbackColor = MaterialTheme.colorScheme.surface,
@@ -137,11 +138,11 @@ fun EclipseDetailModal(
                 val bannerTextColor = if (result.isLocallyVisible) StatusExcellent else StatusWarning
 
                 LiquidGlassSurface(
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackColor = bannerBg,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, bannerBorder, RoundedCornerShape(RedCornerRadius.window)),
+                        .border(1.dp, bannerBorder, squircleShape(RedCornerRadius.window)),
                     style = LiquidGlassDefaults.Card,
                     fallbackShadowElevation = RedElevation.none,
                 ) {
@@ -177,7 +178,7 @@ fun EclipseDetailModal(
 
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(squircleShape(12.dp))
                                     .background(bannerTextColor.copy(alpha = 0.2f))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
@@ -233,7 +234,7 @@ fun EclipseDetailModal(
 
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(squircleShape(12.dp))
                                     .background(bannerTextColor.copy(alpha = 0.2f))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
@@ -271,7 +272,7 @@ fun EclipseDetailModal(
                 val endDisplay = if (isFa) detailedInfo.localEndTimeStr.toPersianDigits() else detailedInfo.localEndTimeStr
 
                 LiquidGlassSurface(
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth(),
                     style = LiquidGlassDefaults.Card,
@@ -440,7 +441,7 @@ fun EclipseDetailModal(
                 val barColor = if (isPenumbralLunar) StatusGood else MaterialTheme.colorScheme.primary
 
                 LiquidGlassSurface(
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth(),
                     style = LiquidGlassDefaults.Card,
@@ -477,7 +478,7 @@ fun EclipseDetailModal(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
+                                .clip(squircleShape(4.dp)),
                             color = barColor,
                             trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                         )
@@ -523,7 +524,7 @@ fun EclipseDetailModal(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
+                                .clip(squircleShape(4.dp)),
                             color = barColor,
                             trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                         )
@@ -603,7 +604,7 @@ fun EclipseDetailModal(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Surface(
-                        shape = RoundedCornerShape(50),
+                        shape = RedShapes.capsule,
                         color = gradeColor.copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, gradeColor.copy(alpha = 0.5f)),
                         modifier = Modifier.testTag("eclipse_detail_visibility_grade")
@@ -670,7 +671,7 @@ fun EclipseDetailModal(
 
                 // Safety Guidelines
                 LiquidGlassSurface(
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                     modifier = Modifier.fillMaxWidth(),
                     style = LiquidGlassDefaults.Card,
@@ -719,7 +720,7 @@ fun EclipseDetailModal(
                         .fillMaxWidth()
                         .height(48.dp)
                         .testTag("dismiss_eclipse_modal_button"),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = squircleShape(16.dp)
                 ) {
                     Text(
                         text = if (isFa) "متوجه شدم (بستن)" else "Close",

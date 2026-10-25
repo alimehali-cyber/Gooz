@@ -154,14 +154,12 @@ class SkyProjectionTest {
         val zenith = scene.project(180.0, 89.0, 400f, 900f, lat)
         assertTrue("zenith must stay near the top", zenith.y < 900f * SkySceneLayout.HORIZON_FRACTION * 0.5f)
 
-        // The composition agrees with the projection and puts the observer on, not above, the ground.
+        // The composition agrees with the projection, and the ground band sits below the horizon.
         val composition = SkySceneLayout.composition(400f, 900f)
         assertEquals(scene.horizonY(400f, 900f), composition.horizonY, 0.01f)
         assertTrue(composition.groundTopY > composition.horizonY)
-        assertTrue(composition.figureFeetY > composition.groundTopY)
-        assertTrue(composition.figureFeetY < composition.heightPx * 0.8f)
-        assertTrue(composition.figureCenterX > 400f * 0.5f)
-        assertTrue(SkySceneLayout.composition(400f, 900f, figureOnRight = false).figureCenterX < 400f * 0.5f)
+        assertTrue(composition.groundTopY < composition.heightPx)
+        assertTrue(composition.skyHeightPx > composition.groundHeightPx)
     }
 
     @Test

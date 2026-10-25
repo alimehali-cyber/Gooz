@@ -19,8 +19,8 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
  *
  * These are atmosphere, not a forecast: ZIG has no weather feed, so this layer never claims a cloud
  * cover. It draws two or three very soft, very translucent veils that drift at different speeds to give
- * the still sky a sense of depth and motion — the same job the drifting clouds do in Samsung's scene,
- * minus the weather meaning. Themes that already supply their own cloud art (Papercraft's cut-outs)
+ * the still sky a sense of depth and motion, without ever implying a forecast. Themes that already
+ * supply their own cloud art (Papercraft's cut-outs)
  * opt out through [ScenePalette.cloudStrength]; Real Sky's photograph keeps only a faint veil, for motion.
  *
  * Cost: the veils are pre-rendered once into small bitmaps and drawn as a handful of tinted images, so a

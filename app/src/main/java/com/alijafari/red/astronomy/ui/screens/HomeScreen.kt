@@ -1,5 +1,9 @@
 package com.alijafari.red.astronomy.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
@@ -16,7 +20,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -48,24 +51,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.content.pm.ActivityInfo
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
-import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
-import com.alijafari.red.astronomy.ui.components.SkyCanvasPresentation
 import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
+import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
 import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
+import com.alijafari.red.astronomy.ui.components.SkyCanvasPresentation
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import kotlin.math.roundToInt
-import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 
 // ------------------------------------------------------------------------------------------------
 // Recompute budgets for the Home screen
@@ -364,7 +365,7 @@ fun HomeScreen(
 
                     if (tonightEvents.isEmpty()) {
                         LiquidGlassSurface(
-                            shape = RoundedCornerShape(RedCornerRadius.lg),
+                            shape = squircleShape(RedCornerRadius.lg),
                             fallbackColor = RedTheme.colors.surfaceElevated,
                             fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
                             modifier = Modifier.fillMaxWidth(),
@@ -380,7 +381,7 @@ fun HomeScreen(
                         }
                     } else {
                         LiquidGlassSurface(
-                            shape = RoundedCornerShape(RedCornerRadius.xl),
+                            shape = squircleShape(RedCornerRadius.xl),
                             fallbackColor = RedTheme.colors.surfaceElevated,
                             fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
                             modifier = Modifier
@@ -436,7 +437,7 @@ fun HomeScreen(
                     )
 
                     LiquidGlassSurface(
-                        shape = RoundedCornerShape(RedCornerRadius.xl),
+                        shape = squircleShape(RedCornerRadius.xl),
                         fallbackColor = RedTheme.colors.surfaceElevated,
                         fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
                         modifier = Modifier
@@ -586,7 +587,7 @@ private fun SkySearchOverlay(
             contentAlignment = Alignment.TopCenter
         ) {
             LiquidGlassSurface(
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Window,
                 fallbackColor = RedTheme.colors.surfaceElevated,
                 modifier = Modifier
@@ -643,7 +644,7 @@ private fun SkySearchOverlay(
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(RedCornerRadius.lg),
+                        shape = squircleShape(RedCornerRadius.lg),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = RedTheme.colors.accentRed,
                             unfocusedBorderColor = RedTheme.colors.border,
@@ -1190,7 +1191,7 @@ private fun HomeSkyHero(
             // temperature — the readout itself is drawn by the canvas, just above the horizon.
             Surface(
                 onClick = { viewModel.setShowLocationSelector(true) },
-                shape = RoundedCornerShape(RedCornerRadius.pill),
+                shape = RedShapes.capsule,
                 color = scrim.copy(alpha = 0.26f),
                 border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.30f)),
                 modifier = Modifier.testTag("home_location_selector_button")
@@ -1313,7 +1314,7 @@ private fun MoonPhaseCard(
 
     LiquidGlassSurface(
         modifier = modifier.testTag("home_moon_card"),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         style = LiquidGlassDefaults.Card,
         fallbackColor = RedTheme.colors.surfaceElevated,
         onClick = { viewModel.setShowMoonWindow(true) }

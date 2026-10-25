@@ -10,7 +10,7 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
  * planets and the ground. The layers are drawn in that order.
  *
  * Two entry points: [drawSky] paints everything that changes with the clock and the observer, and
- * [drawSceneMotion] paints the cheap moving layers (cloud veils, the observer) on a faster tick.
+ * [drawSceneMotion] paints the cheap moving layer — the drifting cloud veils — on a faster tick.
  *
  * The sky model is shared by every surface. What differs per surface is chosen by a [SkyRenderTarget]: the
  * projection of sky directions onto pixels, the clip below which objects are hidden, and whether the landscape is
@@ -208,8 +208,7 @@ object SkySceneRenderer {
                 composition = SkySceneLayout.composition(
                     widthPx = canvasW,
                     heightPx = canvasH,
-                    horizonFraction = SkySceneLayout.HORIZON_FRACTION,
-                    figureOnRight = true
+                    horizonFraction = SkySceneLayout.HORIZON_FRACTION
                 ),
                 theme = theme,
                 lighting = lightingState
@@ -224,13 +223,12 @@ object SkySceneRenderer {
     }
 
     /**
-     * The moving half of the full-bleed scene: cloud veils drifting above the stars and the observer
-     * breathing on the grass line.
+     * The moving half of the full-bleed scene: cloud veils drifting above the stars.
      *
      * It is a separate pass from [drawSky] on purpose. The sky is expensive (hundreds of stars, the Milky
-     * Way, the Moon sprite) and only changes when the clock or the observer changes, so it is drawn on a
-     * slow tick; this pass runs on a faster tick and repaints only a handful of sprites and paths. The
-     * caller therefore gets motion without repainting the astronomy.
+     * Way, the Moon sprite) and only changes when the clock does, so it is drawn on a slow tick; this
+     * pass runs on a faster tick and repaints only a handful of soft sprites. The caller therefore gets
+     * motion without repainting the astronomy.
      *
      * Clouds are clipped to the sky: they must never spill onto the ground band.
      */
@@ -238,16 +236,14 @@ object SkySceneRenderer {
         drawScope: DrawScope,
         frame: SkySceneFrame,
         theme: SkyCanvasTheme,
-        frameTimeMs: Long,
-        figureOnRight: Boolean = true
+        frameTimeMs: Long
     ) {
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
         val composition = SkySceneLayout.composition(
             widthPx = canvasW,
             heightPx = canvasH,
-            horizonFraction = SkySceneLayout.HORIZON_FRACTION,
-            figureOnRight = figureOnRight
+            horizonFraction = SkySceneLayout.HORIZON_FRACTION
         )
 
         drawScope.clipRect(left = 0f, top = 0f, right = canvasW, bottom = composition.horizonY) {
@@ -259,13 +255,5 @@ object SkySceneRenderer {
                 composition = composition
             )
         }
-
-        ObserverRenderer.draw(
-            drawScope = drawScope,
-            composition = composition,
-            theme = theme,
-            lighting = frame.lightingState,
-            frameTimeMs = frameTimeMs
-        )
     }
 }

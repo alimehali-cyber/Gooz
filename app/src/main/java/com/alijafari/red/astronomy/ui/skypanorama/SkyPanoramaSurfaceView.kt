@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
  * Hosts the GLES 3.0 panorama inside the Home hero.
  *
  * A [TextureView] is used instead of a `SurfaceView`: a SurfaceView is punched through the window
- * and ignores the Compose `clip(RoundedCornerShape)` applied to the hero, whereas a TextureView is
+ * and ignores the Compose `clip(SquircleShape)` applied to the hero, whereas a TextureView is
  * composited as a normal view and honours the rounded clipping.
  *
  * Status is reported on the main thread. [SkyPanoramaStatus.READY] is reported only after the

@@ -3,7 +3,6 @@ package com.zig.chal.ui
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import androidx.core.view.WindowCompat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -49,10 +47,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -61,6 +57,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -68,6 +66,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -75,6 +74,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.chal.config.ChalCameraConfig
 import com.zig.chal.config.ChalFeatures
 import com.zig.chal.config.ChalPresetName
@@ -82,13 +82,13 @@ import com.zig.chal.config.ChalRayTracingQuality
 import com.zig.chal.config.ChalRuntimeState
 import com.zig.chal.config.ChalSimulationParams
 import com.zig.chal.config.ChalXapkScenario
+import com.zig.chal.config.XapkSimulationSettingsStore
 import com.zig.chal.render.ChalBenchmark
 import com.zig.chal.render.ChalCamera
 import com.zig.chal.render.ChalCompatibilityReason
 import com.zig.chal.render.ChalQualityController
 import com.zig.chal.render.ChalRenderer
 import com.zig.chal.render.ChalSurfaceHost
-import com.zig.chal.config.XapkSimulationSettingsStore
 import com.zig.gravity.ui.ImmersiveScreenState
 import kotlinx.coroutines.delay
 
@@ -378,8 +378,8 @@ internal fun ChalInterface(params: ChalSimulationParams, snapshot: ChalRenderer.
 
         if (backend.error != null) {
             Column(Modifier.align(Alignment.Center).widthIn(max = 420.dp).fillMaxWidth()
-                .heightIn(max = contentHeight * 0.8f).clip(RoundedCornerShape(RedCornerRadius.lg))
-                .background(Color(0xF21B1115)).border(1.dp, Color(0xFFB86A70), RoundedCornerShape(RedCornerRadius.lg))
+                .heightIn(max = contentHeight * 0.8f).clip(squircleShape(RedCornerRadius.lg))
+                .background(Color(0xF21B1115)).border(1.dp, Color(0xFFB86A70), squircleShape(RedCornerRadius.lg))
                 .verticalScroll(rememberScrollState()).padding(RedSpacing.md).testTag("chal_render_error"),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (isPersian) "مشکل رندر" else "Rendering problem", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -19,19 +18,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.constrainHeight
-import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.chal.render.ChalRenderer
 import java.util.Locale
 
@@ -59,7 +59,7 @@ fun ChalTelemetry(snapshot: ChalRenderer.ChalSnapshot, isPersian: Boolean, isXap
         }
     }
     Column(modifier.testTag("chal_telemetry"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ChalWrappingRow(Modifier.fillMaxWidth().clip(RoundedCornerShape(RedCornerRadius.sm))
+        ChalWrappingRow(Modifier.fillMaxWidth().clip(squircleShape(RedCornerRadius.sm))
             .background(Color.Black.copy(alpha = 0.76f)).padding(8.dp)) {
             items.forEach { (label, value, unit) ->
                 Column(Modifier.widthIn(min = 72.dp).semantics(mergeDescendants = true) { contentDescription = "$label: $value $unit" },
@@ -78,7 +78,7 @@ fun ChalTelemetry(snapshot: ChalRenderer.ChalSnapshot, isPersian: Boolean, isXap
             val budget = snapshot.budgetUsage.takeIf { it.isFinite() } ?: 0.0
             Text((if (isPersian) "فاصلهٔ فریم نسبت به هدف: " else "Frame interval / pacing target: ") + "${Math.round(budget)}%",
                 color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
-            Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.15f))) {
+            Box(Modifier.fillMaxWidth().height(5.dp).clip(squircleShape(8.dp)).background(Color.White.copy(alpha = 0.15f))) {
                 Spacer(Modifier.fillMaxWidth((budget / 100.0).coerceIn(0.0, 1.0).toFloat()).height(5.dp)
                     .background(if (budget > 105) Color(0xFFE8A16E) else Color.White.copy(alpha = 0.7f)))
             }

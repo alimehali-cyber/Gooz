@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gargantua.renderer.GargantuaCoarseSampling
 import com.zig.gargantua.renderer.GargantuaSurfaceView
 
@@ -48,11 +48,11 @@ internal fun GargantuaSamplingSelector(
 
     Surface(
         modifier = modifier
-            .border(1.dp, Color(0x66446688), RoundedCornerShape(8.dp))
+            .border(1.dp, Color(0x66446688), squircleShape(8.dp))
             .testTag("gargantua_sampling_selector"),
         color = Color(0xDD101722),
         contentColor = Color.White,
-        shape = RoundedCornerShape(8.dp),
+        shape = squircleShape(8.dp),
         tonalElevation = 0.dp
     ) {
         Row(
@@ -86,7 +86,7 @@ internal fun GargantuaSamplingSelector(
                         .defaultMinSize(minWidth = 0.dp, minHeight = 44.dp)
                         .background(
                             color = if (selectedMode.value == mode) Color(0xCCEF8F2F) else Color.Transparent,
-                            shape = RoundedCornerShape(5.dp)
+                            shape = squircleShape(5.dp)
                         )
                         .testTag("gargantua_sampling_mode_$mode"),
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)

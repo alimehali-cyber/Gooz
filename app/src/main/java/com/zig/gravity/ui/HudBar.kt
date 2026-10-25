@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CenterFocusStrong
@@ -30,6 +29,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.physics.EngineConstants
 import com.zig.gravity.ui.theme.LocalGravityColors
 import com.zig.gravity.util.PersianDigits
@@ -61,9 +61,9 @@ fun HudBar(
     val c = LocalGravityColors.current
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
+            .clip(squircleShape(22.dp))
             .background(c.chrome)
-            .border(1.dp, c.chromeBorder, RoundedCornerShape(22.dp))
+            .border(1.dp, c.chromeBorder, squircleShape(22.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp)
             .testTag("gravity_hud"),
         verticalAlignment = Alignment.CenterVertically,
@@ -79,7 +79,7 @@ fun HudBar(
 
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
+                .clip(squircleShape(14.dp))
                 .background(c.onSurface.copy(alpha = 0.05f))
                 .padding(horizontal = 2.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(1.dp),
@@ -89,7 +89,7 @@ fun HudBar(
                 val selected = i == speedIndex
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(11.dp))
+                        .clip(squircleShape(11.dp))
                         .background(if (selected) c.accent.copy(alpha = 0.20f) else Color.Transparent)
                         .clickableTag("hud_speed_$i") { onSpeed(i) }
                         .padding(horizontal = 7.dp, vertical = 5.dp),

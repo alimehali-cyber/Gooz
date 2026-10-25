@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -58,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTheme
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.chal.config.ChalFeatureToggle
 import com.zig.chal.config.ChalFeatures
 import com.zig.chal.config.ChalMotion
@@ -130,9 +130,9 @@ fun ChalControlPanel(
 
     Column(
         modifier = modifier.fillMaxWidth().testTag("chal_control_panel")
-            .clip(RoundedCornerShape(RedCornerRadius.xl))
+            .clip(squircleShape(RedCornerRadius.xl))
             .background(Color.Black.copy(alpha = 0.86f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(RedCornerRadius.xl))
+            .border(1.dp, Color.White.copy(alpha = 0.15f), squircleShape(RedCornerRadius.xl))
             .padding(RedSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
     ) {
@@ -143,7 +143,7 @@ fun ChalControlPanel(
                     modifier = Modifier.testTag("chal_tab_${entry.name.lowercase(Locale.US)}")
                         .heightIn(min = 48.dp)
                         .background(if (tab == entry) Color.White.copy(alpha = 0.12f) else Color.Transparent,
-                            RoundedCornerShape(RedCornerRadius.sm)),
+                            squircleShape(RedCornerRadius.sm)),
                     text = { Text(entry.label(isPersian), fontSize = 13.sp, fontWeight = FontWeight.SemiBold) })
             }
         }
@@ -318,7 +318,7 @@ fun ChalControlPanel(
 
 @Composable
 internal fun ChalPanelSection(label: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.035f), RoundedCornerShape(RedCornerRadius.lg))
+    Column(Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.035f), squircleShape(RedCornerRadius.lg))
         .padding(RedSpacing.sm), verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
         Text(label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         content()
@@ -348,9 +348,9 @@ private fun <T> ChalChoices(items: List<T>, label: (T) -> String, selected: (T) 
 
 @Composable
 private fun ChalChoiceButton(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier, enabled: Boolean) {
-    Box(modifier.clip(RoundedCornerShape(RedCornerRadius.sm))
+    Box(modifier.clip(squircleShape(RedCornerRadius.sm))
         .background(if (selected) RedTheme.colors.accentRed.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.055f))
-        .border(1.dp, if (selected) RedTheme.colors.accentRed.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.18f), RoundedCornerShape(RedCornerRadius.sm))
+        .border(1.dp, if (selected) RedTheme.colors.accentRed.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.18f), squircleShape(RedCornerRadius.sm))
         .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
         .heightIn(min = 48.dp).padding(horizontal = 8.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         Text(label, color = Color.White.copy(alpha = if (enabled) 0.95f else 0.4f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -359,8 +359,8 @@ private fun ChalChoiceButton(label: String, selected: Boolean, onClick: () -> Un
 
 @Composable
 internal fun ChalActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    Box(modifier.clip(RoundedCornerShape(RedCornerRadius.sm)).background(Color.White.copy(alpha = 0.07f))
-        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(RedCornerRadius.sm))
+    Box(modifier.clip(squircleShape(RedCornerRadius.sm)).background(Color.White.copy(alpha = 0.07f))
+        .border(1.dp, Color.White.copy(alpha = 0.2f), squircleShape(RedCornerRadius.sm))
         .clickable(enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 48.dp)
         .padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         Text(label, color = Color.White.copy(alpha = if (enabled) 0.95f else 0.4f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)

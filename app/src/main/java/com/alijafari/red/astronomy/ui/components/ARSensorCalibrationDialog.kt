@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -67,6 +66,7 @@ import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.alijafari.red.astronomy.ui.theme.StatusGood
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
@@ -122,7 +122,7 @@ fun ARSensorCalibrationDialog(
                     onClick = {}
                 )
                 .testTag("ar_sensor_calibration_dialog"),
-            shape = RoundedCornerShape(RedCornerRadius.xxl),
+            shape = squircleShape(RedCornerRadius.xxl),
             fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.97f),
             fallbackBorder = BorderStroke(1.dp, accent.copy(alpha = 0.55f)),
             fallbackShadowElevation = 16.dp,
@@ -178,7 +178,7 @@ fun ARSensorCalibrationDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(112.dp)
-                        .background(RedTheme.colors.surfaceGrouped.copy(alpha = 0.5f), RoundedCornerShape(RedCornerRadius.lg))
+                        .background(RedTheme.colors.surfaceGrouped.copy(alpha = 0.5f), squircleShape(RedCornerRadius.lg))
                         .testTag("ar_sensor_calibration_figure8_canvas"),
                     contentAlignment = Alignment.Center
                 ) {
@@ -227,7 +227,7 @@ fun ARSensorCalibrationDialog(
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f).testTag("ar_sensor_calibration_got_it_btn"),
-                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        shape = squircleShape(RedCornerRadius.md),
                         colors = ButtonDefaults.buttonColors(containerColor = if (isAdequate) StatusGood else RedTheme.colors.accentRed)
                     ) {
                         Text(
@@ -247,7 +247,7 @@ fun ARSensorCalibrationDialog(
 private fun LiveStatusCard(status: ArSensorStatus, state: CalibrationState, isFa: Boolean) {
     val f = status.fusion
     LiquidGlassSurface(
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = RedTheme.colors.surfaceGrouped.copy(alpha = 0.55f),
         fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border.copy(alpha = 0.6f)),
         modifier = Modifier.fillMaxWidth().testTag("ar_sensor_calibration_status_badge"),
@@ -412,7 +412,7 @@ private fun AccuracyBarsRow(status: Int, isFa: Boolean) {
                     modifier = Modifier
                         .width(6.dp)
                         .height(14.dp)
-                        .background(if (i <= bars) color else RedTheme.colors.border.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
+                        .background(if (i <= bars) color else RedTheme.colors.border.copy(alpha = 0.3f), squircleShape(2.dp))
                 )
             }
         }

@@ -8,7 +8,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -39,6 +38,7 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import com.kyant.backdrop.Backdrop
 import kotlin.math.roundToInt
@@ -114,7 +114,7 @@ fun MoonDetailWindow(
             LiquidGlassSurface(
                 backdrop = backdrop,
                 style = LiquidGlassDefaults.Window,
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 fallbackColor = RedTheme.colors.surfaceElevated,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -237,7 +237,7 @@ fun MoonDetailWindow(
                         if (dayOffsetInt != 0) {
                             Surface(
                                 onClick = { viewModel.setMoonDayOffset(0f) },
-                                shape = RoundedCornerShape(RedCornerRadius.xs),
+                                shape = squircleShape(RedCornerRadius.xs),
                                 color = RedTheme.colors.accentRed.copy(alpha = 0.2f)
                             ) {
                                 Text(

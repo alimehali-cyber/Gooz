@@ -105,6 +105,37 @@ Scale (default size): Large Title 34, Title 1 28, Title 2 22, Title 3 20, Headli
 - `RedTheme`: Compose accessor.
 - `LiquidGlassConfig`: clarity, blur, refraction, chromatic, highlight, shadow, tint alpha (transparency slider).
 
+### 3.2b Corner geometry: squircle everywhere
+
+Every rounded rectangle in the app is a **squircle** — Lamé's superellipse
+`|x/a|ⁿ + |y/a|ⁿ = 1` at **n = 4** — not a circular-arc round rect.
+
+A `RoundedCornerShape` corner is an arc: curvature jumps from `0` on the straight edge to `1/r` at
+the join. That is a G1 join, and it is the small roughness the eye picks up in a screen full of
+cards. A superellipse runs its curvature continuously from `0` to a maximum on the corner diagonal
+and back — a G2 join — so the corner reads as one curve instead of "a rectangle with surgery".
+
+| Piece | Where | Notes |
+|---|---|---|
+| Curve constants | `ui/theme/Squircle.kt` (`Squircle.CORNER_HALF`) | 4 cubic Béziers per corner; arc-length nodes solved as G2 cubic Hermites |
+| Shape | `SquircleShape : CornerBasedShape` | drop-in for `RoundedCornerShape`, same RTL mirroring |
+| Call-site API | `squircleShape(radius)` | mirrors `RoundedCornerShape`'s overloads one-for-one |
+| Named shapes | `RedShapes.container / control / item` | token radii, no magic numbers |
+| Material surfaces | `RedShapes.material` -> `MaterialTheme(shapes = ...)` | cards, dialogs, sheets, menus, text fields, chips |
+| Concentric nesting | `squircleConcentric(outer, gap)` | corner *boxes* share the gap, so curves stay parallel |
+
+Accuracy, measured against the analytic curve on the unit corner box and asserted on every build by
+`SquircleGeometryTest`:
+
+- maximum positional deviation **0.0098 % of r** (0.01 px at 34 dp on a 3x display);
+- curvature continuity at the internal joins to single-precision noise;
+- curvature **exactly 0** where the corner meets an edge, so the edge join is G2 too.
+
+**Capsules are the one exception.** A capsule is a rectangle whose radius has reached half its short
+side; its ends are semicircular by definition. Smoothing them would visibly flatten every pill, badge
+and avatar, so capsules stay circular — via the named `RedShapes.capsule`, which makes the intent
+explicit at the call site instead of hiding a G1 corner inside a token.
+
 ### 3.3 Theme behavior
 
 | Theme | Base | Surfaces | Text | Glass |

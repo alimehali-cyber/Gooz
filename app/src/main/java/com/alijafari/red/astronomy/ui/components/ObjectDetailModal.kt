@@ -11,33 +11,33 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.data.catalog.PhysicalData
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.*
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Locale
 import kotlin.math.tan
-import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 
 private fun isDetailDeepSky(type: ObjectType): Boolean {
     return type == ObjectType.DEEP_SKY ||
@@ -394,7 +394,7 @@ fun ObjectDetailModal(
             item {
                 LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackColor = obs.level.color.copy(alpha = 0.15f),
                     fallbackBorder = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f)),
                     style = LiquidGlassDefaults.Card,
@@ -444,7 +444,7 @@ fun ObjectDetailModal(
                         .fillMaxWidth()
                         .height(50.dp)
                         .testTag("locate_in_ar_button"),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = squircleShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AccentPrimary
                     )
@@ -473,7 +473,7 @@ fun ObjectDetailModal(
             item {
                 LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     style = LiquidGlassDefaults.Card,
@@ -568,7 +568,7 @@ fun ObjectDetailModal(
                 item {
                     LiquidGlassSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(RedCornerRadius.window),
+                        shape = squircleShape(RedCornerRadius.window),
                         fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
                         fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                         style = LiquidGlassDefaults.Card,
@@ -702,7 +702,7 @@ fun ObjectDetailModal(
             item {
                 LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     style = LiquidGlassDefaults.Card,
@@ -848,7 +848,7 @@ fun ObjectDetailModal(
                 item {
                     LiquidGlassSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(RedCornerRadius.window),
+                        shape = squircleShape(RedCornerRadius.window),
                         fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                         fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                         style = LiquidGlassDefaults.Card,
@@ -959,7 +959,7 @@ fun ObjectDetailModal(
             item {
                 LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
                     style = LiquidGlassDefaults.Card,
@@ -1058,7 +1058,7 @@ fun ObjectDetailModal(
                         .fillMaxWidth()
                         .height(48.dp)
                         .testTag("add_log_button"),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = squircleShape(14.dp)
                 ) {
                     Icon(Icons.Default.EditNote, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))

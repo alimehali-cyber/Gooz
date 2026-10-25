@@ -388,6 +388,11 @@ fun REDTheme(
         MaterialTheme(
             colorScheme = readableMaterialScheme,
             typography = redTypographyFor(isPersian),
+            // Every Material surface that reads MaterialTheme.shapes — Card, AlertDialog, bottom
+            // sheets, text fields, menus, chips — inherits the app's squircle corners from here
+            // instead of Material's circular-arc defaults, so there is one corner geometry in the
+            // app and no component can silently reintroduce a G1 join.
+            shapes = RedShapes.material,
             content = {
                 // Material 3's Text uses whatever `style` it is handed *as-is* — it does not merge the
                 // theme's ambient style into an explicitly passed one — so the typography swap above

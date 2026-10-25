@@ -3,13 +3,13 @@ package com.zig.gravity.ui
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -24,9 +25,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -60,26 +64,22 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.zig.gravity.edu.TutorialContent
 import com.zig.gravity.physics.EngineConstants
+import com.zig.gravity.sim.BodyCatalog
+import com.zig.gravity.sim.CameraState
 import com.zig.gravity.sim.HapticCue
 import com.zig.gravity.sim.Preset
 import com.zig.gravity.sim.SimulationViewModel
-import com.zig.gravity.ui.theme.LocalGravityColors
-import com.zig.gravity.ui.theme.ZigGravityTheme
-import kotlin.math.roundToInt
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.PI
-import androidx.compose.material.icons.filled.Public
-import com.zig.gravity.edu.TutorialContent
-import com.zig.gravity.sim.BodyCatalog
-import com.zig.gravity.sim.CameraState
 import com.zig.gravity.sim.TutorialGate
 import com.zig.gravity.sim.TutorialStore
+import com.zig.gravity.ui.theme.LocalGravityColors
+import com.zig.gravity.ui.theme.ZigGravityTheme
 import com.zig.gravity.util.SandboxFormat
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GpsFixed
-import androidx.compose.foundation.layout.height
+import kotlin.math.PI
+import kotlin.math.roundToInt
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val PREFS_NAME = "zig_gravity_sandbox"
 private const val PREFS_KEY = "session_v1"
@@ -504,9 +504,9 @@ fun GravitySandboxRoot(
                     Spacer(Modifier.width(6.dp))
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(squircleShape(16.dp))
                             .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, RoundedCornerShape(16.dp))
+                            .border(1.dp, c.chromeBorder, squircleShape(16.dp))
                             .clickableTag("open_presets") { showPresets = true }
                             .padding(horizontal = 10.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -519,9 +519,9 @@ fun GravitySandboxRoot(
                     if (vm.teachingEnabled) {
                         Row(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(squircleShape(16.dp))
                                 .background(c.chrome)
-                                .border(1.dp, c.chromeBorder, RoundedCornerShape(16.dp))
+                                .border(1.dp, c.chromeBorder, squircleShape(16.dp))
                                 .clickableTag("open_challenges") { showChallenges = true }
                                 .padding(horizontal = 10.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -548,9 +548,9 @@ fun GravitySandboxRoot(
                     }
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(squircleShape(16.dp))
                             .background(c.accent.copy(alpha = 0.16f))
-                            .border(1.dp, c.accent.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                            .border(1.dp, c.accent.copy(alpha = 0.45f), squircleShape(16.dp))
                             .clickableTag("follow_indicator") { vm.stopFollow() }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -586,9 +586,9 @@ fun GravitySandboxRoot(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(squircleShape(14.dp))
                             .background(c.chrome)
-                            .border(1.dp, c.accent.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                            .border(1.dp, c.accent.copy(alpha = 0.45f), squircleShape(14.dp))
                             .clickableTag("notice") { vm.dismissNotice() }
                             .padding(12.dp)
                     ) {
@@ -608,9 +608,9 @@ fun GravitySandboxRoot(
                             )
                         }
                         .width(170.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(squircleShape(14.dp))
                         .background(c.chrome)
-                        .border(1.dp, c.chromeBorder, RoundedCornerShape(14.dp))
+                        .border(1.dp, c.chromeBorder, squircleShape(14.dp))
                         .testTag("longpress_menu")
                 ) {
                     MenuItem(if (fa) "بررسی" else "Inspect", "menu_inspect") {
@@ -662,9 +662,9 @@ fun GravitySandboxRoot(
                 if (vm.selectedId != 0L && !showInspector) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(squircleShape(14.dp))
                             .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, RoundedCornerShape(14.dp))
+                            .border(1.dp, c.chromeBorder, squircleShape(14.dp))
                             .clickableTag("open_inspector") { showInspector = true }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
@@ -681,9 +681,9 @@ fun GravitySandboxRoot(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(squircleShape(16.dp))
                             .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, RoundedCornerShape(16.dp))
+                            .border(1.dp, c.chromeBorder, squircleShape(16.dp))
                             .testTag("camera_panel")
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
@@ -706,7 +706,7 @@ fun GravitySandboxRoot(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(squircleShape(12.dp))
                                     .background(c.accent.copy(alpha = 0.10f))
                                     .clickableTag("camera_fit") { vm.frameCameraToContent() }
                                     .padding(vertical = 10.dp),
@@ -717,7 +717,7 @@ fun GravitySandboxRoot(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(squircleShape(12.dp))
                                     .background(c.accent.copy(alpha = 0.10f))
                                     .clickableTag("camera_reset") { vm.restorePresetCamera() }
                                     .padding(vertical = 10.dp),

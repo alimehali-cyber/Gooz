@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -47,22 +46,24 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.alijafari.red.astronomy.ui.MainUiState
-import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.CalendarSystem
+import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
+import com.alijafari.red.astronomy.ui.MainUiState
+import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
+import java.text.SimpleDateFormat
+import java.util.*
+import kotlin.math.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.alijafari.red.astronomy.domain.ThemeMode
-import java.text.SimpleDateFormat
-import java.util.*
-import kotlin.math.*
 
 private fun isNetworkAvailable(context: Context): Boolean {
     val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
@@ -426,12 +427,12 @@ fun ISSScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2.0f) // Strictly preserve true geographic 2:1 aspect ratio
-                    .clip(RoundedCornerShape(RedCornerRadius.lg))
+                    .clip(squircleShape(RedCornerRadius.lg))
                     .background(mapPalette.containerBg)
                     .border(
                         1.dp,
                         RedTheme.colors.border,
-                        RoundedCornerShape(RedCornerRadius.lg)
+                        squircleShape(RedCornerRadius.lg)
                     )
             ) {
                 // Solar position for astronomical terminator & city illumination
@@ -767,7 +768,7 @@ fun ISSScreen(
                                 .width(150.dp)
                                 .clickable { activeDetailSatellite = satState.satellite }
                                 .testTag("anchored_sat_label"),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = squircleShape(12.dp),
                             color = Color(0xF20F172A),
                             border = BorderStroke(1.dp, AccentPrimary)
                         ) {
@@ -823,7 +824,7 @@ fun ISSScreen(
                     items(SatelliteCategory.entries) { cat ->
                         val isSelected = cat == selectedCategory
                         Surface(
-                            shape = RoundedCornerShape(RedCornerRadius.full),
+                            shape = RedShapes.capsule,
                             color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
                             border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
                             modifier = Modifier
@@ -844,7 +845,7 @@ fun ISSScreen(
 
                 // Compact Map Theme Selector Outside Map
                 Surface(
-                    shape = RoundedCornerShape(RedCornerRadius.full),
+                    shape = RedShapes.capsule,
                     color = RedTheme.colors.surfaceElevated,
                     border = BorderStroke(1.dp, RedTheme.colors.border),
                     modifier = Modifier.testTag("map_theme_selector")
@@ -861,7 +862,7 @@ fun ISSScreen(
                             val isSelected = mapTheme == theme
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(RedCornerRadius.full))
+                                    .clip(RedShapes.capsule)
                                     .background(if (isSelected) RedTheme.colors.accentRed else Color.Transparent)
                                     .clickable {
                                         mapTheme = theme
@@ -885,7 +886,7 @@ fun ISSScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("satellite_time_scrubber_card"),
-                shape = RoundedCornerShape(RedCornerRadius.lg),
+                shape = squircleShape(RedCornerRadius.lg),
                 style = LiquidGlassDefaults.Card
             ) {
                 Column(
@@ -938,7 +939,7 @@ fun ISSScreen(
 
                         if (timeOffsetHours != 0f) {
                             Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.full),
+                                shape = RedShapes.capsule,
                                 color = RedTheme.colors.accentRed.copy(alpha = 0.15f),
                                 border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f)),
                                 modifier = Modifier

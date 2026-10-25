@@ -12,7 +12,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -42,6 +41,7 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
  * Data structure for the Bortle Dark-Sky scale reference guide.
@@ -185,7 +185,7 @@ fun SettingsDialog(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("settings_dialog"),
-        shape = RoundedCornerShape(RedCornerRadius.xl),
+        shape = squircleShape(RedCornerRadius.xl),
         containerColor = RedTheme.colors.surfaceElevated,
         title = {
             Row(
@@ -712,7 +712,7 @@ fun SettingsDialog(
                         BORTLE_CLASSES.forEach { info ->
                             val isSelected = uiState.bortleClass == info.classNumber
                             LiquidGlassSurface(
-                                shape = RoundedCornerShape(RedCornerRadius.window),
+                                shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
                                 fallbackBorder = BorderStroke(
                                     0.5.dp,
@@ -733,7 +733,7 @@ fun SettingsDialog(
                                 ) {
                                     // Class Number Badge
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
+                                        shape = squircleShape(4.dp),
                                         color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
                                         modifier = Modifier.padding(top = 1.dp)
                                     ) {
@@ -776,7 +776,7 @@ fun SettingsDialog(
                         .fillMaxWidth()
                         .padding(top = RedSpacing.xs)
                         .testTag("developer_credit_card"),
-                    shape = RoundedCornerShape(RedCornerRadius.lg),
+                    shape = squircleShape(RedCornerRadius.lg),
                     style = LiquidGlassDefaults.Card,
                     fallbackColor = RedTheme.colors.surfaceGrouped
                 ) {
@@ -832,7 +832,7 @@ fun SettingsDialog(
                             // Telegram Glass Badge
                             val intentContext = context
                             Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.xs),
+                                shape = squircleShape(RedCornerRadius.xs),
                                 color = RedTheme.colors.accentRed.copy(alpha = 0.1f),
                                 border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f)),
                                 modifier = Modifier.clickable {
@@ -873,7 +873,7 @@ fun SettingsDialog(
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(RedCornerRadius.md),
+                shape = squircleShape(RedCornerRadius.md),
                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
             ) {
                 Text(text = stringResource(R.string.ok), color = Color.White, fontWeight = FontWeight.Bold)
@@ -904,7 +904,7 @@ private fun ExpandableSettingsSection(
     )
 
     LiquidGlassSurface(
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = RedTheme.colors.surfaceGrouped,
         fallbackBorder = BorderStroke(
             1.dp,
@@ -949,7 +949,7 @@ private fun ExpandableSettingsSection(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.xs),
+                        shape = squircleShape(RedCornerRadius.xs),
                         color = (statusColor ?: RedTheme.colors.accentRed).copy(alpha = 0.12f),
                         border = BorderStroke(0.5.dp, (statusColor ?: RedTheme.colors.accentRed).copy(alpha = 0.3f))
                     ) {
@@ -1005,7 +1005,7 @@ private fun SettingsOptionRow(
     subtitle: String? = null
 ) {
     LiquidGlassSurface(
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
         fallbackBorder = BorderStroke(
             0.5.dp,

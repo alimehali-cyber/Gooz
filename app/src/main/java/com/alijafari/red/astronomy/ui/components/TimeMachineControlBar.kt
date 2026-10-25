@@ -8,18 +8,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +26,7 @@ import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,7 +70,7 @@ fun TimeMachineControlBar(
     ) {
         // --- Information Banner & Main Pill ---
         LiquidGlassSurface(
-            shape = RoundedCornerShape(RedCornerRadius.window),
+            shape = squircleShape(RedCornerRadius.window),
             style = LiquidGlassDefaults.Card,
             fallbackColor = if (state.mode == TimeMachineMode.SIMULATION) RedTheme.colors.surfaceElevated else RedTheme.colors.surface,
             fallbackBorder = BorderStroke(
@@ -79,7 +79,7 @@ fun TimeMachineControlBar(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(8.dp, RoundedCornerShape(RedCornerRadius.window))
+                .shadow(8.dp, squircleShape(RedCornerRadius.window))
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
                 // Top Banner Row
@@ -90,7 +90,7 @@ fun TimeMachineControlBar(
                 ) {
                     // Mode Indicator Badge
                     LiquidGlassSurface(
-                        shape = RoundedCornerShape(RedCornerRadius.window),
+                        shape = squircleShape(RedCornerRadius.window),
                         fallbackColor = if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else StatusGood.copy(alpha = 0.15f),
                         fallbackBorder = BorderStroke(1.dp, if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary else StatusGood),
                         style = LiquidGlassDefaults.Card,
@@ -179,7 +179,7 @@ fun TimeMachineControlBar(
                         ) {
                             // 📅 Date Pill Button
                             LiquidGlassSurface(
-                                shape = RoundedCornerShape(RedCornerRadius.window),
+                                shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                                 fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 modifier = Modifier
@@ -200,7 +200,7 @@ fun TimeMachineControlBar(
 
                             // 🕒 Time Pill Button
                             LiquidGlassSurface(
-                                shape = RoundedCornerShape(RedCornerRadius.window),
+                                shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                                 fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 modifier = Modifier
@@ -221,7 +221,7 @@ fun TimeMachineControlBar(
 
                             // ▶ / ⏸ Play/Pause Pill Button
                             LiquidGlassSurface(
-                                shape = RoundedCornerShape(RedCornerRadius.window),
+                                shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = if (state.isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                 fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                 modifier = Modifier
@@ -257,7 +257,7 @@ fun TimeMachineControlBar(
                             // ⚡ Speed Pill Button
                             Box {
                                 LiquidGlassSurface(
-                                    shape = RoundedCornerShape(RedCornerRadius.window),
+                                    shape = squircleShape(RedCornerRadius.window),
                                     fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                                     fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                     modifier = Modifier
@@ -331,7 +331,7 @@ fun TimeMachineControlBar(
 
                             // 🔴 LIVE Reset Button
                             LiquidGlassSurface(
-                                shape = RoundedCornerShape(RedCornerRadius.window),
+                                shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = if (state.mode == TimeMachineMode.LIVE) StatusGood.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
                                 fallbackBorder = BorderStroke(1.dp, if (state.mode == TimeMachineMode.LIVE) StatusGood else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                                 modifier = Modifier
@@ -362,7 +362,7 @@ fun TimeMachineControlBar(
                         ) {
                             // ✨ Birthday Sky Preset Button
                             Surface(
-                                shape = RoundedCornerShape(14.dp),
+                                shape = squircleShape(14.dp),
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
                                 modifier = Modifier
@@ -385,7 +385,7 @@ fun TimeMachineControlBar(
 
                             // ⭐ My Occasions Button
                             Surface(
-                                shape = RoundedCornerShape(14.dp),
+                                shape = squircleShape(14.dp),
                                 color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)),
                                 modifier = Modifier
@@ -557,7 +557,7 @@ fun TimeMachineControlBar(
                 }
             },
             containerColor = RedTheme.colors.surfaceElevated,
-            shape = RoundedCornerShape(RedCornerRadius.window)
+            shape = squircleShape(RedCornerRadius.window)
         )
     }
 
@@ -588,7 +588,7 @@ fun TimeMachineControlBar(
                     )
 
                     LiquidGlassSurface(
-                        shape = RoundedCornerShape(RedCornerRadius.window),
+                        shape = squircleShape(RedCornerRadius.window),
                         fallbackColor = RedTheme.colors.surfaceVariant,
                         fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
                         modifier = Modifier
@@ -634,7 +634,7 @@ fun TimeMachineControlBar(
                 }
             },
             containerColor = RedTheme.colors.surfaceElevated,
-            shape = RoundedCornerShape(RedCornerRadius.window)
+            shape = squircleShape(RedCornerRadius.window)
         )
 
         if (showBirthDatePicker) {
@@ -681,7 +681,7 @@ fun TimeMachineControlBar(
             onDismissRequest = { showOccasionsModal = false },
             modifier = Modifier.testTag("my_occasions_dialog"),
             containerColor = RedTheme.colors.surfaceElevated,
-            shape = RoundedCornerShape(RedCornerRadius.window),
+            shape = squircleShape(RedCornerRadius.window),
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -697,7 +697,7 @@ fun TimeMachineControlBar(
                         )
                     }
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = squircleShape(12.dp),
                         color = RedTheme.colors.accentRed.copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f))
                     ) {
@@ -767,7 +767,7 @@ fun TimeMachineControlBar(
                                 val occTimeStr = TimeEngine.formatTime24h(occ.timestampMs, isFa)
 
                                 LiquidGlassSurface(
-                                    shape = RoundedCornerShape(RedCornerRadius.window),
+                                    shape = squircleShape(RedCornerRadius.window),
                                     fallbackColor = RedTheme.colors.surfaceVariant,
                                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
                                     modifier = Modifier
@@ -862,7 +862,7 @@ fun TimeMachineControlBar(
             AlertDialog(
                 onDismissRequest = { showAddEditOccasionDialog = false },
                 containerColor = RedTheme.colors.surfaceElevated,
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 title = {
                     Text(
                         text = if (occasionToEdit == null) {
@@ -907,7 +907,7 @@ fun TimeMachineControlBar(
                         ) {
                             // Date Selection Button
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = squircleShape(12.dp),
                                 color = RedTheme.colors.surfaceVariant,
                                 border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
                                 modifier = Modifier
@@ -930,7 +930,7 @@ fun TimeMachineControlBar(
 
                             // Time Selection Button
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = squircleShape(12.dp),
                                 color = RedTheme.colors.surfaceVariant,
                                 border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
                                 modifier = Modifier
@@ -1064,7 +1064,7 @@ fun TimeMachineControlBar(
                         }
                     },
                     containerColor = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(RedCornerRadius.window)
+                    shape = squircleShape(RedCornerRadius.window)
                 )
             }
         }

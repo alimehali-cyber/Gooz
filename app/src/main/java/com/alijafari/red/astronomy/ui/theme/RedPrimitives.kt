@@ -14,7 +14,6 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -63,7 +62,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun RedCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(RedCornerRadius.lg),
+    shape: Shape = squircleShape(RedCornerRadius.lg),
     backgroundColor: Color = RedTheme.colors.surface,
     borderColor: Color = RedTheme.colors.border,
     borderWidth: Dp = 1.dp,
@@ -96,7 +95,7 @@ fun RedCard(
 @Composable
 fun RedElevatedCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(RedCornerRadius.xl),
+    shape: Shape = squircleShape(RedCornerRadius.xl),
     backgroundColor: Color = RedTheme.colors.surfaceElevated,
     borderColor: Color = RedTheme.colors.border,
     borderWidth: Dp = 1.dp,
@@ -269,14 +268,14 @@ fun RedControl(
     Surface(
         modifier = modifier
             .height(RedControlHeight.regular)
-            .clip(RoundedCornerShape(RedCornerRadius.md))
+            .clip(squircleShape(RedCornerRadius.md))
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = if (isPrimary) Color.White.copy(alpha = 0.2f) else RedTheme.colors.accentRed),
                 onClick = onClick
             ),
-        shape = RoundedCornerShape(RedCornerRadius.md),
+        shape = squircleShape(RedCornerRadius.md),
         color = bg,
         border = BorderStroke(1.dp, borderCol)
     ) {

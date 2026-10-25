@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -26,6 +25,7 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 enum class LabFeatureType(
     val titleEn: String,
@@ -131,7 +131,7 @@ fun LabScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("lab_header_card"),
-                    shape = RoundedCornerShape(RedCornerRadius.xl),
+                    shape = squircleShape(RedCornerRadius.xl),
                     backgroundColor = RedTheme.colors.surfaceElevated,
                     borderColor = RedTheme.colors.border,
                     contentPadding = PaddingValues(RedSpacing.lg)
@@ -222,10 +222,10 @@ private fun LabFeatureCard(
     LiquidGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(RedCornerRadius.xl))
+            .clip(squircleShape(RedCornerRadius.xl))
             .clickable(enabled = feature.isAvailable, onClick = onClick)
             .testTag("lab_feature_card_${feature.name.lowercase()}"),
-        shape = RoundedCornerShape(RedCornerRadius.xl),
+        shape = squircleShape(RedCornerRadius.xl),
         fallbackColor = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
         fallbackBorder = BorderStroke(
             width = 1.dp,

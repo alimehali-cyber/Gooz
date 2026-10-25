@@ -4,19 +4,20 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.util.Log
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.provider.Settings
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.Settings
+import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,12 +35,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -49,18 +50,22 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +78,8 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -80,30 +87,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.alijafari.red.astronomy.astro_engine.*
-import com.alijafari.red.astronomy.domain.*
-import com.alijafari.red.astronomy.ui.MainUiState
-import com.alijafari.red.astronomy.ui.MainViewModel
-import com.alijafari.red.astronomy.ui.components.ARSensorCalibrationDialog
-import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
-import com.alijafari.red.astronomy.ui.rendering.*
-import com.alijafari.red.astronomy.ui.theme.*
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.graphics.drawscope.rotate
 import com.alijafari.red.astronomy.R
-import java.util.Locale
-import kotlin.math.*
-import android.os.SystemClock
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
 import com.alijafari.red.astronomy.ar.android.ArAssets
 import com.alijafari.red.astronomy.ar.android.ArCameraBinder
 import com.alijafari.red.astronomy.ar.android.ArGlyphCache
@@ -121,6 +105,13 @@ import com.alijafari.red.astronomy.ar.core.ArSkySnapshot
 import com.alijafari.red.astronomy.ar.core.ArStarCatalog
 import com.alijafari.red.astronomy.ar.core.M3
 import com.alijafari.red.astronomy.ar.core.V3
+import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.domain.*
+import com.alijafari.red.astronomy.ui.MainUiState
+import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.components.ARSensorCalibrationDialog
+import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
+import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.screens.ar.ArDrawnItem
 import com.alijafari.red.astronomy.ui.screens.ar.ArOverlayOptions
 import com.alijafari.red.astronomy.ui.screens.ar.ArOverlayState
@@ -128,6 +119,15 @@ import com.alijafari.red.astronomy.ui.screens.ar.ArSatelliteInfo
 import com.alijafari.red.astronomy.ui.screens.ar.ArScreenSupport
 import com.alijafari.red.astronomy.ui.screens.ar.ArSkyOverlay
 import com.alijafari.red.astronomy.ui.screens.ar.SimulatedSkyFallback
+import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
+import java.util.Locale
+import kotlin.math.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class ArExpandedPanel {
     SEARCH, TIME_MACHINE, FILTERS, SENSORS
@@ -1610,7 +1610,7 @@ fun CompassARScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = 60.dp),
-                    shape = RoundedCornerShape(RedCornerRadius.window),
+                    shape = squircleShape(RedCornerRadius.window),
                     style = LiquidGlassDefaults.Card,
                     fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.95f),
                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border)
@@ -1648,7 +1648,7 @@ fun CompassARScreen(
                     selectedTarget = null
                     viewModel.clearTargetObject()
                 },
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Pill,
                 fallbackColor = Color(0xCC1A1F36),
                 fallbackBorder = BorderStroke(1.dp, Color(0x88FF5252)),
@@ -1863,7 +1863,7 @@ fun CompassARScreen(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 LiquidGlassSurface(
-                    shape = RoundedCornerShape(RedCornerRadius.xl),
+                    shape = squircleShape(RedCornerRadius.xl),
                     style = LiquidGlassDefaults.Card,
                     fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
@@ -1995,7 +1995,7 @@ fun CompassARScreen(
                                                     )
                                                 }
                                                 Surface(
-                                                    shape = RoundedCornerShape(12.dp),
+                                                    shape = squircleShape(12.dp),
                                                     color = if (result.isVisibleNow) StatusGood.copy(alpha = 0.2f) else RedTheme.colors.surfaceVariant,
                                                     border = BorderStroke(1.dp, if (result.isVisibleNow) StatusGood else RedTheme.colors.border)
                                                 ) {
@@ -2261,7 +2261,7 @@ fun CompassARScreen(
                                 val overallColor = arHealthColor(overallHealth.level)
 
                                 LiquidGlassSurface(
-                                    shape = RoundedCornerShape(RedCornerRadius.window),
+                                    shape = squircleShape(RedCornerRadius.window),
                                     fallbackColor = overallColor.copy(alpha = 0.12f),
                                     fallbackBorder = BorderStroke(1.dp, overallColor.copy(alpha = 0.4f)),
                                     modifier = Modifier.fillMaxWidth(),
@@ -2378,7 +2378,7 @@ fun CompassARScreen(
 
                                 // Guided 1-Point Alignment Action Card
                                 LiquidGlassSurface(
-                                    shape = RoundedCornerShape(RedCornerRadius.window),
+                                    shape = squircleShape(RedCornerRadius.window),
                                     fallbackColor = RedTheme.colors.surfaceElevated,
                                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
                                     modifier = Modifier.fillMaxWidth(),
@@ -2427,7 +2427,7 @@ fun CompassARScreen(
                                             Button(
                                                 onClick = { isAlignmentMode = true },
                                                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
-                                                shape = RoundedCornerShape(10.dp),
+                                                shape = squircleShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                                 modifier = Modifier.testTag("open_alignment_btn")
                                             ) {
@@ -2592,7 +2592,7 @@ fun CompassARScreen(
                                 tappedObject = null
                                 viewModel.openObjectDetail(obj)
                             },
-                        shape = RoundedCornerShape(RedCornerRadius.window),
+                        shape = squircleShape(RedCornerRadius.window),
                         style = LiquidGlassDefaults.Card,
                         fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
                         fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.6f)),
@@ -2669,7 +2669,7 @@ fun CompassARScreen(
                                     viewModel.openObjectDetail(obj)
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = squircleShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp)
@@ -2715,7 +2715,7 @@ fun CompassARScreen(
                     .align(Alignment.Center)
                     .offset(y = (-140).dp)
                     .testTag("ar_object_found_banner"),
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 fallbackColor = Color(0xDD0D1B2A),
                 fallbackBorder = BorderStroke(1.dp, Color(0xFF4CAF50)),
                 style = LiquidGlassDefaults.Card,
@@ -2755,7 +2755,7 @@ fun CompassARScreen(
             val applied = alignmentConfirmationDeg ?: 0f
             val offStr = String.format(Locale.US, "%+.1f°", applied)
             LiquidGlassSurface(
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 fallbackColor = Color(0xDD0D1B2A),
                 fallbackBorder = BorderStroke(1.dp, StatusGood),
                 fallbackShadowElevation = 12.dp,
@@ -2795,7 +2795,7 @@ fun CompassARScreen(
                 .padding(top = 120.dp, start = 16.dp, end = 16.dp)
         ) {
             LiquidGlassSurface(
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 fallbackColor = Color(0xDD2A0D0D),
                 fallbackBorder = BorderStroke(1.dp, Color(0xFFF59E0B)),
                 fallbackShadowElevation = 12.dp,
@@ -2962,7 +2962,7 @@ private fun PermissionBlockedBanner(
 ) {
     LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = Color(0xDD1A0B12),
         fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.7f)),
         fallbackShadowElevation = 12.dp,
@@ -2994,7 +2994,7 @@ private fun PermissionBlockedBanner(
 private fun MagneticInterferenceBanner(text: String, modifier: Modifier = Modifier) {
     LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = Color(0xDD2A1800),
         fallbackBorder = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
         fallbackShadowElevation = 12.dp,
@@ -3028,7 +3028,7 @@ private fun RecalibrationSuggestionBanner(
 ) {
     LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = Color.Black.copy(alpha = 0.78f),
         fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.55f)),
         fallbackShadowElevation = 10.dp,
@@ -3058,7 +3058,7 @@ private fun RecalibrationSuggestionBanner(
 private fun TimeMachineWatermark(label: String, dateTime: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.testTag("ar_time_machine_watermark"),
-        shape = RoundedCornerShape(14.dp),
+        shape = squircleShape(14.dp),
         color = Color.Black.copy(alpha = 0.18f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
     ) {
@@ -3090,7 +3090,7 @@ private fun ClusterSelectionMenu(
 ) {
     LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
         fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
         fallbackShadowElevation = 12.dp,
@@ -3238,7 +3238,7 @@ private fun AlignmentModeOverlay(
                 // Live separation readout below the arrow
                 val sepStr = String.format(Locale.US, "%.1f°", guidance.separationDeg)
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = squircleShape(14.dp),
                     color = Color.Black.copy(alpha = 0.75f),
                     border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.6f)),
                     modifier = Modifier.align(Alignment.BottomCenter)
@@ -3265,7 +3265,7 @@ private fun AlignmentModeOverlay(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             LiquidGlassSurface(
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Card,
                 fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.92f),
                 fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
@@ -3335,7 +3335,7 @@ private fun AlignmentModeOverlay(
             val targetName = selectedTarget?.let { if (isFa) it.nameFa else it.nameEn } ?: ""
             val arrowsOn = guidance?.arrowsVisible == true
             LiquidGlassSurface(
-                shape = RoundedCornerShape(RedCornerRadius.window),
+                shape = squircleShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Pill,
                 fallbackColor = Color.Black.copy(alpha = 0.75f),
                 fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
@@ -3375,7 +3375,7 @@ private fun AlignmentModeOverlay(
                 Button(
                     onClick = onConfirm,
                     enabled = selectedTarget != null,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = squircleShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
                     modifier = Modifier
                         .weight(1f)
@@ -3398,7 +3398,7 @@ private fun AlignmentModeOverlay(
                 if (hasActiveOffset) {
                     OutlinedButton(
                         onClick = onReset,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = squircleShape(16.dp),
                         border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.7f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
                         modifier = Modifier.testTag("alignment_reset_button")

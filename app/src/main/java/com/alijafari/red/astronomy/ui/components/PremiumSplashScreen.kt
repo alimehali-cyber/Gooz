@@ -21,9 +21,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
+import kotlin.math.sin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.sin
 
 /**
  * Splash Screen for "RED".
@@ -128,7 +129,7 @@ fun PremiumSplashScreen(
                     modifier = Modifier
                         .background(
                             color = Color(0x661A0B2E),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                            shape = squircleShape(12.dp)
                         )
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {

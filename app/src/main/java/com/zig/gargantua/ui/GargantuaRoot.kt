@@ -6,9 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
@@ -37,6 +36,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gargantua.renderer.GargantuaAnimation
 import com.zig.gargantua.renderer.GargantuaGpuDiagnostics
 import com.zig.gargantua.renderer.GargantuaRenderState
@@ -44,8 +44,8 @@ import com.zig.gargantua.renderer.GargantuaSurfaceView
 import com.zig.gargantua.renderer.GargantuaTelemetry
 import com.zig.gargantua.util.GargantuaCapability
 import com.zig.gravity.ui.ImmersiveScreenState
-import kotlinx.coroutines.delay
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 /** Root screen for the Gargantua renderer and its deliberately small control surface. */
 @Composable
@@ -132,9 +132,9 @@ private fun GargantuaUnsupportedScreen(
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(24.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(squircleShape(20.dp))
                 .background(Color(0xEE161A26))
-                .border(1.dp, Color(0x33FFA726), RoundedCornerShape(20.dp))
+                .border(1.dp, Color(0x33FFA726), squircleShape(20.dp))
                 .padding(24.dp)
                 .testTag("gargantua_unsupported_fallback"),
             contentAlignment = Alignment.Center
@@ -181,7 +181,7 @@ private fun GargantuaUnsupportedScreen(
                         containerColor = Color(0xFF263238),
                         contentColor = Color(0xFF90CAF9)
                     ),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = squircleShape(12.dp),
                     modifier = Modifier
                         .heightIn(min = 44.dp)
                         .testTag("gargantua_fallback_back_button")
@@ -476,9 +476,9 @@ private fun GargantuaPanelCard(
     Box(
         modifier = modifier
             .heightIn(max = 300.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(squircleShape(14.dp))
             .background(Color(0xF2141A27))
-            .border(1.dp, Color(0x55446688), RoundedCornerShape(14.dp))
+            .border(1.dp, Color(0x55446688), squircleShape(14.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Column(
@@ -782,7 +782,7 @@ private fun InfoPanel(
                     .fillMaxWidth()
                     .heightIn(max = 96.dp)
                     .verticalScroll(telScrollState)
-                    .background(Color(0x55263342), RoundedCornerShape(8.dp))
+                    .background(Color(0x55263342), squircleShape(8.dp))
                     .padding(8.dp)
             ) {
                 Text(
@@ -821,7 +821,7 @@ private fun PanelButton(
     Box(
         modifier = modifier
             .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(squircleShape(8.dp))
             .background(if (selected) Color(0xFF365A75) else Color(0xFF263242))
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 8.dp),
@@ -863,7 +863,7 @@ private fun GpuDiagnosticsOverlay(
     val scroll = rememberScrollState()
     val finished = report.isNotEmpty()
     Column(
-        modifier = modifier.background(Color(0xC0000000), RoundedCornerShape(6.dp)).padding(8.dp),
+        modifier = modifier.background(Color(0xC0000000), squircleShape(6.dp)).padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(

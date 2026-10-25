@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -17,12 +16,12 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -30,12 +29,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
-import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
-import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
+import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
 import com.alijafari.red.astronomy.ui.theme.RedTheme
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Calendar
 
 private fun parseJalaliYear(input: String): Int? {
@@ -88,7 +88,7 @@ fun JalaliDatePickerDialog(
         onDismissRequest = onDismissRequest,
         modifier = Modifier.testTag("jalali_date_picker_dialog"),
         containerColor = RedTheme.colors.surfaceElevated,
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = squircleShape(RedCornerRadius.window),
         title = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -101,7 +101,7 @@ fun JalaliDatePickerDialog(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 LiquidGlassSurface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = squircleShape(12.dp),
                     fallbackColor = RedTheme.colors.accentRed.copy(alpha = 0.15f),
                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f)),
                     style = LiquidGlassDefaults.Card,
@@ -141,7 +141,7 @@ fun JalaliDatePickerDialog(
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = squircleShape(8.dp),
                         color = if (isSelectingYear) RedTheme.colors.accentRed.copy(alpha = 0.2f) else RedTheme.colors.surfaceVariant,
                         border = BorderStroke(1.dp, if (isSelectingYear) RedTheme.colors.accentRed else RedTheme.colors.border),
                         modifier = Modifier
@@ -251,7 +251,7 @@ fun JalaliDatePickerDialog(
                                         isDirectYearError = true
                                     }
                                 },
-                                shape = RoundedCornerShape(12.dp),
+                                shape = squircleShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
                                 modifier = Modifier.testTag("jalali_direct_year_apply_btn")
                             ) {
@@ -287,7 +287,7 @@ fun JalaliDatePickerDialog(
                             items(years) { yr ->
                                 val isSelected = yr == selectedYear
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = squircleShape(8.dp),
                                     color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceVariant,
                                     border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
                                     modifier = Modifier.clickable {
@@ -320,7 +320,7 @@ fun JalaliDatePickerDialog(
                             val mNum = idx + 1
                             val isSelected = mNum == selectedMonth
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = squircleShape(8.dp),
                                 color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.25f) else RedTheme.colors.surfaceVariant,
                                 border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
                                 modifier = Modifier.clickable { selectedMonth = mNum }
