@@ -1,3 +1,46 @@
+package com.alijafari.red.astronomy.ui.components
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.outlined.NightsStay
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.alijafari.red.astronomy.astro_engine.EclipseEngine
+import com.alijafari.red.astronomy.astro_engine.EclipseVisibility
+import com.alijafari.red.astronomy.domain.AppLanguage
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedElevation
+import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.StatusExcellent
+import com.alijafari.red.astronomy.ui.theme.StatusGood
+import com.alijafari.red.astronomy.ui.theme.StatusWarning
+import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.alijafari.red.astronomy.util.toPersianDigits
+import java.util.Locale
+import kotlin.math.roundToInt
+
 @Composable
 fun EclipseDetailModal(
     detailedInfo: EclipseEngine.DetailedEclipseInfo,
@@ -708,7 +751,7 @@ fun EclipseDetailContent(
                         .fillMaxWidth()
                         .height(48.dp)
                         .testTag("dismiss_eclipse_modal_button"),
-                    shape = squircleShape(RedCornerRadius.md)
+                    shape = squircleShape(16.dp)
                 ) {
                     Text(
                         text = if (isFa) "متوجه شدم (بستن)" else "Close",

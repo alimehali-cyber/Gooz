@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +36,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -217,6 +215,7 @@ private fun EclipseListPage(
                 selected = family == EclipseFamily.SOLAR,
                 label = if (isFa) "خورشیدگرفتگی" else "Solar eclipses",
                 count = solarCount,
+                isFa = isFa,
                 icon = Icons.Outlined.WbSunny,
                 modifier = Modifier
                     .weight(1f)
@@ -227,6 +226,7 @@ private fun EclipseListPage(
                 selected = family == EclipseFamily.LUNAR,
                 label = if (isFa) "ماه‌گرفتگی" else "Lunar eclipses",
                 count = lunarCount,
+                isFa = isFa,
                 icon = Icons.Outlined.NightsStay,
                 modifier = Modifier
                     .weight(1f)
@@ -271,6 +271,7 @@ private fun FamilyTab(
     selected: Boolean,
     label: String,
     count: Int,
+    isFa: Boolean,
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -311,7 +312,11 @@ private fun FamilyTab(
                 modifier = Modifier.weight(1f, fill = false)
             )
             Text(
-                text = if (count > 0) count.toString() else "—",
+                text = when {
+                    count <= 0 -> "—"
+                    isFa -> count.toString().toPersianDigits()
+                    else -> count.toString()
+                },
                 style = RedTypographyTokens.caption.copy(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 11.sp
@@ -335,7 +340,7 @@ private fun EclipseListRow(
     val countdown = when {
         days <= 0 -> if (isFa) "امروز" else "Today"
         days == 1 -> if (isFa) "فردا" else "Tomorrow"
-        isFa -> "${days.toPersianDigits()} روز دیگر"
+        isFa -> "${days.toString().toPersianDigits()} روز دیگر"
         else -> "in $days days"
     }
     val visibleColor = if (eclipse.isLocallyVisible) RedTheme.colors.statusSuccess else RedTheme.colors.statusWarning
@@ -508,19 +513,21 @@ private val EclipseEngine.EclipseType.isSolarFamily: Boolean
         else -> false
     }
 
-/** A small tile used where a screen needs the eclipse's picture without its words. */
+/**
+ * A small tile used where a screen needs the eclipse's picture without its words.
+ *
+ * There is deliberately no chip or rounded frame behind it: [EclipseRender] already fades its plate out
+ * to a soft circle, so the eclipse sits on the row's own glass exactly as it sits on the Home tile. A
+ * second rounded rectangle here would only add a rectangle whose corners the picture does not share.
+ */
 @Composable
 fun EclipseThumbnail(
     type: EclipseEngine.EclipseType,
     size: Dp,
-    modifier: Modifier = Modifier,
-    background: Color = RedTheme.colors.surfaceVariant
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier
-            .size(size)
-            .clip(squircleShape(RedCornerRadius.md))
-            .background(background),
+        modifier = modifier.size(size),
         contentAlignment = Alignment.Center
     ) {
         EclipseRender(type = type)
