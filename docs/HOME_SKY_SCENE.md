@@ -23,7 +23,7 @@ Sun altitude drives the light.*
 ```
 ┌──────────────────────────────────────────┐ 0
 │  status bar (scene continues behind)     │
-│  ZIG            ⌕  ⚙                     │  header (HomeScreen)
+│  ZIG            ⌕  Settings               │  header (HomeScreen)
 │  ◉ Tehran • 35.69°N, 51.39°E             │
 │                                          │
 │  22:41 │ Astronomical night              │  readout (canvas)

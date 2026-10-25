@@ -4,6 +4,9 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
@@ -25,6 +28,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
@@ -273,17 +281,6 @@ fun HomeScreen(
         )
     }
 
-    // Which eclipse family the "Upcoming Eclipses" card is listing. It defaults to
-    // whichever family has the soonest event at the user's location, and flips when
-    // the Solar/Lunar chips below (or a "Tonight" eclipse row) are tapped.
-    var eclipseKindIsSolar by remember {
-        mutableStateOf(
-            (nextSolarEclipses.firstOrNull()?.localPeakTimeMs ?: Long.MAX_VALUE) <=
-                (nextLunarEclipses.firstOrNull()?.localPeakTimeMs ?: Long.MAX_VALUE)
-        )
-    }
-    val listedEclipses = if (eclipseKindIsSolar) nextSolarEclipses else nextLunarEclipses
-
     // The eclipse the hero card stands for: the soonest of the two families at this location, not the
     // family the list below happens to be showing. A hero tile that changed when a chip further down the
     // feed was tapped would be a surprise; the next eclipse is a fact about the sky, not about the list.
@@ -415,11 +412,9 @@ fun HomeScreen(
                                         onClick = {
                                             when {
                                                 event.id.startsWith("solar_") -> {
-                                                    eclipseKindIsSolar = true
                                                     selectedEclipseResult = nextSolarEclipses.firstOrNull()
                                                 }
                                                 event.id.startsWith("lunar_") -> {
-                                                    eclipseKindIsSolar = false
                                                     selectedEclipseResult = nextLunarEclipses.firstOrNull()
                                                 }
                                                 else -> event.targetObject?.let { obj ->
@@ -432,75 +427,6 @@ fun HomeScreen(
                                         RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
                                     }
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = RedSpacing.lg),
-                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-                ) {
-                    RedSectionHeader(
-                        title = if (isFa) "گرفتگی‌های نجومی" else "Upcoming Eclipses",
-                        subtitle = if (isFa) "محاسبه دقیق کسوف و خسوف بر اساس موقعیت شما"
-                        else "Calculated precisely for your location"
-                    )
-
-                    LiquidGlassSurface(
-                        shape = squircleShape(RedCornerRadius.xl),
-                        fallbackColor = RedTheme.colors.surfaceElevated,
-                        fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("home_next_eclipses_card"),
-                        style = LiquidGlassDefaults.Card,
-                        fallbackShadowElevation = RedElevation.none,
-                    ) {
-                        Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
-                            // Solar / Lunar selector — each family lists its own next 3 eclipses,
-                            // every one of them evaluated for the user's location.
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs),
-                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-                            ) {
-                                EclipseFamilyChip(
-                                    selected = eclipseKindIsSolar,
-                                    onClick = { eclipseKindIsSolar = true },
-                                    label = if (isFa) "☀️ خورشیدگرفتگی" else "☀️ Solar",
-                                    modifier = Modifier.testTag("eclipse_family_solar")
-                                )
-                                EclipseFamilyChip(
-                                    selected = !eclipseKindIsSolar,
-                                    onClick = { eclipseKindIsSolar = false },
-                                    label = if (isFa) "🌙 ماه‌گرفتگی" else "🌙 Lunar",
-                                    modifier = Modifier.testTag("eclipse_family_lunar")
-                                )
-                            }
-
-                            // The next 3 eclipses of the selected family, chronological.
-                            listedEclipses.forEachIndexed { idx, eclipse ->
-                                if (idx > 0) {
-                                    RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
-                                }
-                                EclipseItemRow(
-                                    isSolar = eclipse.event.isSolar,
-                                    isPrimary = idx == 0,
-                                    title = if (isFa) eclipse.event.nameFa else eclipse.event.nameEn,
-                                    dateStr = if (isFa) eclipse.formattedDateFa else eclipse.formattedDateEn,
-                                    visibilityInfo = if (isFa) eclipse.localVisibilityTextFa else eclipse.localVisibilityTextEn,
-                                    isLocallyVisible = eclipse.isLocallyVisible,
-                                    visibilityGrade = eclipse.visibility.grade,
-                                    isFa = isFa,
-                                    onClick = { selectedEclipseResult = eclipse }
-                                )
                             }
                         }
                     }
@@ -812,255 +738,6 @@ private fun CelestialObjectIcon(
         tint = tint,
         modifier = modifier
     )
-}
-
-/**
- * Solar / Lunar selector chip for the "Upcoming Eclipses" card.
- *
- * Uses the app's red accent for the selected family so the chip reads as part of the
- * same visual language as [EclipseItemRow]'s primary-row icon.
- */
-@Composable
-private fun EclipseFamilyChip(
-    selected: Boolean,
-    onClick: () -> Unit,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = label,
-                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Medium)
-            )
-        },
-        modifier = modifier,
-        shape = CircleShape,
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = RedTheme.colors.surfaceGrouped,
-            labelColor = RedTheme.colors.textSecondary,
-            selectedContainerColor = RedTheme.colors.accentRed.copy(alpha = 0.16f),
-            selectedLabelColor = RedTheme.colors.accentRed
-        )
-    )
-}
-
-@Composable
-private fun EclipseItemRow(
-    isSolar: Boolean,
-    isPrimary: Boolean,
-    title: String,
-    dateStr: String,
-    visibilityInfo: String,
-    isLocallyVisible: Boolean,
-    /** Verdict from [EclipseVisibility]; drives the badge shown on the right. */
-    visibilityGrade: EclipseVisibility.Grade = EclipseVisibility.Grade.NOT_OBSERVABLE,
-    isFa: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm)
-            .testTag("eclipse_item_row_${title.lowercase().replace(' ', '_')}"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(
-                imageVector = if (isSolar) Icons.Outlined.WbSunny else Icons.Outlined.NightsStay,
-                contentDescription = null,
-                tint = if (isPrimary) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                modifier = Modifier.size(22.dp)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = title,
-                    style = RedTypographyTokens.bodyPrimary.copy(
-                        fontWeight = if (isPrimary) FontWeight.SemiBold else FontWeight.Medium
-                    ),
-                    color = RedTheme.colors.textPrimary
-                )
-                Text(
-                    text = dateStr,
-                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Medium),
-                    color = if (isPrimary) RedTheme.colors.accentRed else RedTheme.colors.textSecondary
-                )
-                Text(
-                    text = visibilityInfo,
-                    style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                    color = RedTheme.colors.textSecondary
-                )
-            }
-        }
-
-        // The list is already filtered to observable events (see EclipseVisibility),
-        // so an event can still be "in the sky" yet have nothing worth seeing — that
-        // is the fallback case, and it must not wear the same badge as a good one.
-        when {
-            visibilityGrade == EclipseVisibility.Grade.SPECTACULAR -> {
-                RedStatusBadge(
-                    text = if (isFa) "دیدنی و بی‌نظیر" else "Spectacular",
-                    statusColor = RedTheme.colors.statusSuccess,
-                    containerColor = RedTheme.colors.statusSuccessContainer
-                )
-            }
-            visibilityGrade == EclipseVisibility.Grade.EXCELLENT ||
-                visibilityGrade == EclipseVisibility.Grade.GOOD -> {
-                RedStatusBadge(
-                    text = if (isFa) visibilityGrade.labelFa else visibilityGrade.labelEn,
-                    statusColor = RedTheme.colors.statusSuccess,
-                    containerColor = RedTheme.colors.statusSuccessContainer
-                )
-            }
-            visibilityGrade == EclipseVisibility.Grade.MARGINAL -> {
-                RedStatusBadge(
-                    text = if (isFa) visibilityGrade.labelFa else visibilityGrade.labelEn,
-                    statusColor = RedTheme.colors.statusWarning,
-                    containerColor = RedTheme.colors.statusWarningContainer
-                )
-            }
-            isLocallyVisible -> {
-                RedBadge(
-                    text = if (isFa) "تقریباً دیده نمی‌شود" else "Barely Visible",
-                    isAccent = true
-                )
-            }
-            else -> {
-                RedBadge(
-                    text = if (isFa) "غیرقابل رصد" else "Not Visible",
-                    backgroundColor = RedTheme.colors.surfaceGrouped,
-                    textColor = RedTheme.colors.textTertiary,
-                    borderColor = RedTheme.colors.border
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TonightEventRow(
-    event: WhatsUpTonightEngine.TonightEvent,
-    isTopRanked: Boolean,
-    isFa: Boolean,
-    onClick: () -> Unit
-) {
-    val eventIcon = when {
-        event.targetObject != null -> when (event.targetObject.type) {
-            ObjectType.PLANET, ObjectType.DWARF_PLANET -> Icons.Outlined.Public
-            ObjectType.MOON -> Icons.Outlined.NightsStay
-            ObjectType.SUN -> Icons.Outlined.WbSunny
-            ObjectType.STAR, ObjectType.ASTERISM -> Icons.Outlined.Star
-            ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
-            ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> Icons.Outlined.AutoAwesome
-            ObjectType.SATELLITE -> Icons.Outlined.Sensors
-            ObjectType.METEOR_SHOWER -> Icons.Outlined.FlashOn
-            ObjectType.CONSTELLATION -> Icons.Outlined.Grain
-            ObjectType.REFERENCE_POINT -> Icons.Outlined.Place
-        }
-        event.id.contains("solar") -> Icons.Outlined.WbSunny
-        event.id.contains("lunar") -> Icons.Outlined.NightsStay
-        event.id.contains("meteor") -> Icons.Outlined.FlashOn
-        event.id.contains("iss") -> Icons.Outlined.Sensors
-        else -> Icons.Outlined.AutoAwesome
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(
-                imageVector = eventIcon,
-                contentDescription = null,
-                tint = if (isTopRanked) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                modifier = Modifier.size(20.dp)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = if (isFa) event.titleFa else event.titleEn,
-                    style = RedTypographyTokens.bodyPrimary.copy(
-                        fontWeight = if (isTopRanked) FontWeight.SemiBold else FontWeight.Medium
-                    ),
-                    color = RedTheme.colors.textPrimary
-                )
-                Text(
-                    text = if (isFa) event.explanationFa else event.explanationEn,
-                    style = RedTypographyTokens.caption,
-                    color = RedTheme.colors.textSecondary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isFa) event.timeOrDateStrFa else event.timeOrDateStrEn,
-                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-                        color = RedTheme.colors.accentRed
-                    )
-                    Text(
-                        text = "•",
-                        style = RedTypographyTokens.caption,
-                        color = RedTheme.colors.textTertiary
-                    )
-                    Text(
-                        text = if (isFa) event.visibilityTextFa else event.visibilityTextEn,
-                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                        color = RedTheme.colors.textSecondary
-                    )
-                }
-            }
-        }
-
-        when (event.visibilityStatus) {
-            WhatsUpTonightEngine.EventVisibilityStatus.OPTIMAL -> {
-                RedStatusBadge(
-                    text = if (isFa) "عالی" else "Optimal",
-                    statusColor = RedTheme.colors.statusSuccess,
-                    containerColor = RedTheme.colors.statusSuccessContainer
-                )
-            }
-            WhatsUpTonightEngine.EventVisibilityStatus.GOOD -> {
-                RedStatusBadge(
-                    text = if (isFa) "خوب" else "Good",
-                    statusColor = RedTheme.colors.accentRed,
-                    containerColor = RedTheme.colors.accentRed.copy(alpha = 0.12f)
-                )
-            }
-            WhatsUpTonightEngine.EventVisibilityStatus.MARGINAL -> {
-                RedStatusBadge(
-                    text = if (isFa) "متوسط" else "Marginal",
-                    statusColor = RedTheme.colors.statusWarning,
-                    containerColor = RedTheme.colors.statusWarningContainer
-                )
-            }
-            WhatsUpTonightEngine.EventVisibilityStatus.NOT_VISIBLE -> {
-                RedBadge(
-                    text = if (isFa) "غیرقابل رصد" else "Not Visible",
-                    backgroundColor = RedTheme.colors.surfaceGrouped,
-                    textColor = RedTheme.colors.textTertiary,
-                    borderColor = RedTheme.colors.border
-                )
-            }
-        }
-    }
 }
 
 /**
@@ -1438,12 +1115,20 @@ private fun FullscreenSkyViewer(
     val hostView = LocalView.current
     val activity = remember(hostView) { hostView.context.findActivity() }
 
+    // Persist the user's requested orientation across the configuration recreation caused by entering
+    // landscape. Without this, disposal of the old composition restores portrait mid-transition, then
+    // the new composition requests landscape again (causing a bounce/relaunch and replaying the intro).
+    val originalOrientation = rememberSaveable {
+        mutableIntStateOf(activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+    }
     DisposableEffect(activity) {
-        val previousOrientation = activity?.requestedOrientation
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose {
-            activity?.requestedOrientation =
-                previousOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            // A config-change teardown is not an exit. Keep landscape requested for the replacement Activity;
+            // restore the original setting only when the viewer actually closes.
+            if (activity?.isChangingConfigurations != true) {
+                activity?.requestedOrientation = originalOrientation.intValue
+            }
         }
     }
     BackHandler { onDismiss() }
@@ -1452,6 +1137,37 @@ private fun FullscreenSkyViewer(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        // DialogProperties removes Compose's inset fitting, but Android still reserves system-bar and
+        // display-cutout areas unless the dialog window itself enters immersive edge-to-edge mode.
+        val dialogView = LocalView.current
+        DisposableEffect(dialogView) {
+            val window = (dialogView.parent as? DialogWindowProvider)?.window
+            if (window != null) {
+                window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.BLACK))
+                window.setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
+                )
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    window.attributes = window.attributes.apply {
+                        layoutInDisplayCutoutMode =
+                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    }
+                }
+                val insetsController = WindowInsetsControllerCompat(window, window.decorView)
+                insetsController.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            }
+            onDispose {
+                // Restore bars on a real close, but don't flash them during the landscape Activity recreation.
+                if (activity?.isChangingConfigurations != true) {
+                    window?.let { WindowInsetsControllerCompat(it, it.decorView).show(WindowInsetsCompat.Type.systemBars()) }
+                }
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()

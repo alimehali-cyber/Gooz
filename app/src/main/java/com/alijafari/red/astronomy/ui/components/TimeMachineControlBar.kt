@@ -123,7 +123,7 @@ fun TimeMachineControlBar(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = if (state.isBirthdayMode) {
-                                if (isFa) "✨ آسمان روز تولد شما" else "✨ Your Birthday Sky"
+                                if (isFa) "آسمان روز تولد شما" else "Your Birthday Sky"
                             } else {
                                 state.eventName ?: "$formattedDate • $formattedTime"
                             },
@@ -177,7 +177,7 @@ fun TimeMachineControlBar(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 📅 Date Pill Button
+                            // Date Pill Button
                             LiquidGlassSurface(
                                 shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -198,7 +198,7 @@ fun TimeMachineControlBar(
                                 }
                             }
 
-                            // 🕒 Time Pill Button
+                            // Time Pill Button
                             LiquidGlassSurface(
                                 shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -219,7 +219,7 @@ fun TimeMachineControlBar(
                                 }
                             }
 
-                            // ▶ / ⏸ Play/Pause Pill Button
+                            // Play/Pause Pill Button
                             LiquidGlassSurface(
                                 shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = if (state.isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
@@ -254,7 +254,7 @@ fun TimeMachineControlBar(
                                 }
                             }
 
-                            // ⚡ Speed Pill Button
+                            // Speed Pill Button
                             Box {
                                 LiquidGlassSurface(
                                     shape = squircleShape(RedCornerRadius.window),
@@ -329,7 +329,7 @@ fun TimeMachineControlBar(
                                 }
                             }
 
-                            // 🔴 LIVE Reset Button
+                            // LIVE Reset Button
                             LiquidGlassSurface(
                                 shape = squircleShape(RedCornerRadius.window),
                                 fallbackColor = if (state.mode == TimeMachineMode.LIVE) StatusGood.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
@@ -360,7 +360,7 @@ fun TimeMachineControlBar(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // ✨ Birthday Sky Preset Button
+                            // Birthday Sky Preset Button
                             Surface(
                                 shape = squircleShape(14.dp),
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
@@ -375,15 +375,22 @@ fun TimeMachineControlBar(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = if (isFa) "✨ روز تولد من" else "✨ My Birthday Sky",
+                                        text = if (isFa) "روز تولد من" else "My Birthday Sky",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
 
-                            // ⭐ My Occasions Button
+                            // My Occasions Button
                             Surface(
                                 shape = squircleShape(14.dp),
                                 color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
@@ -398,8 +405,15 @@ fun TimeMachineControlBar(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = if (isFa) "⭐ رویدادهای من (${userOccasions.size}/20)" else "⭐ My Occasions (${userOccasions.size}/20)",
+                                        text = if (isFa) "رویدادهای من (${userOccasions.size}/20)" else "My Occasions (${userOccasions.size}/20)",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.secondary
                                     )
@@ -570,7 +584,7 @@ fun TimeMachineControlBar(
             onDismissRequest = { showBirthdayModal = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("✨", fontSize = 22.sp)
+                    Icon(Icons.Default.Star, contentDescription = null, tint = RedTheme.colors.accentRed, modifier = Modifier.size(22.dp))
                     Text(
                         text = if (isFa) "مشاهده آسمان روز تولد" else "View My Birthday Sky",
                         fontWeight = FontWeight.Bold,
@@ -689,7 +703,7 @@ fun TimeMachineControlBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("⭐", fontSize = 22.sp)
+                        Icon(Icons.Default.Star, contentDescription = null, tint = RedTheme.colors.accentRed, modifier = Modifier.size(22.dp))
                         Text(
                             text = if (isFa) "رویدادهای من" else "My Occasions",
                             fontWeight = FontWeight.Bold,

@@ -1077,7 +1077,7 @@ fun ObjectDetailModal(
         AlertDialog(
             onDismissRequest = { showNotificationSheet = false },
             title = {
-                Text(text = if (isFa) "🔔 تنظیم هشدار رصد ${celestialObj.nameFa}" else "🔔 Set Observation Alert for ${celestialObj.nameEn}")
+                Text(text = if (isFa) "تنظیم هشدار رصد ${celestialObj.nameFa}" else "Set Observation Alert for ${celestialObj.nameEn}")
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

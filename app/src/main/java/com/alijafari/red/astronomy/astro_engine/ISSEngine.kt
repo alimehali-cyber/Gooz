@@ -787,13 +787,13 @@ class ISSEngine {
                 }
                 maxElevDeg >= 15.0 -> {
                     score += 10
-                    reasonsEn.add("⚠ Moderate peak elevation (${maxElevDeg.toInt()}°)")
-                    reasonsFa.add("⚠ زاویه اوج متوسط (${maxElevDeg.toInt()} درجه)")
+                    reasonsEn.add("Warning: Moderate peak elevation (${maxElevDeg.toInt()}°)")
+                    reasonsFa.add("هشدار: زاویه اوج متوسط (${maxElevDeg.toInt()} درجه)")
                 }
                 else -> {
                     score += 2
-                    reasonsEn.add("⚠ Low horizon pass (${maxElevDeg.toInt()}°)")
-                    reasonsFa.add("⚠ گذر نزدیک به افق (${maxElevDeg.toInt()} درجه)")
+                    reasonsEn.add("Warning: Low horizon pass (${maxElevDeg.toInt()}°)")
+                    reasonsFa.add("هشدار: گذر نزدیک به افق (${maxElevDeg.toInt()} درجه)")
                 }
             }
 

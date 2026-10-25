@@ -292,7 +292,7 @@ fun EclipseDetailContent(
 
             // Local Timings Grid (Start, Peak, End, Duration)
             Text(
-                text = if (isFa) "⏱️ زمان‌بندی دقیق محلی (موقعیت شما):" else "⏱️ Exact Local Timing (Your Location):",
+                text = if (isFa) "زمان‌بندی دقیق محلی (موقعیت شما):" else "Exact Local Timing (Your Location):",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )

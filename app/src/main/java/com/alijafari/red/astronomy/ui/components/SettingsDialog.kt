@@ -392,7 +392,7 @@ fun SettingsDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isFa) "⚙️ شخصی‌سازی اپتیک شیشه" else "⚙️ Optical Parameters",
+                                text = if (isFa) "شخصی‌سازی اپتیک شیشه" else "Optical Parameters",
                                 style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
                                 color = RedTheme.colors.textPrimary
                             )
@@ -852,9 +852,11 @@ fun SettingsDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text(
-                                        text = "✈️",
-                                        fontSize = 11.sp
+                                    Icon(
+                                        imageVector = Icons.Default.Send,
+                                        contentDescription = null,
+                                        tint = RedTheme.colors.accentRed,
+                                        modifier = Modifier.size(13.dp)
                                     )
                                     Text(
                                         text = "@EdisonWasAThief",

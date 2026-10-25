@@ -2110,14 +2110,14 @@ fun CompassARScreen(
                                         FilterChip(
                                             selected = filterObjectNames,
                                             onClick = { updateFilter("filter_object_names", !filterObjectNames) { filterObjectNames = it } },
-                                            label = { Text(if (isFa) "🏷 نام اجرام" else "🏷 Object Names") }
+                                            label = { Text(if (isFa) "نام اجرام" else "Object Names") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterStars,
                                             onClick = { updateFilter("filter_stars", !filterStars) { filterStars = it } },
-                                            label = { Text(if (isFa) "⭐ ستارگان" else "⭐ Stars") }
+                                            label = { Text(if (isFa) "ستارگان" else "Stars") }
                                         )
                                     }
                                     item {
@@ -2131,49 +2131,49 @@ fun CompassARScreen(
                                         FilterChip(
                                             selected = filterConstellations,
                                             onClick = { updateFilter("filter_constellations", !filterConstellations) { filterConstellations = it } },
-                                            label = { Text(if (isFa) "✨ صور فلکی" else "✨ Constellations") }
+                                            label = { Text(if (isFa) "صور فلکی" else "Constellations") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterPlanets,
                                             onClick = { updateFilter("filter_planets", !filterPlanets) { filterPlanets = it } },
-                                            label = { Text(if (isFa) "🪐 سیارات" else "🪐 Planets") }
+                                            label = { Text(if (isFa) "سیارات" else "Planets") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterMoons,
                                             onClick = { updateFilter("filter_moons", !filterMoons) { filterMoons = it } },
-                                            label = { Text(if (isFa) "🌙 ماه" else "🌙 Moon") }
+                                            label = { Text(if (isFa) "ماه" else "Moon") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterSun,
                                             onClick = { updateFilter("filter_sun", !filterSun) { filterSun = it } },
-                                            label = { Text(if (isFa) "☀️ خورشید" else "☀️ Sun") }
+                                            label = { Text(if (isFa) "خورشید" else "Sun") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterDeepSky,
                                             onClick = { updateFilter("filter_deepsky", !filterDeepSky) { filterDeepSky = it } },
-                                            label = { Text(if (isFa) "🌌 اعماق فضا" else "🌌 Deep Sky") }
+                                            label = { Text(if (isFa) "اعماق فضا" else "Deep Sky") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterSatellites,
                                             onClick = { updateFilter("filter_satellites", !filterSatellites) { filterSatellites = it } },
-                                            label = { Text(if (isFa) "🛰 ماهواره‌ها" else "🛰 Satellites") }
+                                            label = { Text(if (isFa) "ماهواره‌ها" else "Satellites") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterMeteorShowers,
                                             onClick = { updateFilter("filter_meteor_showers", !filterMeteorShowers) { filterMeteorShowers = it } },
-                                            label = { Text(if (isFa) "☄️ بارش‌های شهابی" else "☄️ Meteor Showers") }
+                                            label = { Text(if (isFa) "بارش‌های شهابی" else "Meteor Showers") }
                                         )
                                     }
                                 }

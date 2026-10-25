@@ -53,7 +53,7 @@ object WhatsUpTonightEngine {
                 events.add(
                     TonightEvent(
                         id = solarEclipse.event.id,
-                        icon = "☀️",
+                        icon = "sun",
                         titleEn = solarEclipse.localNameEn,
                         titleFa = solarEclipse.localNameFa,
                         explanationEn = solarEclipse.event.descriptionEn,
@@ -80,7 +80,7 @@ object WhatsUpTonightEngine {
                 events.add(
                     TonightEvent(
                         id = lunarEclipse.event.id,
-                        icon = "🌕",
+                        icon = "moon",
                         titleEn = lunarEclipse.localNameEn,
                         titleFa = lunarEclipse.localNameFa,
                         explanationEn = lunarEclipse.event.descriptionEn,
@@ -122,7 +122,7 @@ object WhatsUpTonightEngine {
                     events.add(
                         TonightEvent(
                             id = shower.id,
-                            icon = "☄️",
+                            icon = "meteor",
                             titleEn = nameEn,
                             titleFa = nameFa,
                             explanationEn = "Peak activity tonight with high ZHR rate (~${shower.zhr} meteors/hr).",
@@ -152,7 +152,7 @@ object WhatsUpTonightEngine {
                 events.add(
                     TonightEvent(
                         id = "iss_pass_tonight",
-                        icon = "🛰️",
+                        icon = "satellite",
                         titleEn = "International Space Station (ISS) Pass",
                         titleFa = "گذر پرنور ایستگاه فضایی بین‌المللی (ISS)",
                         explanationEn = "Bright naked-eye pass reaching $elevInt° elevation above horizon.",
@@ -193,7 +193,7 @@ object WhatsUpTonightEngine {
             events.add(
                 TonightEvent(
                     id = "moon_nightly_status",
-                    icon = "🌙",
+                    icon = "moon",
                     titleEn = "Moon: $phaseNameEn ($moonIllumInt% Illuminated)",
                     titleFa = "وضعیت ماه: $phaseNameFa ($moonIllumInt٪ درخشندگی)".toPersianDigits(),
                     explanationEn = "Current distance: ${moonData.distanceKm.toInt()} km. Age: ${String.format(java.util.Locale.US, "%.1f", moonData.ageDays)} days.",
@@ -251,7 +251,7 @@ object WhatsUpTonightEngine {
                 events.add(
                     TonightEvent(
                         id = "event_$id",
-                        icon = if (id == "planet_saturn") "🪐" else "🌟",
+                        icon = if (id == "planet_saturn") "planet" else "star",
                         titleEn = "Planet ${names.first} Visible",
                         titleFa = "سیاره ${names.second} در آسمان امشب",
                         explanationEn = "Shining brightly at magnitude ${String.format(java.util.Locale.US, "%.1f", pos.magnitude)} in ${horiz.azimuthCompassNameEn}.",
@@ -287,7 +287,7 @@ object WhatsUpTonightEngine {
                 events.add(
                     TonightEvent(
                         id = "conj_moon_$id",
-                        icon = "✨",
+                        icon = "celestial",
                         titleEn = "Close Conjunction: Moon & ${names.first}",
                         titleFa = "مقارنه نزدیک ماه و ${names.second}",
                         explanationEn = "The Moon and ${names.first} appear just $sepStr° apart in tonight's sky.",

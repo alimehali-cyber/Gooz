@@ -492,7 +492,7 @@ class SkyAtmosphere(val params: Params = Params()) {
         /** Solar illuminance outside the atmosphere for the photopic channel, lux. */
         val SOLAR_ILLUMINANCE_LUX: Double = SUN_RGB[1]
 
-        /** Elevation (rad) ↔ LUT v: more resolution near the horizon. */
+        /** Elevation (rad) versus LUT v: more resolution near the horizon. */
         fun elevationToV(elevRad: Double): Double {
             val l = elevRad.coerceIn(-PI / 2, PI / 2)
             return 0.5 + 0.5 * sign(l) * sqrt(abs(l) / (PI / 2))

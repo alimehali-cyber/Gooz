@@ -96,11 +96,11 @@ object FinderEngine {
 
         val (instFa, instEn) = when {
             isBelowHorizon -> {
-                "⚠️ این جرم در حال حاضر زیر افق قرار دارد (${String.format("%.1f", targetAlt)}°)" to
-                        "⚠️ Target is currently below horizon (${String.format("%.1f", targetAlt)}°)"
+                "هشدار: این جرم در حال حاضر زیر افق قرار دارد (${String.format("%.1f", targetAlt)}°)" to
+                        "Warning: Target is currently below horizon (${String.format("%.1f", targetAlt)}°)"
             }
             isArrived -> {
-                "🎯 هدف دقیقاً در مرکز دید شماست!" to "🎯 Target acquired in center reticle!"
+                "هدف دقیقاً در مرکز دید شماست!" to "Target acquired in center reticle!"
             }
             dAz > 15f && dAlt > 10f -> {
                 "به سمت راست بچرخید و بالاتر را نگاه کنید" to "Turn Right & Pitch Up"

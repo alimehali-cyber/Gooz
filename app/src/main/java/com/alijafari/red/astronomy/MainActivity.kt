@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -150,7 +151,9 @@ class MainActivity : ComponentActivity() {
                     LocalLayoutDirection provides layoutDirection,
                     LocalActivityResultRegistryOwner provides this@MainActivity
                 ) {
-                    var showSplashScreen by remember { mutableStateOf(true) }
+                    // Orientation changes (including the sky viewer's landscape transition) recreate the
+                    // Activity. Save this one-shot state across that recreation so the intro never reappears.
+                    var showSplashScreen by rememberSaveable { mutableStateOf(true) }
                     val isGlassActive = uiState.liquidGlassConfig.enabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported()
                     val backdrop = if (isGlassActive) {
                         rememberLayerBackdrop()

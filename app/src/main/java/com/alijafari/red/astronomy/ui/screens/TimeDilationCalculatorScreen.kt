@@ -52,8 +52,7 @@ enum class SpeedUnit(val labelEn: String, val labelFa: String) {
 data class SpeedPreset(
     val titleEn: String,
     val titleFa: String,
-    val speedMs: Double,
-    val icon: String
+    val speedMs: Double
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,16 +94,16 @@ fun TimeDilationCalculatorScreen(
     // Speed Presets
     val speedPresets = remember {
         listOf(
-            SpeedPreset("Walking", "پیاده‌روی", 1.38889, "🚶"),
-            SpeedPreset("Sound", "سرعت صوت", 343.0, "🔊"),
-            SpeedPreset("Fighter Jet", "جت جنگنده", 686.11, "✈️"),
-            SpeedPreset("Spacecraft", "فضاپیمای وویجر", 17000.0, "🛸"),
-            SpeedPreset("Starship Rocket", "موشک استارشیپ", 75000.0, "🚀"),
-            SpeedPreset("10% c", "۱۰٪ سرعت نور", 0.10 * RelativisticEngine.SPEED_OF_LIGHT_MS, "⚡"),
-            SpeedPreset("50% c", "۵۰٪ سرعت نور", 0.50 * RelativisticEngine.SPEED_OF_LIGHT_MS, "💫"),
-            SpeedPreset("90% c", "۹۰٪ سرعت نور", 0.90 * RelativisticEngine.SPEED_OF_LIGHT_MS, "🌌"),
-            SpeedPreset("99% c", "۹۹٪ سرعت نور", 0.99 * RelativisticEngine.SPEED_OF_LIGHT_MS, "✨"),
-            SpeedPreset("Speed of Light (c)", "سرعت نور (c)", 1.00 * RelativisticEngine.SPEED_OF_LIGHT_MS, "☀️")
+            SpeedPreset("Walking", "پیاده‌روی", 1.38889),
+            SpeedPreset("Sound", "سرعت صوت", 343.0),
+            SpeedPreset("Fighter Jet", "جت جنگنده", 686.11),
+            SpeedPreset("Spacecraft", "فضاپیمای وویجر", 17000.0),
+            SpeedPreset("Starship Rocket", "موشک استارشیپ", 75000.0),
+            SpeedPreset("10% c", "۱۰٪ سرعت نور", 0.10 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("50% c", "۵۰٪ سرعت نور", 0.50 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("90% c", "۹۰٪ سرعت نور", 0.90 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("99% c", "۹۹٪ سرعت نور", 0.99 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("Speed of Light (c)", "سرعت نور (c)", 1.00 * RelativisticEngine.SPEED_OF_LIGHT_MS)
         )
     }
 
@@ -477,7 +476,6 @@ fun TimeDilationCalculatorScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Text(text = preset.icon, fontSize = 14.sp)
                                         Text(
                                             text = if (isFa) preset.titleFa else preset.titleEn,
                                             style = RedTypography.bodySmall.copy(fontWeight = FontWeight.Medium),

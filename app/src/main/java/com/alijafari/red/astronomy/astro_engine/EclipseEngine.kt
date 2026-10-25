@@ -2654,15 +2654,15 @@ class EclipseEngine {
         }
 
         val safetyEn = if (event.isSolar) {
-            "⚠️ CRITICAL EYE SAFETY: Never look directly at the Sun without certified ISO 12312-2 solar eclipse glasses! Regular sunglasses, smoked glass, or unfiltered camera lenses can cause permanent retinal damage."
+            "CRITICAL EYE SAFETY: Never look directly at the Sun without certified ISO 12312-2 solar eclipse glasses! Regular sunglasses, smoked glass, or unfiltered camera lenses can cause permanent retinal damage."
         } else {
-            "✅ 100% Safe for Naked Eye: Lunar eclipses are completely safe to observe directly without any eye protection, binoculars, or telescope filters."
+            "100% SAFE FOR THE NAKED EYE: Lunar eclipses are completely safe to observe directly without any eye protection, binoculars, or telescope filters."
         }
 
         val safetyFa = if (event.isSolar) {
-            "⚠️ هشدار حیاتی سلامت چشم: هرگز بدون عینک مخصوص خورشیدگرفتگی (استاندارد ISO 12312-2) یا فیلتر استاندارد به خورشید نگاه نکنید! عینک آفتابی معمولی یا فیلم رادیولوژی به شبکیه چشم آسیب دائمی می‌زند."
+            "هشدار حیاتی سلامت چشم: هرگز بدون عینک مخصوص خورشیدگرفتگی (استاندارد ISO 12312-2) یا فیلتر استاندارد به خورشید نگاه نکنید! عینک آفتابی معمولی یا فیلم رادیولوژی به شبکیه چشم آسیب دائمی می‌زند."
         } else {
-            "✅ کاملاً ایمن برای چشم: تماشای ماه‌گرفتگی (خسوف) با چشم غیرمسلح، دوربین دوچشمی یا تلسکوپ کاملاً بی‌خطر است و نیاز به هیچ فیلتری ندارد."
+            "کاملاً ایمن برای چشم: تماشای ماه‌گرفتگی (خسوف) با چشم غیرمسلح، دوربین دوچشمی یا تلسکوپ کاملاً بی‌خطر است و نیاز به هیچ فیلتری ندارد."
         }
 
         val tipEn = if (event.isSolar) {

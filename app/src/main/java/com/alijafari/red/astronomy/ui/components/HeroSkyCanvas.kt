@@ -1,6 +1,13 @@
 package com.alijafari.red.astronomy.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -257,11 +264,23 @@ fun HeroSkyCanvas(
     // Auto-return job
     var autoReturnJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
-    // 5-second automatic dismiss timer for the selected celestial object pill
+    // Keep the identification visible long enough to read and open its detail card.
     LaunchedEffect(selectedCelestial) {
         if (selectedCelestial != null) {
-            delay(5000)
+            delay(4_000)
             selectedCelestial = null
+        }
+    }
+
+    // A fresh radial bloom accompanies each selection; the continuous scene clock then carries its gentle pulse.
+    val selectionBloom = remember { Animatable(1f) }
+    LaunchedEffect(selectedCelestial?.id) {
+        if (selectedCelestial != null) {
+            selectionBloom.snapTo(0f)
+            selectionBloom.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 560, easing = FastOutSlowInEasing)
+            )
         }
     }
 
@@ -507,15 +526,16 @@ fun HeroSkyCanvas(
                     SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
                     SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
                 }
+                val bloom = selectionBloom.value.coerceIn(0f, 1f)
                 drawCircle(
-                    color = ringColor.copy(alpha = 0.5f),
-                    radius = 28.dp.toPx() * pulseRing,
+                    color = ringColor.copy(alpha = (1f - bloom) * 0.72f),
+                    radius = (13.dp.toPx() + 24.dp.toPx() * bloom) * pulseRing,
                     center = selPos,
-                    style = Stroke(width = 1.5.dp.toPx())
+                    style = Stroke(width = (2.4f - bloom * 0.8f).dp.toPx())
                 )
                 drawCircle(
-                    color = ringColor,
-                    radius = 18.dp.toPx(),
+                    color = ringColor.copy(alpha = 0.94f),
+                    radius = (12.dp.toPx() + 6.dp.toPx() * bloom),
                     center = selPos,
                     style = Stroke(width = 1.8.dp.toPx())
                 )
@@ -641,79 +661,108 @@ fun HeroSkyCanvas(
         }
 
         // --- FLOATING SELECTED CELESTIAL OBJECT NAME PILL ---
-        // Only the fullscreen viewer shows the pill: it needs the room, and the card and the scene do not have it.
-        val pillTarget = if (presentation == SkyCanvasPresentation.VIEWER) selectedCelestial else null
-        pillTarget?.let { sel ->
-            val canvasW = constraints.maxWidth.toFloat()
-            val canvasH = constraints.maxHeight.toFloat()
-            val livePos = when {
-                sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                sel.id.startsWith("planet_") -> {
-                    val pName = sel.id.removePrefix("planet_")
-                    planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
-                        HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                    } ?: sel.position
-                }
-                else -> {
-                    catalogStars.find { it.first.id == sel.id }?.let {
-                        HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                    } ?: sel.position
-                }
-            }
-            val xDp = with(LocalDensity.current) { livePos.x.toDp() }
-            val yDp = with(LocalDensity.current) { livePos.y.toDp() }
-            val maxPillX = (maxWidth - 160.dp).coerceAtLeast(12.dp)
-            val maxPillY = (maxHeight - 84.dp).coerceAtLeast(12.dp)
-
-            Surface(
-                onClick = {
-                    val idToOpen = sel.id
-                    selectedCelestial = null
-                    if (idToOpen.isNotEmpty()) {
-                        viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
+        // Present in both Home and fullscreen: this is the affordance that turns identify into detail.
+        AnimatedVisibility(
+            visible = selectedCelestial != null,
+            enter = fadeIn(tween(180)) + scaleIn(
+                initialScale = 0.82f,
+                animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)
+            ) + slideInVertically(tween(220, easing = FastOutSlowInEasing)) { it / 5 },
+            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.94f, animationSpec = tween(140)) +
+                slideOutVertically(tween(140)) { -it / 8 }
+        ) {
+            selectedCelestial?.let { sel ->
+                val canvasW = constraints.maxWidth.toFloat()
+                val canvasH = constraints.maxHeight.toFloat()
+                val livePos = when {
+                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                    sel.id.startsWith("planet_") -> {
+                        val pName = sel.id.removePrefix("planet_")
+                        planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
+                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                        } ?: sel.position
                     }
-                },
-                shape = squircleShape(RedCornerRadius.window),
-                color = Color(0xEE0F172A),
-                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.7f)),
-                shadowElevation = 8.dp,
-                modifier = Modifier
-                    .offset(
-                        x = (xDp - 70.dp).coerceIn(12.dp, maxPillX),
-                        y = (yDp - 54.dp).coerceIn(12.dp, maxPillY)
-                    )
-                    .testTag("selected_celestial_pill")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF38BDF8))
-                    )
-                    Text(
-                        text = sel.name,
-                        style = TextStyle(
-                            fontFamily = LocalAppFontFamily.current,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color.White
+                    else -> {
+                        catalogStars.find { it.first.id == sel.id }?.let {
+                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                        } ?: sel.position
+                    }
+                }
+                val xDp = with(LocalDensity.current) { livePos.x.toDp() }
+                val yDp = with(LocalDensity.current) { livePos.y.toDp() }
+                val bubbleMaxWidth = (maxWidth - 24.dp).coerceAtMost(240.dp)
+                val maxPillX = (maxWidth - bubbleMaxWidth).coerceAtLeast(12.dp)
+                val maxPillY = (maxHeight - 72.dp).coerceAtLeast(12.dp)
+                val accent = when (uiState.skyCanvasTheme) {
+                    SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
+                    SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White
+                    SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
+                    SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                    SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
+                }
+
+                Surface(
+                    onClick = {
+                        val idToOpen = sel.id
+                        selectedCelestial = null
+                        if (idToOpen.isNotEmpty()) {
+                            viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
+                        }
+                    },
+                    shape = RedShapes.capsule,
+                    color = Color(0xE6101727),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.72f)),
+                    shadowElevation = 14.dp,
+                    modifier = Modifier
+                        .widthIn(max = bubbleMaxWidth)
+                        .offset(
+                            x = (xDp - 74.dp).coerceIn(12.dp, maxPillX),
+                            y = (yDp - 56.dp).coerceIn(12.dp, maxPillY)
                         )
-                    )
-                    if (sel.typeName != null) {
-                        Text(
-                            text = "• ${sel.typeName}",
-                            style = TextStyle(
-                                fontFamily = LocalAppFontFamily.current,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 11.sp,
-                                color = Color(0xFF94A3B8)
+                        .testTag("selected_celestial_pill")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 13.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(accent)
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                text = sel.name,
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Text(
+                                text = sel.typeName ?: if (isFa) "مشاهده اطلاعات" else "View details",
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 10.sp,
+                                    letterSpacing = if (isFa) 0.sp else 0.3.sp,
+                                    color = Color.White.copy(alpha = 0.66f)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(
+                            text = if (isFa) "‹" else "›",
+                            style = TextStyle(fontSize = 22.sp, lineHeight = 22.sp, color = accent),
+                            modifier = Modifier.padding(start = 2.dp)
                         )
                     }
                 }
