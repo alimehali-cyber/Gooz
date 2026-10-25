@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -21,11 +22,20 @@ import kotlin.math.sin
  */
 object SceneGroundRenderer {
 
+    /**
+     * @param persepolisToeYPx pixel row where the Persepolis platform's front toe meets this ground
+     * ([PersepolisFraming.Result.toeYPx]), or null when the ruin is not part of the scene. When set,
+     * a sand apron and a contact shadow are painted at that row so the GL stone sits *in* the ground
+     * band instead of ending on a hard line above the grass. Everything else is unchanged: the ridges
+     * and the mist shelf stay behind the ruin (they are its distance backdrop), and the ground below
+     * the toe remains the foreground field the framing intends.
+     */
     fun draw(
         drawScope: DrawScope,
         composition: SceneComposition,
         theme: SkyCanvasTheme,
-        lighting: LightingState
+        lighting: LightingState,
+        persepolisToeYPx: Float? = null
     ) {
         val palette = scenePalette(theme, lighting)
         val width = composition.widthPx
@@ -102,6 +112,11 @@ object SceneGroundRenderer {
             size = androidx.compose.ui.geometry.Size(width, height * 0.06f)
         )
 
+        // 5b. Persepolis grounding: where the stone forecourt ends and this field begins.
+        if (persepolisToeYPx != null) {
+            drawPersepolisGrounding(drawScope, composition, lighting, persepolisToeYPx)
+        }
+
         // 6. Grass line. Papercraft keeps hard cardstock edges instead of strokes.
         if (!papercraft) {
             drawGrass(
@@ -124,6 +139,58 @@ object SceneGroundRenderer {
             ),
             topLeft = Offset(0f, fadeTop),
             size = androidx.compose.ui.geometry.Size(width, height - fadeTop)
+        )
+    }
+
+    /**
+     * The seam between the GL ruin and the painted ground: a wind-blown sand apron banked against the
+     * platform toe (the semi-desert site the model itself drifts sand against its walls from), and the
+     * soft contact shadow the platform throws onto the field in front of it.
+     *
+     * Both are drawn under the GL surface, so only the parts in front of the forecourt's stone edge are
+     * visible — which is exactly the parts that should be: sand and shadow spilling toward the viewer,
+     * stopping at the stone. Colours follow the same Sun-altitude brightness as the rest of the ground,
+     * so the seam warms and darkens with the scene and all but disappears at astronomical night, where
+     * the ground is already near-black.
+     */
+    private fun drawPersepolisGrounding(
+        drawScope: DrawScope,
+        composition: SceneComposition,
+        lighting: LightingState,
+        toeYPx: Float
+    ) {
+        val width = composition.widthPx
+        val height = composition.heightPx
+        val day = lighting.ambientBrightness.coerceIn(0f, 1f)
+
+        // Sand apron: strongest at the toe line, feathering out over the foreground field.
+        val sand = lerp(Color(0xFF292216), Color(0xFFBEA06E), day)
+        val apronTop = toeYPx - height * 0.012f
+        val apronBottom = (toeYPx + height * 0.060f).coerceAtMost(height)
+        drawScope.drawRect(
+            brush = Brush.verticalGradient(
+                0.0f to Color.Transparent,
+                0.22f to sand.copy(alpha = 0.16f + 0.30f * day),
+                1.0f to Color.Transparent,
+                startY = apronTop,
+                endY = apronBottom
+            ),
+            topLeft = Offset(0f, apronTop),
+            size = androidx.compose.ui.geometry.Size(width, (apronBottom - apronTop).coerceAtLeast(1f))
+        )
+
+        // Contact shadow: a short, soft occlusion band directly in front of the forecourt edge.
+        val shadowTop = toeYPx - height * 0.004f
+        val shadowBottom = (toeYPx + height * 0.028f).coerceAtMost(height)
+        drawScope.drawRect(
+            brush = Brush.verticalGradient(
+                0.0f to Color.Black.copy(alpha = 0.10f + 0.22f * day),
+                1.0f to Color.Transparent,
+                startY = shadowTop,
+                endY = shadowBottom
+            ),
+            topLeft = Offset(0f, shadowTop),
+            size = androidx.compose.ui.geometry.Size(width, (shadowBottom - shadowTop).coerceAtLeast(1f))
         )
     }
 

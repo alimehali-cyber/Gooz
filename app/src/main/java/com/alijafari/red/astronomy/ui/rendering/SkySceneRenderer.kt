@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
 
 /**
  * Draws the shared Sky Canvas layers for a [SkySceneFrame]: atmosphere, Milky Way, stars, Sun, Moon,
@@ -202,17 +203,35 @@ object SkySceneRenderer {
 
         // 7. Ground. The full-bleed scene gets the layered ground band (ridges, mist shelf, grass); the card
         //    and the fullscreen viewer keep the older single-silhouette landscape; the backdrop has neither.
+        //    On the photographic themes the Persepolis relief (a GL layer the caller composites above this
+        //    canvas) stands in this ground band: the band is painted as usual — ridges and mist are the
+        //    ruin's backdrop, the field below its toe is the foreground — plus the grounding seam at the
+        //    toe row. The framing is recomputed here from the same inputs the GL host uses, so the seam
+        //    and the stone always meet on the same pixel row.
         when {
-            target.drawsScene -> SceneGroundRenderer.draw(
-                drawScope = drawScope,
-                composition = SkySceneLayout.composition(
+            target.drawsScene -> {
+                val composition = SkySceneLayout.composition(
                     widthPx = canvasW,
                     heightPx = canvasH,
                     horizonFraction = SkySceneLayout.HORIZON_FRACTION
-                ),
-                theme = theme,
-                lighting = lightingState
-            )
+                )
+                val persepolisToeY = if (PersepolisFeature.isEnabledFor(theme)) {
+                    PersepolisFraming.forScene(
+                        widthPx = canvasW,
+                        heightPx = canvasH,
+                        readoutBottomPx = composition.horizonY -
+                            with(drawScope) { PersepolisFraming.READOUT_INSET_DP.dp.toPx() },
+                        readoutClearancePx = with(drawScope) { PersepolisFraming.READOUT_CLEARANCE_DP.dp.toPx() }
+                    ).toeYPx
+                } else null
+                SceneGroundRenderer.draw(
+                    drawScope = drawScope,
+                    composition = composition,
+                    theme = theme,
+                    lighting = lightingState,
+                    persepolisToeYPx = persepolisToeY
+                )
+            }
             target.drawsLandscape -> LandscapeRenderer.drawHorizonLandscape(
                 drawScope = drawScope,
                 lightingState = lightingState,

@@ -97,6 +97,11 @@ bottom fade into the app background. Ridges are summed sines sampled with quadra
 shows. Grass positions are deterministic (no shimmer between ticks). Papercraft keeps hard cardstock
 edges and skips the strokes; everything else gets the soft version.
 
+When the Persepolis relief is active (above), this band is its environment and is painted unchanged
+underneath it — ridges and mist as its distance, the field below the platform toe as foreground — plus
+a grounding seam at the toe row (`PersepolisFraming`): a sand apron feathering down the field and a
+short contact shadow in front of the forecourt, both following the Sun-altitude brightness.
+
 ### Clouds — `CloudVeilRenderer`
 
 Three veils (high cirrus, mid, low) at different speeds and parallax depths. Pre-rendered once into

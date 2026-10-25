@@ -47,6 +47,8 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.TimeMachineMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
+import com.alijafari.red.astronomy.ui.persepolis.PersepolisLandscape
 import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
@@ -123,6 +125,11 @@ enum class SkyCanvasPresentation {
  *  1. the sky, on the clock tick (or per frame while the finger scrubs time);
  *  2. the scene motion — drifting cloud veils and the breathing observer — on a faster tick, scene only;
  *  3. the interaction layer — selection ring and stardust — only while the user is touching it.
+ *
+ * Between layers 1 and 2, the scene on the photographic themes also carries the Persepolis relief
+ * (see [PersepolisLandscape]): a transparent GL surface standing in layer 1's ground band, lit by the
+ * same ephemeris, rendering one frame per sky-model change. It is a peer of the sky clock, not of the
+ * motion clock, so it is not numbered with the repaint layers above.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -462,6 +469,23 @@ fun HeroSkyCanvas(
             )
         }
 
+        // Persepolis framing for this exact scene size (see PersepolisFraming): where the platform toe
+        // lands and how much of the façade the GL camera shows. The sky pass recomputes the same result
+        // for its grounding paint, so the stone and the painted ground meet on the same pixel row.
+        // Null unless this is the full-bleed scene on a photographic theme.
+        val persepolisFraming = if (isScene && PersepolisFeature.isEnabledFor(uiState.skyCanvasTheme)) {
+            val density = LocalDensity.current
+            val widthPx = with(density) { maxWidth.toPx() }
+            val heightPx = with(density) { maxHeight.toPx() }
+            PersepolisFraming.forScene(
+                widthPx = widthPx,
+                heightPx = heightPx,
+                readoutBottomPx = heightPx * horizonFraction -
+                    with(density) { PersepolisFraming.READOUT_INSET_DP.dp.toPx() },
+                readoutClearancePx = with(density) { PersepolisFraming.READOUT_CLEARANCE_DP.dp.toPx() }
+            )
+        } else null
+
         // --- LAYER 1: THE SKY ---
         // Atmosphere, Milky Way, stars, Sun, Moon, planets, ground. The expensive pass: it repaints on the
         // clock tick, not on every animation frame.
@@ -475,6 +499,22 @@ fun HeroSkyCanvas(
                 target = renderTarget,
                 moonSprites = moonSprites,
                 bortle = uiState.bortleClass
+            )
+        }
+
+        // --- PERSEPOLIS: THE GROUND'S SUBJECT ---
+        // The Apadana east façade as a transparent GL relief standing in layer 1's ground band: the
+        // ridges and mist shelf behind it are its distance, the field below its platform toe is the
+        // foreground, and the sand apron + contact shadow painted by the sky pass at the same toe row
+        // ground it. It is lit by this frame's real Sun and Moon and renders on demand (per sky-model
+        // change), never on the motion clock. Photographic themes only — PersepolisFeature is the gate.
+        if (persepolisFraming != null) {
+            PersepolisLandscape(
+                frame = skyFrame,
+                framing = persepolisFraming,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("persepolis_landscape")
             )
         }
 
