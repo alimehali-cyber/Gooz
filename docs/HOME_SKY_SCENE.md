@@ -10,8 +10,10 @@ moon glow) and the scene clock.
 
 ![Home sky scene, night and daylight](home-sky-scene.png)
 
-*The same composition at astronomical night and at noon, rendered from the constants below. The clouds
-and the mist follow the theme; the Sun altitude drives the light.*
+*The same composition at astronomical night and at noon, rendered from the constants below: the same
+edge-to-edge scene, the readout at caption scale above the horizon, and the Moon card in its 34 dp
+squircle riding over the scene's lower edge. The clouds and the mist follow the theme; the Sun altitude
+drives the light.*
 
 ---
 
