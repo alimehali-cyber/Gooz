@@ -30,14 +30,32 @@ import androidx.compose.ui.unit.dp
  * as a rectangle with surgery performed on it.
  *
  * `n = 2` is a circle, `n = 4` is Lamé's squircle proper, `n → ∞` is a square. This file uses
- * **[Squircle.EXPONENT] = 5** everywhere, so every container in the app shares a single curve.
- * Exponent is the one dial that changes how *heavy* a corner reads at a fixed radius: the curve still
- * runs the full radius along each edge, but at `n = 5` it holds the edge longer and turns later, so
- * the corner carries more mass. Two measured effects on the unit corner box — curvature at the 45°
- * point, which is what the eye reads as corner strength, rises from `2.5227` at `n = 4` to `3.2490`
- * (**+28.8 %**), and the diagonal crossing moves out from `0.8409 r` to `0.8706 r`. Past `n ≈ 6` the
- * corner starts to read as a clipped box rather than a curve, so this is the heaviest setting the
- * system uses.
+ * **[Squircle.EXPONENT] = 4** everywhere, so every container in the app shares a single curve.
+ *
+ * ## How heavy a corner is (the two dials, and which one is the right one)
+ *
+ * A corner has two independent properties, and confusing them is how a design system ends up with
+ * corners that are *large* but still look *tight*:
+ *
+ *  - **How far the curve reaches** — [Squircle.EXTENT], the size of the corner box as a multiple of
+ *    the nominal radius. This is what makes a corner read as *curved*: a circle stops reaching at
+ *    `1.0 r`, so the transition from straight edge to turned corner is abrupt; a continuous corner
+ *    reaches past the radius, so the turn is spread over a longer run and the eye reads a curve.
+ *  - **How fast it turns** — [Squircle.EXPONENT], the Lamé exponent. Higher `n` packs the turn into
+ *    the last part of the run: heavier, squarer, more "clipped box".
+ *
+ * The app takes the **Apple ratio and then a little more**: iOS continuous corners expand the corner
+ * box by `1.528665 ×` the radius (`CALayer.cornerCurveExpansionFactor(.continuous)`), which is the
+ * closest published number for a non-circular corner; this file uses **1.6**, about 5 % further. That
+ * extra reach is what makes the corners read *curved* at the radii the app uses, while `n = 4` keeps
+ * the family the squircle proper rather than a box. Pushing `n` up instead (the previous setting,
+ * `n = 5` at `1.0 r`) makes the corner *tighter*, not rounder — it reaches less far and turns later,
+ * which is the opposite of what a "heavier but curved" corner needs.
+ *
+ * Measured consequences on the unit corner box at `n = 4`: the curve leaves each edge with **zero**
+ * curvature (so the join is G2, not G1), crosses its diagonal at `0.8409 ×` the box — `1.345 r` from
+ * the edge once the box is scaled by [Squircle.EXTENT] — and has curvature `2.5227 / r` at that
+ * diagonal point.
  *
  * ## How it is drawn
  *
@@ -53,9 +71,9 @@ import androidx.compose.ui.unit.dp
  * positions, tangent directions and curvatures. Measured against the analytic curve on the unit
  * corner box:
  *
- *  - maximum positional deviation **0.0081 % of the radius** — 0.01 px at the app's 40 dp radius on
- *    a 3x display, i.e. two orders of magnitude below one pixel;
- *  - residual curvature discontinuity at the interior nodes **< 5e-6 relative** (single-precision
+ *  - maximum positional deviation **0.0098 % of the corner box** — 0.02 px at the app's 40 dp radius
+ *    on a 3x display, i.e. well below one pixel;
+ *  - residual curvature discontinuity at the interior nodes **< 3e-6 relative** (single-precision
  *    noise; the float64 fit is exact to 1e-14);
  *  - curvature at the two edge joins is **exactly 0**, so those joins are G2 as well;
  *  - both ends are exactly tangent to their edges, so the curve meets each edge at G1 by
@@ -76,26 +94,38 @@ import androidx.compose.ui.unit.dp
 object Squircle {
 
     /**
-     * Lamé exponent. `2` = circle, `4` = the squircle proper, `5` = the heavy squircle this app wears,
-     * `∞` = square.
+     * Lamé exponent. `2` = circle, `4` = the squircle proper, `∞` = square.
      *
      * One value for the whole app: a corner should look the same at every size, so there is no
-     * per-radius tuning knob that could drift. Raising it is how a corner gains weight without
-     * gaining radius — see the file header for the measured numbers.
+     * per-radius tuning knob that could drift. See the file header for why the *reach* below, not this
+     * exponent, is the dial that makes a corner read heavier.
      */
-    const val EXPONENT: Float = 5f
+    const val EXPONENT: Float = 4f
 
     /**
-     * Where a corner crosses its own diagonal, as a multiple of its radius: `2^(-1/n)`.
+     * How far a corner reaches along each edge, as a multiple of its nominal radius.
      *
-     * This is the number that makes a squircle read squarer than a circle at the same radius. A
-     * circular corner turns through 45° at `0.7071 r` from the edge join and is already standing
-     * vertical by `1.0 r`. The squircle is still only at `0.8706 r` when it reaches the diagonal, so
-     * its curve keeps running outward toward the box corner instead of leaving the edge early — and
-     * then it comes back to vertical over the remaining `0.1294 r`. Same radius, visibly squarer,
-     * with no kink anywhere.
+     * `1.0` is a circular corner's reach: the arc starts exactly one radius from the box corner. iOS
+     * continuous corners reach `1.528665 ×` (Apple's `cornerCurveExpansionFactor`). This app uses
+     * **1.6** — Apple's rule, plus about 5 % — because the corners have to stay visibly curved at
+     * 40 dp on a phone, and reach is what buys that.
+     *
+     * Anything above `1.0` shortens every straight run: a 40 dp corner on a 158 dp card leaves
+     * `158 − 2 × 64 = 30 dp` of flat edge, which is why the shape reads as a curve joining the edges
+     * rather than as a rectangle with notched corners. `emitSquircleOutline` clamps the *box* to half
+     * the shorter side, so a radius larger than the element can hold simply stops growing instead of
+     * folding the outline.
      */
-    const val EXTENT_RATIO: Float = 0.8705506f
+    const val EXTENT: Float = 1.6f
+
+    /**
+     * Where a corner crosses its own diagonal, as a fraction of the corner *box*: `2^(-1/n)`.
+     *
+     * In pixels that is `0.8409 × 1.6 r = 1.345 r` from the edge join — further out than a circular
+     * corner's `0.7071 r`, which is the other half of why these corners read as continuous rather
+     * than as a rectangle with its ends rounded off.
+     */
+    const val EXTENT_RATIO: Float = 0.8408964f
 
     /**
      * The first half of the corner as two cubic Béziers, in the canonical unit corner box.
@@ -108,15 +138,15 @@ object Squircle {
     internal val CORNER_HALF: FloatArray = floatArrayOf(
         // Segment A — leaves the edge with zero curvature, so the edge join is G2.
         0.000000000000000f, 0.000000000000000f,
-        0.252049456513361f, 0.000000000000000f,
-        0.360353846483799f, 0.000000000000000f,
-        0.449610105958251f, 0.003701909074992f,
+        0.205914331155562f, 0.000000000000000f,
+        0.330381281442422f, 0.000000000000000f,
+        0.438451099378409f, 0.009369864355307f,
 
         // Segment B — arrives on the 45° diagonal with matching curvature to its mirror image.
-        0.449610105958251f, 0.003701909074992f,
-        0.632252803152206f, 0.011277026632061f,
-        0.777198453623326f, 0.036097426266564f,
-        0.870550447618998f, 0.129449321026811f
+        0.438451099378409f, 0.009369864355307f,
+        0.597960262775687f, 0.023199620461181f,
+        0.740894757840677f, 0.059101927333248f,
+        0.840896415253715f, 0.159103584746285f
     )
 
     /**
@@ -126,20 +156,20 @@ object Squircle {
     @PublishedApi
     internal val CORNER: FloatArray = floatArrayOf(
         // Segment A: its three control points (p1, p2, p3); p0 is the corner's start on the edge.
-        0.252049456513361f, 0.000000000000000f,
-        0.360353846483799f, 0.000000000000000f,
-        0.449610105958251f, 0.003701909074992f,
+        0.205914331155562f, 0.000000000000000f,
+        0.330381281442422f, 0.000000000000000f,
+        0.438451099378409f, 0.009369864355307f,
         // Segment B.
-        0.632252803152206f, 0.011277026632061f,
-        0.777198453623326f, 0.036097426266564f,
-        0.870550447618998f, 0.129449321026811f,
+        0.597960262775687f, 0.023199620461181f,
+        0.740894757840677f, 0.059101927333248f,
+        0.840896415253715f, 0.159103584746285f,
         // Segment C = mirror(Segment B): (x, y) -> (1 - y, 1 - x), walked back from the diagonal.
-        1f - 0.036097426266564f, 1f - 0.777198453623326f,
-        1f - 0.011277026632061f, 1f - 0.632252803152206f,
-        1f - 0.003701909074992f, 1f - 0.449610105958251f,
+        1f - 0.059101927333248f, 1f - 0.740894757840677f,
+        1f - 0.023199620461181f, 1f - 0.597960262775687f,
+        1f - 0.009369864355307f, 1f - 0.438451099378409f,
         // Segment D = mirror(Segment A).
-        1f - 0.000000000000000f, 1f - 0.360353846483799f,
-        1f - 0.000000000000000f, 1f - 0.252049456513361f,
+        1f - 0.000000000000000f, 1f - 0.330381281442422f,
+        1f - 0.000000000000000f, 1f - 0.205914331155562f,
         1f - 0.000000000000000f, 1f - 0.000000000000000f
     )
 }
@@ -239,11 +269,14 @@ internal fun emitSquircleOutline(
     cubicTo: (Float, Float, Float, Float, Float, Float) -> Unit,
     close: () -> Unit
 ) {
-    val maxRadius = size.minDimension / 2f
-    val rtl = tl.coerceIn(0f, maxRadius)
-    val rtr = tr.coerceIn(0f, maxRadius)
-    val rbr = br.coerceIn(0f, maxRadius)
-    val rbl = bl.coerceIn(0f, maxRadius)
+    // The corner box is bigger than the nominal radius: that is what makes the turn gradual. The box —
+    // not the radius — is what has to fit inside the slot, so the clamp is applied after scaling.
+    val reach = Squircle.EXTENT
+    val maxBox = size.minDimension / 2f
+    val rtl = (tl * reach).coerceIn(0f, maxBox)
+    val rtr = (tr * reach).coerceIn(0f, maxBox)
+    val rbr = (br * reach).coerceIn(0f, maxBox)
+    val rbl = (bl * reach).coerceIn(0f, maxBox)
 
     val right = size.width
     val bottom = size.height
@@ -373,13 +406,13 @@ fun squircleShape(
  * The radius a child corner needs to stay concentric with a squircle parent.
  *
  * Concentricity is about corner *boxes*, not curves: a child inset by [gap] from its parent needs a
- * corner box inset by the same [gap], so its radius is `outer - gap`. Because both corners are the
- * same shape scaled to their own box, subtracting the gap keeps the two curves parallel for any
- * exponent — which is the same rule a circular system uses, and the reason a squircle does not need
- * a fudge factor here.
+ * corner box inset by the same [gap]. Both boxes are `[Squircle.EXTENT] × radius`, so the boxes stay
+ * parallel exactly when the radii differ by `gap / EXTENT` — a larger gap in box space than in radius
+ * space, which is precisely what the reach factor changes. A circular system would subtract the gap
+ * itself.
  */
 fun squircleConcentric(outerRadius: Dp, gap: Dp): Dp {
-    val inner = outerRadius.value - gap.value
+    val inner = outerRadius.value - gap.value / Squircle.EXTENT
     return if (inner <= 0f) 0.dp else inner.dp
 }
 

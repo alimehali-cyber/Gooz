@@ -47,6 +47,8 @@ data class MainUiState(
      * slam shut the moment it opened.
      */
     val showSkyViewer: Boolean = false,
+    /** The Eclipses screen. Opened by the eclipse tile on Home. */
+    val showEclipseWindow: Boolean = false,
     /**
      * Lunar day offset in days (-30..+30) driven by dragging the Moon render. The Home moon card and the
      * Moon window read the same value, so scrubbing one moves the other.
@@ -576,6 +578,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Opens or closes the fullscreen sky viewer. */
     fun setShowSkyViewer(show: Boolean) {
         _uiState.update { if (it.showSkyViewer == show) it else it.copy(showSkyViewer = show) }
+    }
+
+    /**
+     * Opens or closes the Eclipses screen.
+     *
+     * It lives here rather than in the composition for the same reason the sky viewer does: it is a
+     * full-screen window, and configuration changes must not be able to close it.
+     */
+    fun setShowEclipseWindow(show: Boolean) {
+        _uiState.update { if (it.showEclipseWindow == show) it else it.copy(showEclipseWindow = show) }
     }
 
     /** Scrub the Moon in days. Clamped to the same +/-30 day window the Moon screen always used. */

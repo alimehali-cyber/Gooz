@@ -116,13 +116,30 @@ class SquircleGeometryTest {
     }
 
     @Test
-    fun `exponent is the documented heavy squircle`() {
-        // Lamé: 2 is a circle, 4 is the squircle proper, 5 is the heavier curve this app wears and
-        // infinity is a square. Pinned exactly so the corner the app draws cannot drift away from the
-        // one the documentation and the fitted control points describe. `n` only ever moves together
-        // with a refit of CORNER_HALF — the deviation and G2 assertions below enforce that.
-        assertEquals(5.0, exponent, 0.0)
-        assertTrue("a squircle needs n > 2", exponent > 2.0)
+    fun `exponent is the squircle proper`() {
+        // Lamé: 2 is a circle, 4 is the squircle, infinity is a square. Pinned exactly so the corner
+        // the app draws cannot drift away from the one the documentation and the fitted control points
+        // describe. `n` only ever moves together with a refit of CORNER_HALF — the deviation and G2
+        // assertions below enforce that.
+        assertEquals(4.0, exponent, 0.0)
+    }
+
+    @Test
+    fun `corner reaches past its radius like a continuous corner`() {
+        // Reach is the dial that makes a corner read curved: a circular corner's arc starts exactly one
+        // radius from the box corner, so the transition from flat edge to turn is abrupt. A continuous
+        // corner reaches further (iOS: 1.528665 x, this app: 1.6 x) and turns over that whole run.
+        assertTrue("reach must exceed a circular corner's", Squircle.EXTENT > 1.0f)
+        assertTrue(
+            "reach should be at least Apple's 1.528665 x continuous factor",
+            Squircle.EXTENT >= 1.528665f
+        )
+        assertTrue("reach should stay a little beyond Apple's, not wildly beyond", Squircle.EXTENT <= 1.75f)
+
+        // In pixels, the 45 degree point sits at EXTENT * EXTENT_RATIO radii from the edge join —
+        // 1.345 r, against a circular corner's 0.7071 r.
+        val diagonalReach = Squircle.EXTENT * Squircle.EXTENT_RATIO
+        assertTrue("diagonal reach $diagonalReach should exceed 1.3 r", diagonalReach > 1.3f)
     }
 
     @Test
@@ -239,7 +256,8 @@ class SquircleGeometryTest {
 
     @Test
     fun `corner reaches the documented extent along each edge`() {
-        // EXTENT_RATIO is used to keep nested corners concentric; it must match the curve.
+        // EXTENT_RATIO describes the canonical corner box; the emitted outline scales that box by
+        // Squircle.EXTENT, so this must match the curve or the two numbers would disagree on screen.
         val diagonalX = Squircle.CORNER[10].toDouble() // the 45 degree point, x
         assertEquals(Squircle.EXTENT_RATIO.toDouble(), diagonalX, 1e-5)
 

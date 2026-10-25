@@ -29,23 +29,26 @@ object RedSpacing {
 }
 
 // Concentric Corner Radii Scale
-// Outer radius R -> Nested element radius r = R - padding
+// A squircle corner reaches [Squircle.EXTENT] x its radius along each edge, so a 40 dp radius removes
+// 64 dp of straight edge per side. The tokens below are radii, not reaches — that keeps the scale
+// readable and lets the reach rule change in one place.
 object RedCornerRadius {
     val none: Dp = 0.dp
-    val xs: Dp = 6.dp       // Small badges, tags
-    val sm: Dp = 10.dp      // Inner items, nested chips, small controls
-    val md: Dp = 13.dp      // Standard buttons, text inputs, nested section blocks
+    val xs: Dp = 4.dp       // Small badges, tags
+    val sm: Dp = 6.dp       // Inner items, nested chips, small controls
+    val md: Dp = 8.dp       // Standard buttons, text inputs, nested section blocks
     /**
      * The one radius every card and window in the app wears — the Home moon card set the standard.
      * [lg], [xl] and [xxl] are aliases of it so the three historical "container" steps of the scale
      * cannot drift apart again: a card is a card, whichever token the call site happens to use.
      * Small controls above keep their own radii, so the concentric hierarchy still reads.
      *
-     * The whole scale was stepped up once, together with [Squircle.EXPONENT], when the corners were
-     * asked to read heavier: every step grew by roughly the same factor, so the hierarchy is intact
-     * and the biggest containers grew the most in absolute terms, which is where the eye notices.
+     * The visual size of this token is not 40 dp: with [Squircle.EXTENT] the corner box is
+     * `40 x 1.6 = 64 dp`, which is what the eye measures. That is deliberate and is why the tokens
+     * are smaller than the corner they draw — a design that specifies `40` as the *reach* has to
+     * write `25` here, and two numbers for one corner is how a system drifts.
      */
-    val window: Dp = 40.dp      // Cards, sheets, windows — the heavy container step
+    val window: Dp = 40.dp      // Cards, sheets, windows — 64 dp of corner box
     val lg: Dp = window     // Primary cards, list grouped containers
     val xl: Dp = window     // Hero cards, sheet dialogs
     val xxl: Dp = window    // Floating bars, modals

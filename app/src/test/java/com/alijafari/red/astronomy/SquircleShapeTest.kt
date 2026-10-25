@@ -4,6 +4,7 @@ import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.Squircle
 import com.alijafari.red.astronomy.ui.theme.SquircleShape
 import com.alijafari.red.astronomy.ui.theme.emitSquircleOutline
 import com.alijafari.red.astronomy.ui.theme.squircleConcentric
@@ -131,23 +132,27 @@ class SquircleShapeTest {
     }
 
     @Test
-    fun `corner run-up equals the radius`() {
-        // The straight run of the top edge ends exactly one radius away from the slot's corner, the
-        // same place a circular corner would start turning.
+    fun `corner run-up follows the continuous-corner reach rule`() {
+        // The straight run of the top edge ends one *corner box* away from the slot's corner, and the
+        // box is EXTENT times the nominal radius — not the radius itself, which is where a circular
+        // corner would start turning. This is the rule that makes the corner look curved.
         val radius = 20f
+        val reach = radius * Squircle.EXTENT
         val outline = emit(radius, radius, radius, radius, w = 400f, h = 100f)
-        assertEquals("first straight run stops one radius short", 400f - radius, outline.lines[0].first, 0.001f)
+        assertEquals("first straight run stops one corner box short", 400f - reach, outline.lines[0].first, 0.001f)
         assertEquals("top edge", 0f, outline.lines[0].second, 0.001f)
+        assertEquals("the run must be shorter than a circular corner's", true, reach > radius)
         assertEquals("left edge run ends at the top-left corner", 0f, outline.lines[3].first, 0.001f)
     }
 
     @Test
     fun `independent radii are honoured per corner`() {
+        val e = Squircle.EXTENT
         val outline = emit(tl = 10f, tr = 40f, br = 30f, bl = 20f, w = 400f, h = 200f)
-        assertEquals("top-left uses its own radius", 10f, outline.move!!.first, 0.001f)
-        assertEquals("top-right uses its own radius", 400f - 40f, outline.lines[0].first, 0.001f)
-        assertEquals("right edge run uses the bottom-right radius", 200f - 30f, outline.lines[1].second, 0.001f)
-        assertEquals("bottom edge run uses the bottom-left radius", 20f, outline.lines[2].first, 0.001f)
+        assertEquals("top-left uses its own box", 10f * e, outline.move!!.first, 0.001f)
+        assertEquals("top-right uses its own box", 400f - 40f * e, outline.lines[0].first, 0.001f)
+        assertEquals("right edge run uses the bottom-right box", 200f - 30f * e, outline.lines[1].second, 0.001f)
+        assertEquals("bottom edge run uses the bottom-left box", 20f * e, outline.lines[2].first, 0.001f)
     }
 
     @Test
@@ -173,9 +178,12 @@ class SquircleShapeTest {
     }
 
     @Test
-    fun `concentric radius subtracts the gap and never goes negative`() {
-        assertEquals(24.dp, squircleConcentric(34.dp, 10.dp))
-        assertEquals(0.dp, squircleConcentric(34.dp, 60.dp))
+    fun `concentric radius subtracts the gap in box space and never goes negative`() {
+        // Corner boxes are EXTENT x radius, so a child inset by `gap` needs a radius smaller by
+        // gap / EXTENT — not by the gap itself. 34 - 10/1.6 = 27.75.
+        val expected = (34f - 10f / Squircle.EXTENT).dp
+        assertEquals(expected, squircleConcentric(34.dp, 10.dp))
+        assertEquals("a gap wider than the corner collapses it", 0.dp, squircleConcentric(34.dp, 60.dp))
     }
 
     @Test

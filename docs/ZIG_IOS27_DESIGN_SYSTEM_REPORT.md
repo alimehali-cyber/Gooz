@@ -108,7 +108,8 @@ Scale (default size): Large Title 34, Title 1 28, Title 2 22, Title 3 20, Headli
 ### 3.2b Corner geometry: squircle everywhere
 
 Every rounded rectangle in the app is a **squircle** — Lamé's superellipse
-`|x/a|ⁿ + |y/a|ⁿ = 1` at **n = 5** — not a circular-arc round rect.
+`|x/a|ⁿ + |y/a|ⁿ = 1` at **n = 4** (the squircle proper), expanded to a corner box of
+**1.6 ×** the nominal radius — not a circular-arc round rect.
 
 A `RoundedCornerShape` corner is an arc: curvature jumps from `0` on the straight edge to `1/r` at
 the join. That is a G1 join, and it is the small roughness the eye picks up in a screen full of
@@ -127,23 +128,29 @@ and back — a G2 join — so the corner reads as one curve instead of "a rectan
 Accuracy, measured against the analytic curve on the unit corner box and asserted on every build by
 `SquircleGeometryTest`:
 
-- maximum positional deviation **0.0081 % of r** (0.012 px at 40 dp on a 3x display);
-- curvature continuity at the internal joins to single-precision noise;
+- maximum positional deviation **0.0098 % of the corner box** (0.02 px at 40 dp on a 3x display);
+- curvature continuity at the internal joins to single-precision noise (`< 3e-6` relative);
 - curvature **exactly 0** where the corner meets an edge, so the edge join is G2 too.
 
-**Weight.** Two dials set how heavy a corner reads, and both were pushed up together when the design
-asked for heavier corners:
+**Weight.** A corner has two independent properties, and only one of them is what makes it read as
+*curved*:
 
-| Dial | Before | After | Effect |
+| Dial | Meaning | Shipped value | Effect |
 |---|---|---|---|
-| `Squircle.EXPONENT` | 4 | 5 | curvature at the 45° point 2.5227 → 3.2490 (+28.8 %); diagonal crossing 0.8409 r → 0.8706 r |
-| `RedCornerRadius.window` | 34 dp | 40 dp | +18 % radius on every card, sheet and window |
+| `Squircle.EXTENT` | how far the curve **reaches** along each edge, as a multiple of the radius | **1.6** | Apple's `cornerCurveExpansionFactor(.continuous)` is 1.528665; 1.6 is that plus ~5 % |
+| `Squircle.EXPONENT` | how fast it **turns** | **4** (Lamé's squircle proper) | curvature 2.5227 / r at the 45° point; diagonal crossing 0.8409 r of the corner box |
+| `RedCornerRadius.window` | nominal radius | **40 dp** | the curve runs *1.345 r* from the edge, i.e. 54 dp along each side |
 
-The exponent is what makes the corner *stronger* at a fixed radius: the curve still runs the whole
-radius along each edge, but it holds the edge longer and turns later, so more of the corner's mass
-sits out near the box corner. Raising the radius is what makes it *bigger*. Doing only one of the two
-was the earlier, lighter reading of the design; doing both is what shipped. `n = 5` is the ceiling —
-by `n ≈ 6` a corner reads as a clipped box rather than a curve.
+Reach is the dial that buys curvature: a circle stops reaching at `1.0 r`, so the straight edge ends
+abruptly; a continuous corner reaches well past its radius, spreads the turn over a longer run, and
+the eye reads a curve. Raising the exponent instead — the earlier, lighter reading — packs the turn
+into the last part of that run and makes the corner *tighter and squarer*, not rounder. The exponent
+therefore stays at `n = 4`, where the family is the squircle proper and the curve is genuinely
+circular-ish through the diagonal rather than a chamfer with a fillet.
+
+The arithmetic is what makes it visible. On a 158 dp card a 40 dp radius at 1.6 × reach removes
+`2 × 64 = 128 dp` of straight edge, leaving **30 dp of flat edge per side**: the card is essentially
+four continuous corners meeting each other, which is the shape the design asked for.
 
 **Capsules are the one exception.** A capsule is a rectangle whose radius has reached half its short
 side; its ends are semicircular by definition. Smoothing them would visibly flatten every pill, badge

@@ -60,6 +60,7 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
 import com.alijafari.red.astronomy.ui.components.EclipseRender
+import com.alijafari.red.astronomy.ui.components.EclipseWindow
 import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
 import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
 import com.alijafari.red.astronomy.ui.components.SkyCanvasPresentation
@@ -350,7 +351,7 @@ fun HomeScreen(
                     sunHoriz = moonCardSunHoriz,
                     nextEclipse = heroEclipse,
                     onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
-                    onOpenEclipse = { eclipse -> selectedEclipseResult = eclipse },
+                    onOpenEclipses = { viewModel.setShowEclipseWindow(true) },
                     onOpenSearch = { isSearchOpen = true }
                 )
             }
@@ -539,6 +540,20 @@ fun HomeScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onDismiss = { viewModel.setShowSkyViewer(false) }
+            )
+        }
+
+        // 6. ECLIPSES — both families, the next three of each, and the full window for any one of them.
+        //    Same reason as the sky viewer for living in the ViewModel: it is a full-screen window, and a
+        //    configuration change must not be able to close it.
+        if (uiState.showEclipseWindow) {
+            EclipseWindow(
+                solarEclipses = nextSolarEclipses,
+                lunarEclipses = nextLunarEclipses,
+                language = uiState.language,
+                userLocation = uiState.userLocation,
+                initialFamily = heroEclipse?.event?.type,
+                onDismiss = { viewModel.setShowEclipseWindow(false) }
             )
         }
     }
@@ -1078,7 +1093,7 @@ private fun HomeSkyHero(
     sunHoriz: CoordinateEngine.Horizontal,
     nextEclipse: EclipseEngine.EclipseResult?,
     onScrubDays: (Float) -> Unit,
-    onOpenEclipse: (EclipseEngine.EclipseResult) -> Unit,
+    onOpenEclipses: () -> Unit,
     onOpenSearch: () -> Unit
 ) {
     // The gap between the two cards. The pair is inset by the same gutter as the rest of the feed, so the
@@ -1303,11 +1318,11 @@ private fun HomeSkyHero(
                     .fillMaxHeight()
             )
 
-            // The next eclipse, drawn for its own type; tapping opens the eclipse window.
+            // The next eclipse, rendered for its own type; tapping opens the Eclipses screen.
             EclipseHeroCard(
                 eclipse = nextEclipse,
                 isFa = isFa,
-                onClick = { nextEclipse?.let(onOpenEclipse) },
+                onClick = onOpenEclipses,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
@@ -1367,13 +1382,14 @@ private fun MoonPhaseCard(
 }
 
 /**
- * The eclipse card: the next eclipse, drawn for whichever kind it is, on the same square glass tile as
- * the Moon beside it.
+ * The eclipse card: the next eclipse, rendered for whichever kind it is, on the same square glass tile
+ * as the Moon beside it.
  *
- * Tapping it opens the eclipse window — the same [EclipseDetailModal] the "Upcoming Eclipses" list opens,
- * for the same eclipse, so the card is a second way into one place rather than a second place. When the
- * ephemeris has no eclipse to offer the tile still renders (a total solar eclipse, the reference image
- * for the family) but stops being clickable, so it can never open an empty window.
+ * Tapping it opens the Eclipses screen ([EclipseWindow]) — both families, the next three of each, and
+ * the full window for any single eclipse. The tile is the way in; the screen is where you decide which
+ * one you care about. When the ephemeris has no eclipse to offer, the tile still renders (a total solar
+ * eclipse — the phenomenon the family is named for) but stops being clickable, so it can never open an
+ * empty screen.
  */
 @Composable
 private fun EclipseHeroCard(
@@ -1383,10 +1399,6 @@ private fun EclipseHeroCard(
     modifier: Modifier = Modifier
 ) {
     val type = eclipse?.event?.type ?: EclipseEngine.EclipseType.TOTAL_SOLAR
-    // The event's own magnitude — the fraction of the disc covered — is what the picture needs; the
-    // locally visible obscuration would describe the wrong thing on a card that is not about this
-    // observer's sky.
-    val magnitude = (eclipse?.event?.magnitude ?: 1.0).toFloat()
     val description = when {
         eclipse != null -> if (isFa) eclipse.localNameFa else eclipse.localNameEn
         isFa -> "خورشیدگرفتگی"
@@ -1402,7 +1414,6 @@ private fun EclipseHeroCard(
     ) {
         EclipseRender(
             type = type,
-            magnitude = magnitude,
             contentDescription = description,
             modifier = Modifier
                 .fillMaxSize()
