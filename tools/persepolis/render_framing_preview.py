@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-Render a framing diagram of the Persepolis landscape in the Home scene.
+Render a framing diagram of the combined landscape in the Home scene.
 
-This is NOT a screenshot and does not pretend to be one: the ruin's real
-render is the ~140k-triangle GL model on device. What this draws is the
-model's *massing* — every frame, jamb and column from Persepolis.kt's
-element tables as a flat-shaded block — projected through the model's own
-fixed camera (verify_framing.projector) with PersepolisFraming's numbers,
-over the Home scene's ground stack (ridges, mist, ground, and the localized
-earthwork around the platform footprint) replicated from
-SceneGroundRenderer. It exists so the composition can be eyeballed — the
-ruin at half size in the left distance, skyline against the sky, platform
-in the ground band, readout clear of stone — without a device.
+This is NOT a screenshot and does not pretend to be one: the real render is
+the ~149k-triangle GL model on device. What this draws is the model's
+*massing* — every Persepolis frame, jamb and column from the combined
+file's element tables, plus the Mil-e Azhdaha tower and the nine fixed
+sheets of its limestone slope, as flat-shaded blocks — projected through
+the model's own fixed camera (verify_framing.projector) with
+PersepolisFraming's numbers, over the Home scene's ground stack (ridges,
+mist, ground, and the localized earthwork around both footprints)
+replicated from SceneGroundRenderer. It exists so the composition can be
+eyeballed — Persepolis at half size in the left distance, the tower near
+the middle, its slope grounded in the field, and the readout clear of
+stone — without a device.
 
 Requires Pillow. Run from the repo root:
     python3 tools/persepolis/render_framing_preview.py
@@ -67,7 +69,25 @@ def rect_xz(draw, x0, x1, y0, y1, z, fill):
     quad(draw, [(x0, y0, z), (x1, y0, z), (x1, y1, z), (x0, y1, z)], fill)
 
 
-# Element tables from Persepolis.kt (massing only).
+def mil_box(draw, cx, cz, y0, y1, width, depth, front, side, top):
+    """A Mil-local box through the combined file's baked group transform.
+
+    Only the camera-facing left/front faces and the top are massed; that is
+    enough for a framing diagram and keeps the slope sheets readable.
+    """
+    x0, x1 = cx - width / 2.0, cx + width / 2.0
+    z0, z1 = cz - depth / 2.0, cz + depth / 2.0
+    corners = [
+        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+    ]
+    world = [vf.mil_transform(p) for p in corners]
+    quad(draw, [world[0], world[4], world[7], world[3]], side)    # left
+    quad(draw, [world[4], world[5], world[6], world[7]], front)   # front
+    quad(draw, [world[3], world[2], world[6], world[7]], top)     # top
+
+
+# Element tables from the combined file's Persepolis builder (massing only).
 FRAMES = [  # x, z, w, h, opening, baseY, breakRight, window
     (-39.7, 4.9, 4.9, 5.6, 1.9, 2.85, 1.0, False),
     (-25.6, -3.4, 6.1, 10.4, 2.15, 4.35, 1.0, False),
@@ -94,6 +114,12 @@ COLUMNS = [  # x, z, total height above platform (approx from the file's tables)
     (26.2, -2.0, 19.2, True), (29.3, -2.8, 15.7, True), (32.4, -8.6, 6.7, False),
     (36.9, -2.2, 8.4, True), (39.3, -8.4, 8.6, True), (2.9, -8.8, 4.2, False),
 ]
+
+# The combined scene bakes Persepolis 9.7 m left before rendering.
+PERSEPOLIS_X = -9.7
+FRAMES = [(x + PERSEPOLIS_X, *rest) for x, *rest in FRAMES]
+JAMBS = [(x + PERSEPOLIS_X, *rest) for x, *rest in JAMBS]
+COLUMNS = [(x + PERSEPOLIS_X, *rest) for x, *rest in COLUMNS]
 
 
 def ridge_points(baseline, amplitude, phase, waves, detail):
@@ -134,9 +160,10 @@ def main():
         t = (y - GROUND_TOP) / (H - GROUND_TOP)
         d.line([(0, y), (W, y)], fill=lerp((62, 72, 52), (12, 18, 14), t))
 
-    # Localized earthwork around the footprint (SceneGroundRenderer.drawPersepolisGrounding):
-    # an irregular worn-earth apron tailing past the platform's right end, a bank, a broken
-    # contact shadow under the stone only, drift hummocks and debris flecks.
+    # Localized earthwork around both footprints
+    # (SceneGroundRenderer.drawCombinedLandscapeGrounding): an irregular worn-earth apron
+    # tailing past the slope's right side, limestone dust and contact shadows under both the
+    # platform toe and slope front, drift hummocks and debris flecks.
     def rnd(seed):
         v = math.sin(seed * 12.9898) * 43758.5453
         return v - math.floor(v)
@@ -152,8 +179,11 @@ def main():
             )
 
     plat_l, plat_r = FRAMING["platform_left_x"], FRAMING["platform_right_x"]
+    slope_l, slope_r = FRAMING["mil_slope_left_x"], FRAMING["mil_slope_right_x"]
+    slope_front = min(FRAMING["mil_slope_front_y"], H)
+    combined_r = max(plat_r, slope_r)
     apron_l = max(plat_l - W * 0.030, -W * 0.02)
-    apron_r = min(plat_r + W * 0.175, W * 1.02)
+    apron_r = min(combined_r + W * 0.145, W * 1.02)
     segs = 36
 
     def tail_taper(p):
@@ -180,29 +210,49 @@ def main():
         ))
     d.polygon(apron_pts, fill=(190, 160, 110, 64))
 
-    bank_l = plat_r - (plat_r - plat_l) * 0.16
-    bank_r = plat_r + W * 0.155
+    bank_l = slope_r - (slope_r - slope_l) * 0.42
+    bank_r = slope_r + W * 0.145
     soft_drift(
         (bank_l + bank_r) / 2,
-        min(TOE_Y + H * 0.028, H),
+        min((TOE_Y + slope_front) / 2 + H * 0.024, H),
         bank_r - bank_l,
-        H * 0.068,
-        peak_alpha=0.30,
+        H * 0.064,
+        peak_alpha=0.29,
         layers=16,
         rgb=(183, 154, 108),
     )
+    soft_drift(
+        (slope_l + slope_r) / 2,
+        min(slope_front + H * 0.016, H),
+        (slope_r - slope_l) * 1.14,
+        H * 0.038,
+        peak_alpha=0.20,
+        layers=14,
+        rgb=(196, 168, 118),
+    )
 
-    shadow_pts = [(max(plat_l, -W * 0.01), TOE_Y - H * 0.003), (min(plat_r + W * 0.018, W), TOE_Y - H * 0.002)]
+    shadow_l = max(plat_l, -W * 0.01)
+    shadow_r = min(combined_r + W * 0.018, W)
+    shadow_pts = [(shadow_l, TOE_Y - H * 0.003), (shadow_r, TOE_Y - H * 0.002)]
     for i in range(32, -1, -1):
         p = i / 32
         depth = 0.018 + 0.005 * math.sin(p * math.pi * 6 + 0.8) + 0.002 * math.sin(p * math.pi * 11 + 2.2)
         shadow_pts.append((
-            max(plat_l, -W * 0.01) + (min(plat_r + W * 0.018, W) - max(plat_l, -W * 0.01)) * p,
+            shadow_l + (shadow_r - shadow_l) * p,
             min(TOE_Y + H * depth, H),
         ))
     d.polygon(shadow_pts, fill=(0, 0, 0, 58))
+    soft_drift(
+        (slope_l + slope_r) / 2,
+        min(slope_front + H * 0.004, H),
+        (slope_r - slope_l) * 1.06,
+        H * 0.024,
+        peak_alpha=0.26,
+        layers=14,
+        rgb=(0, 0, 0),
+    )
     for i in range(7):
-        rw_ = (plat_r - plat_l) * (0.13 + rnd(i * 23.7 + 5.7) * 0.16)
+        rw_ = (combined_r - plat_l) * (0.13 + rnd(i * 23.7 + 5.7) * 0.16)
         rh_ = H * (0.010 + rnd(i * 31.3 + 0.5) * 0.018)
         cx = apron_l + (apron_r - apron_l) * (0.08 + 0.84 * ((i + rnd(i * 17.1 + 10.1) * 0.8) / 7))
         cy = TOE_Y + H * (0.012 + rnd(i * 23.7 + 5.7) * 0.055)
@@ -214,12 +264,14 @@ def main():
         d.line([(x, y), (x + ln, y + (rnd(i * 41.0 + 21.1) - 0.5) * ln * 0.35)],
                fill=(205, 178, 126, 90), width=2)
 
-    # Platform fronts + floor.
-    rect_xz(d, -62, 62, 0.5, 2.6, 7.25, lerp(PLATFORM_TONE, (90, 76, 58), 0.25))       # lower front wall
-    rect_xz(d, -60, 60, 2.85, 4.35, 4.24, lerp(PLATFORM_TONE, (90, 76, 58), 0.12))     # upper front
-    quad(d, [(12, 0.5, 7.25), (43.5, 0.5, 7.25), (43.5, 2.6, 7.25), (36, 4.35, 7.25), (12, 4.35, 7.25)],
+    # Cut-back platform fronts + floor (world x includes the -9.7 m bake).
+    rect_xz(d, -56.17, 39.50, 0.5, 2.6, 7.25, lerp(PLATFORM_TONE, (90, 76, 58), 0.25))
+    rect_xz(d, -55.77, 39.10, 2.85, 4.35, 4.24, lerp(PLATFORM_TONE, (90, 76, 58), 0.12))
+    quad(d, [(2.3, 0.5, 7.25), (33.8, 0.5, 7.25), (33.8, 2.6, 7.25),
+             (26.3, 4.35, 7.25), (2.3, 4.35, 7.25)],
          lerp(PLATFORM_TONE, (240, 170, 110), 0.12))                                    # stair facade
-    quad(d, [(-62, 4.35, 4.7), (62, 4.35, 4.7), (62, 4.35, -13), (-62, 4.35, -13)],
+    quad(d, [(-56.38, 4.35, 4.7), (39.70, 4.35, 4.7),
+             (39.70, 4.35, -13), (-56.38, 4.35, -13)],
          lerp(PLATFORM_TONE, (255, 220, 170), 0.25))                                    # platform floor
 
     # Structures, far to near.
@@ -247,9 +299,28 @@ def main():
     items += [(j[1], lambda j=j: rect_xz(d, j[0] - j[2] / 2, j[0] + j[2] / 2, 4.35, 4.35 + j[3], j[1],
                                           depth_tone(STONE_DARK, j[1]))) for j in JAMBS]
     items += [(c[1], lambda c=c: draw_column(c)) for c in COLUMNS]
-    items.append((-11.7, lambda: rect_xz(d, 27, 42.5, 4.35, 8.05, -11.7, depth_tone(STONE, -11.7))))
+    items.append((-11.7, lambda: rect_xz(d, 17.3, 32.8, 4.35, 8.05, -11.7, depth_tone(STONE, -11.7))))
     for _, fn in sorted(items, key=lambda it: it[0]):
         fn()
+
+    # Mil-e Azhdaha: the nine fixed limestone sheets, far to near, then the
+    # tower's socle/shaft/ruined top. All points go through the same baked
+    # scale/yaw/translation and fixed camera as the GL scene.
+    slope_boxes = sorted(
+        vf.MIL_SLOPE_BOXES,
+        key=lambda b: vf.mil_transform((b[0], b[1], b[2]))[2],
+    )
+    for cx, cy, cz, sx, sy, sz in slope_boxes:
+        mil_box(
+            d, cx, cz, cy - sy / 2.0, cy + sy / 2.0, sx, sz,
+            front=(126, 115, 94), side=(106, 98, 82), top=(178, 165, 138),
+        )
+    mil_box(d, 0, 0, 0.0, 1.0, 4.85, 4.85,
+            front=(142, 132, 112), side=(112, 104, 88), top=(188, 176, 150))
+    mil_box(d, 0, 0, 1.0, 5.7, 3.80, 3.80,
+            front=(174, 162, 136), side=(128, 119, 100), top=(196, 184, 158))
+    mil_box(d, 0, 0, 5.7, 7.45, 3.35, 3.35,
+            front=(160, 149, 126), side=(118, 110, 94), top=(190, 178, 152))
 
     # Annotations.
     try:
@@ -271,6 +342,10 @@ def main():
     label((W - 330, HORIZON_Y - 34), "horizon 0.70")
     dashed_h(TOE_Y, (255, 214, 150, 190))
     label((W - 330, TOE_Y + 8), f"platform toe {FRAMING['base_fraction_from_top']:.2f}")
+    for x in range(int(slope_l), int(slope_r), 34):
+        d.line([(x, slope_front), (min(x + 20, slope_r), slope_front)],
+               fill=(170, 230, 255, 190), width=2)
+    label((slope_l + 10, slope_front + 10), "Mil slope front", small)
 
     readout_bottom = FRAMING["readout_bottom"]
     rx, ry, rw, rh = 60, readout_bottom - 45 * DENSITY, 690, 45 * DENSITY
@@ -286,8 +361,11 @@ def main():
     col_x, col_y = px(vf.TALLEST_COLUMN_TOP)
     label((col_x + 18, col_y + 6), "19.2 m column", small)
 
-    label((36, H - 74), "Framing diagram: half scale, left distance; massing via PersepolisScene's camera.", small)
-    label((36, H - 44), "On device, the GL layer renders the full procedural relief.", small)
+    tower_x, tower_y = px(vf.MIL_TOWER_TOP)
+    label((tower_x + 42, tower_y + 4), "Mil-e Azhdaha", small)
+
+    label((36, H - 74), "Framing diagram: Persepolis in left distance; Mil tower and slope at centre.", small)
+    label((36, H - 44), "Massing via the combined model's camera; on device, GL renders the full relief.", small)
 
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "docs", "persepolis-framing.png")
     img.save(os.path.normpath(out))

@@ -3,36 +3,36 @@ package com.alijafari.red.astronomy.ui.persepolis
 // ============================================================================
 // ZIG INTEGRATION NOTE (the only changes from the file as supplied)
 // ----------------------------------------------------------------------------
-// This file is integrated exactly as provided — same procedural geometry,
-// same shaders, same fixed camera, same lighting model — with six changes:
+// This combined Persepolis + Mil-e Azhdaha file is integrated exactly as
+// provided — same procedural geometry, same shaders, same fixed camera,
+// same combined-scene transforms and same lighting model — with six changes:
 //
 //  1. The package line above (as the original first line instructed).
-//  2. [PersepolisScene.init] first drops GL resource names left over from a
-//     dead EGL context (see the guard there). Without it, recreating the
-//     surface — which happens whenever Home's LazyColumn disposes and later
-//     recomposes the scene item — would append a second set of chunks and
-//     draw stale buffer names from the previous context.
-//  3. The CPU-side mesh arrays are built once per process and memoised (see
-//     PersepolisScene.meshArrays). buildScene() is deterministic (fixed LCG
-//     seed), so the cached arrays are bit-identical to a fresh build; only
-//     the VBO upload repeats per GL context. This keeps the ruin's return
-//     after a scroll-back-to-top near-instant instead of re-running the
-//     full ~140k-triangle build on the GL thread.
-//  4. [PersepolisView] preserves its EGL context on pause, so backgrounding
-//     the app does not force a VBO re-upload when the context survives.
-//     Change 2 covers the devices where preservation fails.
+//  2. [PersepolisMilAzhdahaScene.init] first drops GL resource names left
+//     over from a dead EGL context (see the guard there). Without it,
+//     recreating the surface — which happens whenever Home's LazyColumn
+//     disposes and later recomposes the scene item — would append second
+//     sets of chunks and draw stale buffer names from the previous context.
+//  3. The CPU-side mesh arrays for both monument groups are built and
+//     transformed once per process and memoised (see the scene's companion
+//     object). Both builders are deterministic (fixed LCG seed per
+//     MeshBuilder), so the cached arrays are bit-identical to fresh builds;
+//     only the VBO uploads repeat per GL context.
+//  4. [PersepolisMilAzhdahaView] preserves its EGL context on pause, so
+//     backgrounding the app does not force VBO re-uploads when the context
+//     survives. Change 2 covers the devices where preservation fails.
 //  5. The renderer is hosted through the OpenGL ES 3.0 Android API and an
-//     ES 3.0 EGL context. The shader source and all rendering operations are
-//     otherwise unchanged; this only follows the app's renderer policy.
-//  6. [PersepolisScene.centerFractionFromLeft] adds an optional horizontal
-//     offset to the orthographic window. Its 0.5 default is the supplied
-//     centred framing; ZIG passes 0.30 to place the unchanged fixed-camera
-//     model in the left distance of the Home landscape.
+//     ES 3.0 EGL context. The shader sources and all rendering operations
+//     are otherwise unchanged; this only follows the app's renderer policy.
+//  6. [PersepolisMilAzhdahaScene.centerFractionFromLeft] adds an optional
+//     horizontal offset to the orthographic window. Its 0.5 default is the
+//     supplied centred framing; ZIG passes 0.30 to place the unchanged
+//     fixed-camera group in the left distance of the Home landscape.
 //
-// Hosting, framing and the Sun/Moon feed live outside this file:
-// see PersepolisLandscape (Compose host) and
-// com.alijafari.red.astronomy.ui.rendering.PersepolisFraming (placement math),
-// and docs/PERSEPOLIS_LANDSCAPE.md for the full integration record.
+// Hosting, framing and the Sun/Moon feed live outside this file: see
+// PersepolisLandscape (Compose host) and
+// com.alijafari.red.astronomy.ui.rendering.PersepolisFraming (placement
+// math), and docs/PERSEPOLIS_LANDSCAPE.md for the integration record.
 // ============================================================================
 
 import android.content.Context
@@ -58,22 +58,28 @@ import kotlin.math.sqrt
 
 /**
  * ============================================================================
- * PERSEPOLIS — Apadana east façade as a lit 3D landscape feature for Android.
+ * PERSEPOLIS + MIL-E AZHDaha — the Apadana east façade and the Nurabad
+ * fire-temple tower in ONE fixed, lit 3D landscape frame for Android.
  * ============================================================================
  * Single self-contained Kotlin file. Dependencies: Android SDK only
  * (OpenGL ES 3.0; see integration change 5 above). No WebView, no Filament/SceneView, no model assets —
  * the geometry is generated procedurally below into static VBOs
- * (139,517 triangles / 146,793 vertices, measured; split into ≤60k-vertex
- * chunks — three at this count — so plain 16-bit indices work everywhere), so
+ * (Persepolis 138,845 triangles / 145,449 vertices + the tower group
+ * with its hillside 10,140 / 20,043 = 148,985 triangles / 165,492 vertices
+ * total, measured;
+ * split into ≤60k-vertex chunks so plain 16-bit indices work everywhere), so
  * the per-frame cost is a few draw calls and the view can render strictly
  * on demand ([GLSurfaceView.RENDERMODE_WHEN_DIRTY]) whenever your
  * astronomy engine moves the Sun or Moon. Ideal for a live-sky app:
  * zero battery cost between updates.
  *
- * The companion file `persepolis_preview.html` contains the same geometry
- * builder and the same GLSL ported to WebGL — what you see there
+ * The companion file `persepolis_mil_azhdaha_preview.html` contains the
+ * same geometry builders and the same GLSL ported to WebGL — what you see there
  * (sunrise / noon / sunset / moonlight, transparent background) is what
- * this file draws, modulo the framing default (see [PersepolisScene]).
+ * this file draws, modulo the framing default (see [PersepolisMilAzhdahaScene]).
+ * The standalone pairs (`Persepolis.kt`, `MilAzhdaha.kt` + their HTML previews)
+ * keep each monument separate at true scale; only in this combined file is
+ * the tower enlarged ≈2× and set into the Persepolis forecourt (below).
  *
  * WHAT IS MODELLED (one fixed view from the south-east, as photographed)
  * ------------------------------------------------------------------------
@@ -87,6 +93,22 @@ import kotlin.math.sqrt
  *                        registers, lion-and-bull end panel and four-stepped
  *                        crenellations;
  *  across the front    : the two-tier ashlar platform and its small portal.
+ *
+ *  right foreground  : MIL-E AZHDaha (the Nurabad tower, Fars) — the square
+ *                        stone fire-temple/ossuary tower on its three-course
+ *                        stepped socle (4.85 / 4.55 / 4.30 m), nine shaft
+ *                        courses (3.92 m, then 3.86 m, then a constant 3.80 m
+ *                        wide from the third course to the top, exactly as
+ *                        the photographs show), its small south door
+ *                        (≈0.6 × 1.1 m, sill ≈2.5 m up) opening onto the
+ *                        wall-thickness stair, and the ruined top transcribed
+ *                        from the photographs; rubble, fallen blocks and dry
+ *                        scrub at its foot. Modelled at true scale in
+ *                        `MilAzhdaha.kt`; here the tower group is enlarged
+ *                        2.04× (≈15.2 m tall, brought 20 % forward) for this composition,
+ *                        standing on a slice of its limestone hillside (milSlope) in front of the platform's
+ *                        east wall near the Apadana stair, turned slightly
+ *                        (≈11°) toward the façade.
  *
  * World axes (metres): +X = north (image right), +Y = up, +Z = east
  * (toward the fixed camera). The camera never moves: orthographic view
@@ -102,7 +124,7 @@ import kotlin.math.sqrt
  * demand); depth occlusion between elements is real, and contact shading
  * is baked into vertex colours (grooves, joints, recesses, incised relief
  * outlines). If you later need true column shadows, a shadow-map pass can
- * be added around [PersepolisScene.draw] without touching the geometry.
+ * be added around [PersepolisMilAzhdahaScene.draw] without touching the geometry.
  *
  * DIMENSIONS — research anchors (X/Y at true scale; Z depth compressed)
  * ----------------------------------------------------------------------
@@ -163,46 +185,53 @@ import kotlin.math.sqrt
  * and the lighting behaviour (east faces lit at sunrise, south faces
  * at noon, backlit silhouette at sunset) are correct; do not orbit it.
  *
+ * The Mil-e Azhdaha tower in reality stands alone near Nurabad (Mamajianchi,
+ * Fars), far from Persepolis; the two share this frame purely as twin
+ * landscape landmarks for the app, at the composition scale noted above.
+ *
  * Sources: Encyclopaedia Iranica, "Persepolis" & "Apadāna" & "Capitals" &
  * "Columns" (iranicaonline.org); UNESCO WHC 114 (whc.unesco.org/en/list/114);
  * Achaemenica, "Persepolis" & "The Apadana Reliefs" (achaemenica.org);
  * Smarthistory, "Persepolis: The Audience Hall of Darius and Xerxes".
+ * Mil-e Azhdaha: Ghirshman, "La tour de Nourabad" (Syria 24, 1944); Huff,
+ * "Nurabad, Dum-i Mil" (AMI 8, 1975); Wikidata Q5950677 — and measured
+ * throughout against the reference photographs.
  *
  * INTEGRATION (astronomy app, Kotlin)
  * -----------------------------------
- * Option A — transparent overlay view (simplest). Put [PersepolisView] as
+ * Option A — transparent overlay view (simplest). Put [PersepolisMilAzhdahaView] as
  * the top child of the FrameLayout that holds your sky, e.g. in XML:
  *
- *   <com.example.astronomy.PersepolisView
- *       android:id="@+id/persepolis"
+ *   <com.example.astronomy.PersepolisMilAzhdahaView
+ *       android:id="@+id/persepolis_mil_azhdaha"
  *       android:layout_width="match_parent"
  *       android:layout_height="240dp"
  *       android:layout_gravity="bottom" />
  *
  * then, whenever your ephemeris updates (and in onResume):
  *
- *   persepolisView.setSun(azimuthDeg = sunAzimuthDeg, altitudeDeg = sunAltitudeDeg)
- *   persepolisView.setMoon(azimuthDeg = moonAzimuthDeg, altitudeDeg = moonAltitudeDeg)
+ *   persepolisMilAzhdahaView.setSun(azimuthDeg = sunAzimuthDeg, altitudeDeg = sunAltitudeDeg)
+ *   persepolisMilAzhdahaView.setMoon(azimuthDeg = moonAzimuthDeg, altitudeDeg = moonAltitudeDeg)
  *
  * Azimuth uses the astronomical convention 0°=N, 90°=E, 180°=S, 270°=W —
  * exactly what an ephemeris produces, no conversion needed. [setSun]
  * derives colour/intensity/ambient from altitude automatically (warm low
  * sun, twilight fade below the horizon, dim blue night ambient), so one
- * call per update is enough; [PersepolisScene.setSunLight] and
- * [PersepolisScene.setAmbient] exist if you want full control.
- * Forward the lifecycle: persepolisView.onPause()/onResume() from the
+ * call per update is enough; [PersepolisMilAzhdahaScene.setSunLight] and
+ * [PersepolisMilAzhdahaScene.setAmbient] exist if you want full control.
+ * Forward the lifecycle: persepolisMilAzhdahaView.onPause()/onResume() from the
  * Activity/Fragment. The view is non-clickable/non-focusable and renders
  * one frame per light change (RENDERMODE_WHEN_DIRTY) — call it on your
  * normal sky-refresh cadence; redundant calls are cheap.
  * Choose the view's aspect ≲ 3.6 : 1 (width:height) for the default
- * framing; wider/shorter strips auto-fit (see [PersepolisScene.draw])
+ * framing; wider/shorter strips auto-fit (see [PersepolisMilAzhdahaScene.draw])
  * by zooming out rather than cropping the columns.
  *
  * Option B — draw inside your existing GL renderer (best if your sky is
  * itself a SurfaceView/GLSurfaceView). On the GL thread: create a
- * [PersepolisScene], call [PersepolisScene.init] in onSurfaceCreated,
- * [PersepolisScene.draw] with your viewport size each frame after the
- * sky, and [PersepolisScene.release] when the context goes away. The
+ * [PersepolisMilAzhdahaScene], call [PersepolisMilAzhdahaScene.init] in onSurfaceCreated,
+ * [PersepolisMilAzhdahaScene.draw] with your viewport size each frame after the
+ * sky, and [PersepolisMilAzhdahaScene.release] when the context goes away. The
  * light/framing setters are thread-safe and may be called from any
  * thread. Note draw() does not clear colour (your sky is the clear);
  * it does need a depth buffer and leaves depth-test/culling enabled.
@@ -211,8 +240,8 @@ import kotlin.math.sqrt
 private const val PLATFORM_Y = 4.35f   // top of upper platform slab (structures sit here)
 private const val FRONT_Z = 7.25f      // east face of lower platform / stair cheek
 
-/** Linear-ish stone palette. Indices are used throughout the builder. */
-private val PAL: Array<FloatArray> = arrayOf(
+/** Persepolis stone palette (indices used by [buildPersepolisScene]). */
+private val PAL_P: Array<FloatArray> = arrayOf(
     floatArrayOf(0.63f, 0.60f, 0.53f), // 0 limestone light (bright grey local stone)
     floatArrayOf(0.52f, 0.49f, 0.43f), // 1 limestone mid
     floatArrayOf(0.38f, 0.38f, 0.37f), // 2 dark grey frame stone (Majdabad limestone)
@@ -228,6 +257,26 @@ private val PAL: Array<FloatArray> = arrayOf(
 // ============================================================================
 // Growable primitive buffers (avoid boxing ~450k floats during the build)
 // ============================================================================
+
+/** Mil-e Azhdaha stone palette (photo-scanned warm limestone; indices used
+ *  by [buildMilLocalScene] — copied from MilAzhdaha.kt). */
+private val PAL_M: Array<FloatArray> = arrayOf(
+    floatArrayOf(0.64f, 0.43f, 0.20f), // 0 limestone light (warm beige, photo-scanned)
+    floatArrayOf(0.53f, 0.34f, 0.15f), // 1 limestone mid
+    floatArrayOf(0.38f, 0.38f, 0.37f), // 2 dark grey frame stone (Majdabad limestone)
+    floatArrayOf(0.20f, 0.19f, 0.18f), // 3 recess / shadow gap
+    floatArrayOf(0.70f, 0.49f, 0.24f), // 4 pale relief stone
+    floatArrayOf(0.46f, 0.30f, 0.13f), // 5 rubble
+    floatArrayOf(0.58f, 0.41f, 0.21f), // 6 platform / bedrock
+    floatArrayOf(0.56f, 0.35f, 0.14f), // 7 eroded warm-brown lower stone
+    floatArrayOf(0.72f, 0.63f, 0.44f), // 8 wind-blown sand / settled dust
+    floatArrayOf(0.32f, 0.26f, 0.19f), // 9 weather stain / spall scar
+    floatArrayOf(0.24f, 0.31f, 0.15f), // 10 dry scrub
+)
+
+/** Active palette: [MeshBuilder] reads this; each top-level builder selects
+ *  its own monument's palette first (mesh building is single-threaded). */
+private var PAL: Array<FloatArray> = PAL_P
 
 private class FloatBag(capacity: Int = 1 shl 16) {
     var data = FloatArray(capacity); private set
@@ -592,7 +641,9 @@ private fun ashlar(
         var x = x0 + (if (r % 2 != 0) -bw * 0.5f else 0f)
         while (x < x1 - 0.3f) {
             val w = min(bw * b.rr(0.85f, 1.15f), x1 - x - 0.05f)
-            b.box(x + w / 2f, y, zFront - 0.09f, w - 0.06f, hh, 0.18f, pal)
+            var bx = x; var bw2 = w
+            if (bx < x0) { bw2 = w - (x0 - bx); bx = x0 }   // bonded end: stagger lead-in clipped flush at the wall end
+            b.box(bx + bw2 / 2f, y, zFront - 0.09f, bw2 - 0.06f, hh, 0.18f, pal)
             x += w
         }
     }
@@ -1078,17 +1129,21 @@ private val COLUMNS: Array<ColumnSpec> = arrayOf(
     ColumnSpec(2.9f, -8.8f, 2.4f, 0, 0f),
 )
 
-private fun buildScene(): MeshBuilder {
+private fun buildPersepolisScene(): MeshBuilder {
+    PAL = PAL_P   // combined scene: Persepolis palette
     val b = MeshBuilder()   // RNG re-seeded in its constructor → identical every build
 
     fun pts(vararg xy: Float): Array<FloatArray> = Array(xy.size / 2) { i -> floatArrayOf(xy[2 * i], xy[2 * i + 1]) }
 
-    /* ---- terraces / platform (a real floor ~24 m deep, read at the angle) ---- */
-    b.box(0f, 0.25f, -1f, 132f, 0.5f, 24f, 6)                                                    // forecourt plinth slab (ends run off-frame)
-    ashlar(b, -62f, 62f, 0.5f, 2.6f, FRONT_Z, 1.4f, 3.1f, 0.72f, 6)                              // lower front wall (podium 2.6 m)
-    b.box(0f, 2.72f, 6.2f, 126f, 0.24f, 3.4f, 6)                                                 // lower ledge
-    b.box(0f, (0.5f + PLATFORM_Y) / 2f, -4.4f, 124f, PLATFORM_Y - 0.5f, 17.2f, 1)                // upper platform body (front z=4.2, back z=-13)
-    b.box(0f, PLATFORM_Y - 0.12f, -4.15f, 126f, 0.24f, 17.7f, 6)                                 // upper slab (front edge z=4.7)
+    /* ---- terraces / platform (a real floor ~24 m deep, read at the angle) ----
+   Combined-scene edit: the platform's empty side wings — beyond the outermost
+   structures/pavement (measured content x −42.6 … +46.0) — are cut back by
+   80 % on each side, so the platform ends show within the frame. */
+    b.box(1.36f, 0.25f, -1f, 97.27f, 0.5f, 24f, 6)                                                    // forecourt plinth slab (empty wings cut back — see note below)
+    ashlar(b, -46.47f, 49.2f, 0.5f, 2.6f, FRONT_Z, 1.4f, 3.1f, 0.72f, 6)                              // lower front wall (podium 2.6 m)
+    b.box(1.36f, 2.72f, 6.2f, 96.07f, 0.24f, 3.4f, 6)                                                 // lower ledge
+    b.box(1.36f, (0.5f + PLATFORM_Y) / 2f, -4.4f, 95.67f, PLATFORM_Y - 0.5f, 17.2f, 1)                // upper platform body (front z=4.2, back z=-13)
+    b.box(1.36f, PLATFORM_Y - 0.12f, -4.15f, 96.07f, 0.24f, 17.7f, 6)                                 // upper slab (front edge z=4.7)
     var jx = -42f
     while (jx <= 42f) {                                                                          // paving-slab joints on the platform top
         b.box(jx, PLATFORM_Y + 0.006f, -4.1f, 0.07f, 0.012f, 17.0f, 3, flatColor = true, shade = 0.85f)
@@ -1096,12 +1151,12 @@ private fun buildScene(): MeshBuilder {
     }
     var jz = -11f
     while (jz <= 4f) {
-        b.box(0f, PLATFORM_Y + 0.006f, jz, 124f, 0.012f, 0.07f, 3, flatColor = true, shade = 0.85f)
+        b.box(1.36f, PLATFORM_Y + 0.006f, jz, 95.67f, 0.012f, 0.07f, 3, flatColor = true, shade = 0.85f)
         jz += 3.2f
     }
     b.box(24f, PLATFORM_Y + 0.05f, -5.0f, 44f, 0.1f, 11.5f, 6)                                   // east-portico pavement under the two column rows
     b.box(24f, PLATFORM_Y + 0.02f, 0.95f, 44f, 0.18f, 0.5f, 1)                                   // its front step edge
-    ashlar(b, -60f, 60f, 2.85f, 4.12f, 4.24f, 0.5f, 2.9f, 0.62f, 1)                               // ashlar facing of upper platform front
+    ashlar(b, -46.07f, 48.8f, 2.85f, 4.12f, 4.24f, 0.5f, 2.9f, 0.62f, 1)                               // ashlar facing of upper platform front
     // Processional frieze + inscription band on the upper platform front
     var fx = -41f; var fi = 0
     while (fx < 10f) {
@@ -1336,6 +1391,532 @@ private fun buildScene(): MeshBuilder {
     return b
 }
 
+
+// ============================================================================
+// Combined-scene helpers: extract a builder range subset, then bake a
+// scale / Y-rotation / translation into a built mesh (Mil-e Azhdaha group).
+// ============================================================================
+
+private const val MIL_GROUP_SCALE = 2.04f
+private const val MIL_GROUP_ROTY = -0.20f
+private const val MIL_GROUP_X = 40.7f
+private const val MIL_GROUP_Y = 1.1f
+private const val MIL_GROUP_Z = 15.6f
+private const val PERSEPOLIS_X = -9.7f   // combined scene: Persepolis pushed to the far left of the frame
+
+private fun extractRanges(b: MeshBuilder, ranges: Array<IntArray>): MeshBuilder {
+    val o = MeshBuilder()
+    val bp = b.pos.data; val bn = b.nor.data; val bc = b.col.data; val bi = b.idx.data
+    for (r in ranges) {
+        val base = o.pos.size / 3
+        for (v in r[0] until r[2]) for (c in 0..2) {
+            o.pos.add(bp[3 * v + c]); o.nor.add(bn[3 * v + c]); o.col.add(bc[3 * v + c])
+        }
+        for (i in r[1] until r[3]) o.idx.add(bi[i] - r[0] + base)
+    }
+    return o
+}
+
+private fun transformMesh(b: MeshBuilder, s: Float, ry: Float, tx: Float, ty: Float, tz: Float): MeshBuilder {
+    val c = cos(ry); val sn = sin(ry)
+    val p = b.pos.data; val n = b.nor.data
+    var i = 0
+    while (i < b.pos.size) {
+        val x = p[i] * s; val y = p[i + 1] * s; val z = p[i + 2] * s
+        p[i] = x * c + z * sn + tx; p[i + 1] = y + ty; p[i + 2] = -x * sn + z * c + tz
+        val nx = n[i]; val nz = n[i + 2]
+        n[i] = nx * c + nz * sn; n[i + 2] = -nx * sn + nz * c
+        i += 3
+    }
+    return b
+}
+
+// ============================================================================
+// Mil-e Azhdaha (Nurabad tower) — builders copied unchanged from
+// MilAzhdaha.kt, except that buildMilLocalScene() returns only the tower +
+// its local foot group (see the extractRanges call at its end). The group is
+// then placed in the Persepolis forecourt by transformMesh() above.
+// ============================================================================
+
+private const val MIL_T = 0.62f                       // wall thickness
+private val MIL_FR: Array<FloatArray> = arrayOf(      // front/back block-joint patterns (rotate by course)
+    floatArrayOf(0f, 0.20f, 0.37f, 0.58f, 0.74f, 0.89f, 1f),
+    floatArrayOf(0f, 0.13f, 0.33f, 0.50f, 0.69f, 0.84f, 1f),
+    floatArrayOf(0f, 0.24f, 0.41f, 0.63f, 0.79f, 1f),
+    floatArrayOf(0f, 0.16f, 0.30f, 0.52f, 0.70f, 0.87f, 1f),
+)
+private val MIL_SD: Array<FloatArray> = arrayOf(      // side-face joint patterns
+    floatArrayOf(0f, 0.25f, 0.47f, 0.66f, 0.83f, 1f),
+    floatArrayOf(0f, 0.18f, 0.40f, 0.60f, 0.80f, 1f),
+)
+private val MIL_F9: Array<FloatArray> = arrayOf(      // front-face joint fractions per shaft course, measured on photos (ci 0 = bottom; ci 6/7 unused — door courses below)
+    floatArrayOf(0f, 0.27f, 0.55f, 0.79f, 1f),
+    floatArrayOf(0f, 0.24f, 0.48f, 0.71f, 0.87f, 1f),
+    floatArrayOf(0f, 0.19f, 0.36f, 0.60f, 0.80f, 1f),
+    floatArrayOf(0f, 0.25f, 0.38f, 0.56f, 0.68f, 0.87f, 1f),
+    floatArrayOf(0f, 0.20f, 0.43f, 0.61f, 0.78f, 0.91f, 1f),
+    floatArrayOf(0f, 0.14f, 0.34f, 0.57f, 0.77f, 0.90f, 1f),
+    floatArrayOf(),
+    floatArrayOf(),
+    floatArrayOf(0f, 0.13f, 0.35f, 0.83f, 1f),        // ci 8 = top course, wide block over door
+)
+private const val MIL_DCX = 0.20f                     // door centre (south face, offset toward the west corner)
+private const val MIL_DW = 0.62f                      // door width
+
+/** One masonry course: four faces of individual blocks (fi: 0 = front/south,
+ *  1 = back, 2 = west, 3 = east), each block carrying a proud dressed face
+ *  slab with its own tone, over a darker block body so joints read as shadow. */
+private fun milCourse(b: MeshBuilder, yb: Float, hh: Float, w: Float, ci: Int) {
+    val jit = if (ci == 0) 0.034f else if (ci < 3) 0.026f else 0.011f   // lower courses laid rougher (photos)
+    val gp = if (ci == 0) 0.040f else if (ci < 3) 0.030f else 0.018f    // mortar gap: hairline joints up top
+    val frP = MIL_FR[ci % 4]
+    val sdP = MIL_SD[ci % 2]
+    fun segs(fr: FloatArray): Array<FloatArray> {
+        val o = ArrayList<FloatArray>()
+        for (i in 0 until fr.size - 1) o.add(floatArrayOf(fr[i], fr[i + 1]))
+        return o.toTypedArray()
+    }
+    val dx0 = MIL_DCX - MIL_DW / 2f
+    val dx1 = MIL_DCX + MIL_DW / 2f
+    val front: Array<FloatArray> = when {
+        ci == 6 -> arrayOf(                           // door courses — doorway left open, joints from photos
+            floatArrayOf(0f, 0.12f), floatArrayOf(0.12f, 0.31f),
+            floatArrayOf(0.31f, dx0 / w + 0.5f), floatArrayOf(dx1 / w + 0.5f, 0.81f),
+            floatArrayOf(0.81f, 1f),
+        )
+        ci == 7 -> arrayOf(
+            floatArrayOf(0f, 0.12f), floatArrayOf(0.12f, 0.33f),
+            floatArrayOf(0.33f, dx0 / w + 0.5f), floatArrayOf(dx1 / w + 0.5f, 0.82f),
+            floatArrayOf(0.82f, 1f),
+        )
+        ci in 0..8 -> segs(MIL_F9[ci])                // shaft front: transcribed joints
+        ci == 20 -> segs(floatArrayOf(0f, 0.30f, 0.64f, 1f))   // socle: long bottom slabs
+        ci == 22 -> segs(floatArrayOf(0f, 0.22f, 0.47f, 0.57f, 0.79f, 0.89f, 1f))   // socle top course, from photos
+        else -> segs(frP)
+    }
+    val rows: Array<Array<FloatArray>> = arrayOf(front, segs(frP), segs(sdP), segs(sdP))
+    for (fi in 0..3) {
+        val ss = rows[fi]
+        for (si in ss.indices) {
+            if (fi == 2 && ci == 7 && si == 1) continue   // small square hole, west face (corner photos)
+            val pal = when {   // stone warms/darkens downward (photos)
+                ci == 20 -> if (si % 2 != 0) 0 else 1
+                ci == 21 -> if (si % 2 != 0) 4 else 0
+                ci == 22 -> 4
+                ci == 0 -> if (si % 3 == 0) 5 else 7
+                ci == 1 -> if ((si + ci) % 2 != 0) 7 else 1
+                ci <= 3 -> if ((si + ci) % 2 != 0) 0 else 1
+                ci <= 5 -> 0
+                else -> 4
+            }
+            val spalled = (ci < 4 && ((ci * 11 + si * 5 + fi * 3) % 7 == 0)) ||
+                (fi == 0 && ((ci == 3 && si == 2) || (ci == 6 && si == 0) || (ci == 7 && si == 0)))   // eroded blocks seen in photos
+            val j1 = b.rr(-jit, jit)
+            val j2 = b.rr(-jit, jit)
+            val blockShade = b.rr(0.74f, 0.90f)           // darker block body -> joints read as shadow
+            if (fi == 0 || fi == 1) {
+                val fz = if (fi == 0) 1f else -1f
+                val a = (ss[si][0] - 0.5f) * w
+                val bb = (ss[si][1] - 0.5f) * w
+                val lz = fz * (w / 2f - MIL_T / 2f)
+                val bx = (a + bb) / 2f + j1
+                val len = (bb - a) - gp
+                b.box(bx, yb + hh / 2f, lz + j2, len, hh - gp, MIL_T, pal, shade = blockShade)
+                if (spalled) {
+                    b.box(
+                        bx + (if ((ci + si) % 2 != 0) 0.07f else -0.07f), yb + hh / 2f,
+                        fz * (w / 2f) + (if (fz > 0f) 0.006f else -0.006f),
+                        len * 0.3f, hh * 0.36f, 0.03f, 9, flatColor = true, shade = 0.7f,
+                    )
+                } else {
+                    val pr = if (ci < 3) b.rr(-0.008f, 0.034f) else b.rr(0.0f, 0.012f)
+                    val spal = if (b.rr(0f, 1f) < 0.18f) (when (pal) { 4 -> 0; 0 -> 4; 7 -> 1; 5 -> 7; else -> 0 }) else pal
+                    val si2 = b.rr(0.012f, 0.045f)
+                    val scx = bx + b.rr(-0.012f, 0.012f)
+                    val scy = yb + hh / 2f + j2 + b.rr(-0.012f, 0.012f)
+                    val sfz = fz * (w / 2f + 0.010f + pr)
+                    val ssh = b.rr(0.88f, 1.08f)
+                    val srz = b.rr(-0.008f, 0.008f)
+                    b.box(scx, scy, sfz, len - si2, hh - si2, 0.025f, spal, shade = ssh, rz = srz)   // dressed face, own tone
+                    if (ci == 0 || ci == 20)
+                        b.box(scx, scy, sfz + fz * 0.032f, (len - si2) * 0.55f, (hh - si2) * 0.60f, 0.04f, spal, shade = 1.04f)   // rusticated boss, bottom course
+                    val hv = ci * 7 + si * 11 + fi * 5
+                    if (hv % 4 == 0) {
+                        val cn = (ci + si) % 4
+                        val cw = (len - si2) * 0.20f
+                        val ch = (hh - si2) * 0.24f
+                        b.box(
+                            scx + (if (cn == 0 || cn == 3) -1f else 1f) * ((len - si2) / 2f - cw / 2f + 0.01f),
+                            scy + (if (cn < 2) 1f else -1f) * ((hh - si2) / 2f - ch / 2f + 0.01f),
+                            sfz + fz * 0.016f, cw, ch, 0.02f, pal, shade = blockShade * 0.9f,
+                        )   // chipped corner: body stone shows
+                    }
+                    if ((ci * 13 + si * 7 + fi) % 9 == 0)
+                        b.box(scx, scy - (hh - si2) / 2f + 0.02f, sfz + fz * 0.014f, (len - si2) * 0.55f, 0.045f, 0.018f, 4, flatColor = true, shade = 1.12f)   // gypsum mortar squeeze-out
+                }
+            } else {
+                val fx = if (fi == 2) -1f else 1f
+                val iw = w - 2f * MIL_T
+                val a = (ss[si][0] - 0.5f) * iw
+                val bb = (ss[si][1] - 0.5f) * iw
+                val lx = fx * (w / 2f - MIL_T / 2f)
+                val bz = (a + bb) / 2f + j2
+                val len = (bb - a) - gp
+                b.box(lx + j1, yb + hh / 2f, bz, MIL_T, hh - gp, len, pal, shade = blockShade)
+                if (spalled) {
+                    b.box(
+                        fx * (w / 2f) + (if (fx > 0f) 0.006f else -0.006f), yb + hh / 2f,
+                        bz + (if ((ci + si) % 2 != 0) 0.07f else -0.07f),
+                        0.03f, hh * 0.36f, len * 0.3f, 9, flatColor = true, shade = 0.7f,
+                    )
+                } else {
+                    val pr = if (ci < 3) b.rr(-0.008f, 0.034f) else b.rr(0.0f, 0.012f)
+                    val spal = if (b.rr(0f, 1f) < 0.18f) (when (pal) { 4 -> 0; 0 -> 4; 7 -> 1; 5 -> 7; else -> 0 }) else pal
+                    val si2 = b.rr(0.012f, 0.045f)
+                    val scy = yb + hh / 2f + j1 + b.rr(-0.012f, 0.012f)
+                    val sfx = fx * (w / 2f + 0.004f + pr * 0.4f)
+                    val ssh = b.rr(0.88f, 1.08f)
+                    val srz = b.rr(-0.008f, 0.008f)
+                    b.box(sfx, scy, bz, 0.025f, hh - si2, len - si2, spal, shade = ssh, rz = srz)
+                    if (ci == 0 || ci == 20)
+                        b.box(sfx + fx * 0.032f, scy, bz, 0.04f, (hh - si2) * 0.60f, (len - si2) * 0.55f, spal, shade = 1.04f)   // rusticated boss
+                    val hv = ci * 7 + si * 11 + fi * 5
+                    if (hv % 4 == 0) {
+                        val cn = (ci + si) % 4
+                        val cw = (len - si2) * 0.20f
+                        val ch = (hh - si2) * 0.24f
+                        b.box(
+                            sfx + fx * 0.016f,
+                            scy + (if (cn < 2) 1f else -1f) * ((hh - si2) / 2f - ch / 2f + 0.01f),
+                            bz + (if (cn == 0 || cn == 3) -1f else 1f) * ((len - si2) / 2f - cw / 2f + 0.01f),
+                            0.02f, ch, cw, pal, shade = blockShade * 0.9f,
+                        )   // chipped corner
+                    }
+                    if ((ci * 13 + si * 7 + fi) % 9 == 0)
+                        b.box(sfx + fx * 0.014f, scy - (hh - si2) / 2f + 0.02f, bz, 0.018f, 0.045f, (len - si2) * 0.55f, 4, flatColor = true, shade = 1.12f)   // mortar squeeze-out
+                }
+            }
+        }
+    }
+}
+
+/** The tower itself: socle, nine shaft courses, doorway + internal stair,
+ *  weather streaks and cracks, and the ruined top from the photographs. */
+private fun milTower(b: MeshBuilder) {
+    val sBase = 1.00f                                        // top of socle
+    val courseH = floatArrayOf(0.46f, 0.50f, 0.46f, 0.60f, 0.48f, 0.56f, 0.54f, 0.56f, 0.54f)   // 9 courses, heights measured on photos
+    val shaftH = courseH.sum()                               // 4.70 m
+    // Photo-measured width profile: only the first two shaft courses step
+    // in; from the third shaft course upward the square side is constant.
+    fun shaftW(ci: Int): Float = if (ci == 0) 3.92f else if (ci == 1) 3.86f else 3.80f
+    fun widthAt(y: Float): Float =
+        if (y < sBase + courseH[0]) shaftW(0) else if (y < sBase + courseH[0] + courseH[1]) shaftW(1) else shaftW(2)
+    // socle: three stepped block courses over solid cores (Roman Ghirshman)
+    b.box(0f, 0.13f, 0f, 3.6f, 0.26f, 3.6f, 1, shade = 0.68f)
+    b.box(0f, 0.41f, 0f, 3.3f, 0.30f, 3.3f, 1, shade = 0.68f)
+    b.box(0f, 0.78f, 0f, 3.05f, 0.44f, 3.05f, 1, shade = 0.68f)
+    milCourse(b, 0.00f, 0.26f, 4.85f, 20)
+    milCourse(b, 0.26f, 0.30f, 4.55f, 21)
+    milCourse(b, 0.56f, 0.44f, 4.30f, 22)
+    // solid lower core (tower is solid below the stair) + dark upper well
+    b.box(0f, sBase + 1.35f, 0f, 2.95f, 2.7f, 2.95f, 1, shade = 0.6f)
+    b.box(0f, sBase + 3.35f, -0.28f, 2.65f, 1.4f, 2.35f, 1, shade = 0.55f)
+    b.box(0f, sBase + shaftH - 0.35f, -0.61f, 2.46f, 0.5f, 1.29f, 1, shade = 0.7f)   // chamber floor remnant under the ruin
+    // shaft courses
+    var yb = sBase
+    var sillY = 0f
+    for (ci in courseH.indices) {
+        if (ci == 6) sillY = yb
+        milCourse(b, yb, courseH[ci], shaftW(ci), ci)
+        yb += courseH[ci]
+    }
+    val topY = yb
+    // door furniture: proud sill, stair flight inside ascending along the east wall
+    b.box(MIL_DCX, sillY + 0.02f, widthAt(sillY) / 2f - MIL_T / 2f + 0.05f, 0.85f, 0.11f, 0.75f, 4, shade = 0.75f)
+    b.box(MIL_DCX, sillY + 0.51f, widthAt(sillY) / 2f - MIL_T + 0.02f, 0.66f, 1.06f, 0.06f, 3, shade = 0.3f)   // unlit doorway depth
+    for (k in 0 until 7)
+        b.box(0.88f, sillY + 0.10f + k * 0.235f, widthAt(sillY) / 2f - MIL_T - 0.30f - k * 0.30f, 0.60f, 0.11f, 0.34f, 1, shade = 0.45f)
+    b.box(MIL_DCX, sillY - 0.34f, widthAt(sillY - 0.34f) / 2f + 0.012f, 0.05f, 0.6f, 0.03f, 1, flatColor = true, shade = 0.92f)   // faint streak below door
+    for (k in 0 until 2) {                                   // rain streaks from the top course, dashed, kept clear of the door
+        val sx = if (k == 0) b.rr(-1.5f, -0.7f) else b.rr(0.75f, 1.5f)
+        val sh = b.rr(0.8f, 1.5f)
+        for (d in 0 until 3) {
+            val dl = sh / 3f
+            val dcy = topY - dl * (d + 0.5f)
+            val dx = sx + b.rr(-0.008f, 0.008f)
+            b.box(dx, dcy, widthAt(dcy) / 2f + 0.012f, 0.032f, dl - 0.03f, 0.03f, 1, flatColor = true, shade = 0.93f - d * 0.04f)
+        }
+    }
+    for (k in 0 until 3)                                     // stepped vertical cracks (widened joints in photos)
+        b.box(-1.02f + k * 0.05f, sBase + 0.55f + k * 0.70f, widthAt(sBase + 0.55f + k * 0.70f) / 2f + 0.01f, 0.035f, 0.76f, 0.025f, 3, flatColor = true, shade = 0.8f, rz = 0.02f)
+    for (k in 0 until 2)
+        b.box(1.38f - k * 0.04f, sBase + 1.05f + k * 0.70f, widthAt(sBase + 1.05f + k * 0.70f) / 2f + 0.01f, 0.035f, 0.75f, 0.025f, 3, flatColor = true, shade = 0.8f, rz = -0.015f)
+    // Ruined top, transcribed block-by-block from the front photograph:
+    // the surviving front wall of the top chamber, shifted east of centre
+    // over the stairwell — chamber mouth with a fallen slab, lintel tier,
+    // wide slot window, two-block cap — plus the SE corner tooth and the
+    // rubble slope down the west wall head. The transcribed plan
+    // coordinates below were normalised to a 3.40 m top; ruinW scales
+    // those plan coordinates/sizes onto the photo-measured constant
+    // 3.80 m shaft (heights unchanged). dy = height above the top course.
+    val ruinW = 3.80f / 3.40f
+    fun r(
+        lx: Float, dy: Float, lz: Float, sx: Float, sy: Float, sz: Float, pal: Int,
+        flatColor: Boolean = false, shade: Float = 1f, rz: Float = 0f,
+    ) {
+        b.box(lx * ruinW, topY + dy, lz * ruinW, sx * ruinW, sy, sz * ruinW, pal, flatColor = flatColor, shade = shade, rz = rz)
+    }
+    fun rf(   // front-wall block + dressed face slab
+        lx: Float, dy: Float, lz: Float, sx: Float, sy: Float, sz: Float, pal: Int,
+        rz: Float = 0f,
+    ) {
+        r(lx, dy, lz, sx, sy, sz, pal, rz = rz)
+        val ssh = b.rr(0.95f, 1.05f)
+        b.box(lx * ruinW, topY + dy, (lz + sz / 2f) * ruinW + 0.012f, sx * ruinW - 0.05f, sy - 0.05f, 0.025f, pal, shade = ssh, rz = rz)
+    }
+    rf(-0.87f, 0.23f, 1.40f, 0.38f, 0.47f, 0.60f, 4)         // chamber mouth: left pier, two blocks
+    rf(-0.50f, 0.23f, 1.40f, 0.37f, 0.47f, 0.60f, 4)
+    rf(0.78f, 0.23f, 1.40f, 0.49f, 0.47f, 0.60f, 4)          // right pier
+    r(0.11f, 0.23f, 0.82f, 0.90f, 0.48f, 0.06f, 3, shade = 0.3f)   // unlit chamber behind the mouth
+    r(0.13f, 0.22f, 1.02f, 0.82f, 0.15f, 0.14f, 5, shade = 0.35f, rz = -0.38f)   // fallen diagonal slab inside, in shadow
+    r(-0.49f, 0.54f, 1.12f, 0.36f, 0.22f, 0.45f, 0, shade = 0.72f, rz = 0.05f)   // set-back block over the left pier
+    r(-0.68f, 0.45f, 1.05f, 0.30f, 0.18f, 0.40f, 5, shade = 0.7f, rz = -0.08f)   // rubble behind the left pier
+    rf(-0.19f, 0.69f, 1.40f, 0.30f, 0.45f, 0.60f, 4)         // lintel tier over the mouth
+    rf(0.29f, 0.69f, 1.40f, 0.65f, 0.45f, 0.60f, 4)
+    rf(0.82f, 0.69f, 1.40f, 0.42f, 0.45f, 0.60f, 0)          // right stack, middle block
+    rf(-0.17f, 1.07f, 1.40f, 0.18f, 0.31f, 0.60f, 4)         // slot window: narrow left fin
+    rf(0.75f, 1.10f, 1.40f, 0.55f, 0.37f, 0.60f, 4)          // right jamb (slot 0.56 x 0.31 left open)
+    rf(-0.06f, 1.45f, 1.27f, 0.36f, 0.44f, 0.85f, 0, rz = -0.03f)   // cap, left block (deep roofing slab, greyer weathered stone)
+    rf(0.51f, 1.46f, 1.27f, 0.77f, 0.37f, 0.85f, 0, rz = -0.015f)  // cap, right block
+    r(0.82f, 1.70f, 1.25f, 0.26f, 0.10f, 0.40f, 0, shade = 0.9f, rz = 0.08f)   // loose stones on the cap
+    r(1.15f, 0.19f, 1.40f, 0.24f, 0.38f, 0.55f, 0, shade = 0.88f, rz = 0.05f)  // low rubble toward the corner
+    rf(1.49f, 0.28f, 1.40f, 0.44f, 0.56f, 0.60f, 4)          // SE corner tooth
+    r(1.08f, 0.66f, 1.05f, 0.22f, 0.34f, 0.40f, 5, shade = 0.7f, rz = -0.10f)   // broken east edge, set back + dark
+    r(1.06f, 0.96f, 1.02f, 0.18f, 0.26f, 0.35f, 9, shade = 0.75f, rz = 0.15f)
+    r(-1.34f, 0.07f, 1.42f, 0.34f, 0.14f, 0.50f, 9, shade = 0.7f, rz = 0.10f)   // dark rubble slope, west wall head (photo)
+    r(-1.20f, 0.13f, 1.44f, 0.34f, 0.20f, 0.52f, 9, shade = 0.75f, rz = -0.08f)
+    r(-1.08f, 0.19f, 1.42f, 0.32f, 0.22f, 0.50f, 5, shade = 0.7f, rz = 0.14f)
+    r(-1.00f, 0.30f, 1.40f, 0.24f, 0.24f, 0.48f, 5, shade = 0.8f, rz = -0.10f)
+    r(-1.40f, 0.08f, -0.10f, 0.55f, 0.16f, 2.20f, 0, shade = 0.9f)   // side + back wall heads, low (corner photos)
+    r(-1.35f, 0.14f, -1.32f, 0.45f, 0.28f, 0.35f, 4, shade = 0.9f)   // NW corner remnant
+    r(0.15f, 0.12f, -1.40f, 0.95f, 0.24f, 0.55f, 0)
+    r(1.40f, 0.08f, -0.45f, 0.55f, 0.16f, 0.75f, 4, shade = 0.9f)
+    r(1.42f, 0.13f, -1.35f, 0.50f, 0.26f, 0.40f, 0, shade = 0.85f)
+    for (i in 0 until 4) {                                   // loose blocks on the wall head
+        val lx = b.rr(-1.45f, 1.45f)
+        val lz = b.rr(-1.34f, 1.01f)
+        val sx = b.rr(0.39f, 0.67f)
+        val sz = b.rr(0.39f, 0.61f)
+        val ryv = b.rr(0f, 3f)
+        val rzv = b.rr(-0.06f, 0.06f)
+        val shv = b.rr(0.75f, 0.95f)
+        b.box(lx, topY + 0.14f, lz, sx, 0.26f, sz, if (i % 2 != 0) 5 else 0, shade = shv, ry = ryv, rz = rzv)
+    }
+}
+
+// The tower's limestone hillside (combined scene only; see
+// mil-azhdaha-slope-report.md). Built in Mil local coords so it inherits
+// the group's bake. The scene has no occluding ground plane (the preview
+// grass is backdrop, the app is a transparent overlay), so NOTHING may
+// dip below the world ground line: local y = -0.54 is world y = 0 and
+// every piece bottoms out exactly there. The outcrop is therefore built
+// as the bedded limestone ledges of the photographs: a near-level
+// cracked-pavement bench under the tower (existing foot items stay
+// seated), four steps rising to +x and exiting the frame on the right
+// (scarp fronts staggered), a two-step feather dying into the forecourt
+// to -x, and two shallow steps down toward the viewer in front.
+private fun milSlope(b: MeshBuilder) {
+    // bench + stepped sheets (fixed; bottoms all at local ground -0.54)
+    b.box(0f, -0.295f, 0.65f, 13.6f, 0.49f, 12.3f, 6, shade = 0.94f)                        // bench, top -0.05
+    b.box(8.0f, 0.015f, 1.65f, 2.4f, 1.11f, 14.3f, 6, shade = 0.91f)                        // upslope step 1, top 0.57
+    b.box(10.4f, 0.325f, 1.2f, 2.4f, 1.73f, 13.4f, 6, shade = 0.90f)                         // step 2, top 1.19
+    b.box(12.8f, 0.635f, 1.9f, 2.4f, 2.35f, 14.8f, 6, shade = 0.91f)                         // step 3, top 1.81
+    b.box(15.2f, 0.945f, 1.4f, 2.4f, 2.97f, 13.8f, 6, shade = 0.90f)                         // step 4, top 2.43 (exits frame)
+    b.box(-8.6f, -0.415f, 0.65f, 3.6f, 0.25f, 12.3f, 6, shade = 0.90f)                       // downslope step, top -0.29
+    b.box(-11.3f, -0.49f, 1.5f, 2.2f, 0.10f, 8.0f, 6, shade = 0.87f)                         // downslope snout, top -0.44
+    b.box(2.0f, -0.415f, 8.1f, 17f, 0.25f, 2.6f, 6, shade = 0.90f)                           // front step 1, top -0.29
+    b.box(2.0f, -0.49f, 10.7f, 14f, 0.10f, 2.6f, 6, shade = 0.87f)                           // front step 2, top -0.44
+    for (i in 0 until 10) {                                                                  // pavement slabs on the bench
+        val ang = b.rr(0f, 6.28f); val rad = b.rr(3.6f, 6.1f); val w = b.rr(0.8f, 2.0f)
+        val d = b.rr(0.7f, 1.7f); val ryv = b.rr(0f, 3.14f); val shv = b.rr(0.8f, 1.02f)
+        b.box(cos(ang) * rad, -0.005f, sin(ang) * rad * 0.8f, w, 0.09f, d, if (i % 3 != 0) 6 else 1, shade = shv, ry = ryv)
+    }
+    val tops = floatArrayOf(0.57f, 1.19f, 1.81f, 2.43f)
+    for (i in 0 until 16) {                                                                  // slabs on the upslope steps
+        val kk = i / 4
+        val x = b.rr(6.95f + kk * 2.4f, 9.05f + kk * 2.4f); val z = b.rr(-4.5f, 7.0f); val w = b.rr(0.9f, 2.4f)
+        val d = b.rr(0.8f, 2.0f); val ryv = b.rr(0f, 3.14f); val shv = b.rr(0.78f, 1.02f)
+        b.box(x, tops[kk] + 0.045f, z, w, 0.09f, d, if (i % 3 != 0) 6 else 1, shade = shv, ry = ryv)
+    }
+    for (i in 0 until 8) {                                                                   // slabs on the front steps
+        val x = if (i < 5) b.rr(-6f, 10f) else b.rr(-4.5f, 8.5f)
+        val z = if (i < 5) b.rr(7.0f, 9.2f) else b.rr(9.6f, 11.8f)
+        val w = b.rr(0.9f, 2.4f); val d = b.rr(0.8f, 2.0f); val ryv = b.rr(0f, 3.14f); val shv = b.rr(0.78f, 1.0f)
+        b.box(x, (if (i < 5) -0.29f else -0.44f) + 0.045f, z, w, 0.09f, d, if (i % 3 != 0) 6 else 1, shade = shv, ry = ryv)
+    }
+    for (i in 0 until 4) {                                                                   // slabs on the downslope step
+        val x = b.rr(-10.2f, -7.0f); val z = b.rr(-4f, 5.5f); val w = b.rr(0.9f, 2.2f)
+        val d = b.rr(0.8f, 1.8f); val ryv = b.rr(0f, 3.14f); val shv = b.rr(0.78f, 1.0f)
+        b.box(x, -0.245f, z, w, 0.09f, d, if (i % 3 != 0) 6 else 1, shade = shv, ry = ryv)
+    }
+    for (i in 0 until 8) {                                                                   // cracks, upslope steps
+        val kk = i / 2
+        val x = b.rr(7.0f + kk * 2.4f, 9.0f + kk * 2.4f); val z = b.rr(-4f, 6.5f)
+        val len = b.rr(1.5f, 3.5f); val ryv = b.rr(0f, 3.14f)
+        b.box(x, tops[kk] + 0.015f, z, len, 0.015f, 0.05f, 3, flatColor = true, shade = 0.8f, ry = ryv)
+    }
+    for (i in 0 until 6) {                                                                   // cracks, front steps
+        val x = if (i < 3) b.rr(-5.5f, 9.5f) else b.rr(-4f, 8f)
+        val z = if (i < 3) b.rr(7.1f, 9.1f) else b.rr(9.7f, 11.7f)
+        val len = b.rr(1.5f, 3.5f); val ryv = b.rr(0f, 3.14f)
+        b.box(x, (if (i < 3) -0.29f else -0.44f) + 0.015f, z, len, 0.015f, 0.05f, 3, flatColor = true, shade = 0.8f, ry = ryv)
+    }
+    for (i in 0 until 6) {                                                                   // talus blocks at the bench scarp foot
+        val x = -5f + i * 3.0f + b.rr(-0.8f, 0.8f); val z = b.rr(7.3f, 8.6f); val sx = b.rr(1.2f, 2.6f)
+        val sy = b.rr(0.5f, 1.0f); val sz = b.rr(0.8f, 1.4f); val ryv = b.rr(0f, 3.14f)
+        val rzv = b.rr(-0.08f, 0.08f); val shv = b.rr(0.78f, 1.0f)
+        b.box(x, -0.29f + sy / 2f - 0.06f, z, sx, sy, sz, if (i % 2 != 0) 5 else 4, shade = shv, ry = ryv, rz = rzv)
+    }
+    for (i in 0 until 5) {                                                                   // boulders on the lower front step
+        val x = b.rr(-4f, 9.5f); val z = b.rr(9.6f, 11.6f); val sx = b.rr(0.9f, 1.8f)
+        val sy = b.rr(0.5f, 0.9f); val sz = b.rr(0.7f, 1.3f); val ryv = b.rr(0f, 3.14f)
+        val rzv = b.rr(-0.08f, 0.08f); val shv = b.rr(0.8f, 1.0f)
+        b.box(x, -0.44f + sy / 2f - 0.05f, z, sx, sy, sz, if (i % 2 != 0) 5 else 4, shade = shv, ry = ryv, rz = rzv)
+    }
+    for (i in 0 until 4) {                                                                   // boulders on the upslope steps
+        val x = b.rr(7.1f + i * 2.4f, 8.9f + i * 2.4f); val z = b.rr(-3f, 6.5f); val sx = b.rr(0.9f, 1.8f)
+        val sy = b.rr(0.5f, 0.9f); val sz = b.rr(0.7f, 1.3f); val ryv = b.rr(0f, 3.14f)
+        val rzv = b.rr(-0.06f, 0.06f); val shv = b.rr(0.8f, 1.0f)
+        b.box(x, tops[i] + sy / 2f - 0.06f, z, sx, sy, sz, if (i % 2 != 0) 5 else 4, shade = shv, ry = ryv, rz = rzv)
+    }
+    b.box(7.4f, 0.68f, 5.6f, 1.5f, 0.75f, 1.1f, 5, shade = 0.88f, ry = 0.5f, rz = 0.06f)     // hinge boulders on step 1
+    b.box(7.9f, 0.57f, -3.8f, 1.1f, 0.6f, 0.9f, 4, shade = 0.95f, ry = -0.7f, rz = -0.05f)
+    for (i in 0 until 3) {                                                                   // sand drifts on the steps
+        val x = if (i < 2) b.rr(-3f, 8f) else b.rr(9.8f, 11.4f)
+        val z = if (i < 2) b.rr(7.2f, 9.0f) else b.rr(-2f, 4f)
+        val len = b.rr(1.8f, 3.0f); val dep = b.rr(0.6f, 1.0f); val ryv = b.rr(-0.3f, 0.3f)
+        b.box(x, (if (i < 2) -0.29f else 1.19f) + 0.05f, z, len, 0.12f, dep, 8, ry = ryv)
+    }
+    for (cp in arrayOf(floatArrayOf(10.5f, 3.5f, 1.19f), floatArrayOf(13f, -2.5f, 1.81f))) { // dry scrub on the upslope
+        for (kk in 0 until 4) {
+            val bx = cp[0] + b.rr(-0.4f, 0.4f); val bz = cp[1] + b.rr(-0.4f, 0.4f)
+            val sx = b.rr(0.4f, 0.7f); val sy = b.rr(0.26f, 0.44f); val sz = b.rr(0.4f, 0.7f)
+            val ryv = b.rr(0f, 3.14f); val rzv = b.rr(-0.08f, 0.08f); val shv = b.rr(0.55f, 0.9f)
+            b.box(bx, cp[2] + sy / 2f - 0.04f, bz, sx, sy, sz, 10, shade = shv, ry = ryv, rz = rzv)
+        }
+    }
+}
+
+private fun buildMilLocalScene(): MeshBuilder {
+    PAL = PAL_M   // combined scene: Mil-e Azhdaha palette
+    val b = MeshBuilder()                                    // fresh RNG state -> identical every build
+    // bedrock pavement the tower stands on (cracked limestone outcrop)
+    b.box(0f, -0.19f, 0f, 34f, 0.38f, 24f, 6, shade = 0.94f)
+    b.box(-7.5f, -0.55f, 13.2f, 8f, 0.8f, 3.0f, 6, shade = 0.84f, ry = 0.02f)   // broken rock ledge segments in front
+    b.box(0.5f, -0.62f, 13.7f, 9f, 0.85f, 3.4f, 6, shade = 0.80f, ry = -0.015f)
+    b.box(8.0f, -0.50f, 13.0f, 7f, 0.75f, 2.8f, 6, shade = 0.87f, ry = 0.025f)
+    for (i in 0 until 5) {                                   // tilted rock sheets leaning on the edge
+        val sx = b.rr(-9f, 9f)
+        val sw = b.rr(1.6f, 3.2f)
+        val sh2 = b.rr(0.7f, 1.3f)
+        val rxv = b.rr(-0.28f, -0.12f)
+        val ryv = b.rr(-0.06f, 0.06f)
+        val shv = b.rr(0.8f, 1.0f)
+        b.box(sx, -0.15f, 12.35f, sw, sh2, 0.22f, if (i % 2 != 0) 6 else 1, shade = shv, rx = rxv, ry = ryv)
+    }
+    for (i in 0 until 34) {                                  // surface rock slabs
+        val ang = b.rr(0f, 6.28f)
+        val rad = b.rr(3.1f, 10.0f)
+        val w = b.rr(0.8f, 2.2f)
+        val d = b.rr(0.7f, 1.8f)
+        val ryv = b.rr(0f, 3.14f)
+        val shv = b.rr(0.78f, 1.02f)
+        b.box(cos(ang) * rad, 0.038f, sin(ang) * rad * 0.8f, w, 0.085f, d, if (i % 3 != 0) 6 else 1, shade = shv, ry = ryv)
+    }
+    for (i in 0 until 18) {                                  // pavement cracks
+        val cx = b.rr(-9f, 9f)
+        val cz = b.rr(-6f, 7f)
+        val len = b.rr(1.5f, 4f)
+        val ryv = b.rr(0f, 3.14f)
+        b.box(cx, 0.012f, cz, len, 0.015f, 0.05f, 3, flatColor = true, shade = 0.8f, ry = ryv)
+    }
+    for (i in 0 until 24) {                                  // pebbles / gravel on the pavement
+        val ang = b.rr(0f, 6.28f)
+        val rad = b.rr(2.9f, 9.5f)
+        val ps = b.rr(0.09f, 0.24f)
+        val ryv = b.rr(0f, 3.14f)
+        val rzv = b.rr(-0.1f, 0.1f)
+        b.box(cos(ang) * rad, ps / 2f - 0.01f, sin(ang) * rad * 0.85f, ps, ps * 0.7f, ps * 0.85f, if (i % 3 != 0) 5 else 6, ry = ryv, rz = rzv)
+    }
+    val m1v = b.pos.size / 3; val m1i = b.idx.size   // combined scene: local group starts here (far bedrock/ledge groundwork excluded)
+    for (i in 0 until 16) {                                  // rubble apron at the socle foot
+        val ang = b.rr(0f, 6.28f)
+        val rad = b.rr(2.75f, 3.5f)
+        val sx = b.rr(0.18f, 0.42f)
+        val sy = b.rr(0.12f, 0.26f)
+        val sz = b.rr(0.16f, 0.36f)
+        val ryv = b.rr(0f, 3.14f)
+        val rzv = b.rr(-0.12f, 0.12f)
+        val shv = b.rr(0.75f, 1.0f)
+        b.box(cos(ang) * rad, sy / 2f - 0.02f, sin(ang) * rad, sx, sy, sz, if (i % 2 != 0) 5 else 1, shade = shv, ry = ryv, rz = rzv)
+    }
+    b.lathe(0f, 0f, 0f, arrayOf(floatArrayOf(3.45f, 0f), floatArrayOf(3.1f, 0.06f), floatArrayOf(2.8f, 0.13f)), 48, 8)   // sand collar against the socle
+    milTower(b)
+    // fallen blocks + boulders (photo foreground)
+    for (i in 0 until 8) {
+        val ang = b.rr(0f, 6.28f)
+        val rad = b.rr(3.2f, 6.4f)
+        val sx = b.rr(0.5f, 1.1f)
+        val sz = b.rr(0.45f, 0.9f)
+        val sy = b.rr(0.3f, 0.6f)
+        val ryv = b.rr(0f, 3.14f)
+        val rzv = b.rr(-0.05f, 0.05f)
+        val shv = b.rr(0.8f, 1.05f)
+        b.box(cos(ang) * rad, sy / 2f - 0.03f, sin(ang) * rad, sx, sy, sz, if (i % 2 != 0) 5 else 4, shade = shv, ry = ryv, rz = rzv)
+    }
+    b.box(-3.6f, 0.32f, 3.4f, 1.25f, 0.65f, 1.0f, 5, shade = 0.88f, ry = 0.4f, rz = 0.06f)   // big foreground boulders
+    b.box(-2.5f, 0.24f, 4.3f, 0.8f, 0.5f, 0.7f, 4, shade = 0.95f, ry = -0.3f)
+    b.box(4.3f, 0.30f, 2.6f, 1.1f, 0.6f, 0.9f, 5, shade = 0.82f, ry = 0.9f, rz = -0.05f)
+    val m2v = b.pos.size / 3; val m2i = b.idx.size   // combined scene: ledge boulders excluded
+    b.box(-5.5f, -0.02f, 13.1f, 1.3f, 0.55f, 1.0f, 5, shade = 0.85f, ry = 0.5f)   // boulders on the ledge edge
+    b.box(2.8f, -0.08f, 13.8f, 1.0f, 0.5f, 0.8f, 4, shade = 0.9f, ry = -0.4f)
+    b.box(8.6f, 0.0f, 12.9f, 0.9f, 0.45f, 0.75f, 5, shade = 0.8f, ry = 1.1f)
+    val m3v = b.pos.size / 3; val m3i = b.idx.size
+    // fallen dressed ashlar blocks (face slabs still on them) near the base
+    for (fa in arrayOf(floatArrayOf(-3.05f, 3.15f, 0.5f), floatArrayOf(2.7f, 3.6f, -0.7f), floatArrayOf(-1.9f, 4.6f, 1.15f))) {
+        val cs = cos(fa[2])
+        val sn = sin(fa[2])
+        b.box(fa[0], 0.19f, fa[1], 0.85f, 0.38f, 0.55f, 4, shade = 0.9f, ry = fa[2])
+        b.box(fa[0] + sn * 0.287f, 0.19f, fa[1] + cs * 0.287f, 0.78f, 0.31f, 0.025f, 4, shade = 1.02f, ry = fa[2])
+    }
+    // dry scrub bushes at the foot
+    for (bp in arrayOf(floatArrayOf(-3.3f, 2.6f), floatArrayOf(3.9f, -1.6f), floatArrayOf(-2.9f, -3.3f), floatArrayOf(4.6f, 3.1f))) {
+        for (k in 0 until 5) {
+            val bx = bp[0] + b.rr(-0.4f, 0.4f)
+            val by = b.rr(0.13f, 0.23f)
+            val bz = bp[1] + b.rr(-0.4f, 0.4f)
+            val sx = b.rr(0.4f, 0.7f)
+            val sy = b.rr(0.26f, 0.44f)
+            val sz = b.rr(0.4f, 0.7f)
+            val ryv = b.rr(0f, 3.14f)
+            val rzv = b.rr(-0.08f, 0.08f)
+            val shv = b.rr(0.55f, 0.9f)
+            b.box(bx, by, bz, sx, sy, sz, 10, shade = shv, ry = ryv, rz = rzv)
+        }
+    }
+    // sand drifts against the socle
+    for (df in arrayOf(floatArrayOf(-1.5f, 3.1f), floatArrayOf(2.2f, 2.9f), floatArrayOf(3.0f, -2.2f), floatArrayOf(-3.1f, -1.8f))) {
+        val len = b.rr(1.6f, 2.6f)
+        val dep = b.rr(0.5f, 0.8f)
+        val ryv = b.rr(-0.3f, 0.3f)
+        b.box(df[0], 0.05f, df[1], len, 0.13f, dep, 8, ry = ryv)
+    }
+    milSlope(b)   // combined scene: the tower's limestone hillside
+    // Combined scene: keep only the tower + its local foot group (the wide
+    // bedrock pavement / ledge set belongs to the standalone framing).
+    return extractRanges(b, arrayOf(intArrayOf(m1v, m1i, m2v, m2i), intArrayOf(m3v, m3i, b.pos.size / 3, b.idx.size)))
+}
+
 // ============================================================================
 // Shaders (GLSL ES 1.00, compiled unchanged on the ES 3.0 context — identical to the HTML preview)
 // ============================================================================
@@ -1344,14 +1925,13 @@ private const val VERTEX_SHADER = """
 attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor;
 uniform mat4 uMVP;
 varying vec3 vN; varying vec3 vC; varying vec3 vW;
-void main(){ vN=aNormal; vC=aColor; vW=aPos; gl_Position=uMVP*vec4(aPos,1.0); }
-"""
+void main(){ vN=aNormal; vC=aColor; vW=aPos; gl_Position=uMVP*vec4(aPos,1.0); }"""
 
-private const val FRAGMENT_SHADER = """
+private const val FRAGMENT_SHADER_P = """
 precision mediump float;
-uniform vec3 uSunDir;   uniform vec3 uSunColor;
+uniform vec3 uSunDir;   uniform vec3 uSunColor;    // direction TO sun, colour*intensity
 uniform vec3 uMoonDir;  uniform vec3 uMoonColor;
-uniform vec3 uSkyAmb;   uniform vec3 uGroundAmb;
+uniform vec3 uSkyAmb;   uniform vec3 uGroundAmb;   // hemisphere ambient
 uniform vec3 uCamPos;
 varying vec3 vN; varying vec3 vC; varying vec3 vW;
 float hash13(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7)))*43758.5453); }
@@ -1392,16 +1972,92 @@ void main(){
   col += albedo * uMoonColor * dm;
   vec3 V = normalize(uCamPos - vW);
   vec3 H = normalize(normalize(uSunDir) + V);
-  col += uSunColor * pow(max(dot(N,H),0.0), 24.0) * 0.045;
+  col += uSunColor * pow(max(dot(N,H),0.0), 24.0) * 0.045;   // faint stone sheen
   float rim = pow(1.0 - max(dot(N,V),0.0), 3.0);
-  col += uSunColor * rim * 0.12;
-  col = vec3(1.0) - exp(-col * 1.55);
-  col = pow(col, vec3(0.4545));
+  col += uSunColor * rim * 0.12;                              // edge glow (strong when backlit)
+  col = vec3(1.0) - exp(-col * 1.55);                         // soft exposure (no clipped stone)
+  col = pow(col, vec3(0.4545));                               // linear → sRGB-ish
   gl_FragColor = vec4(col, 1.0);
-}
-"""
+}"""
 
 /** Direction TO a body, from astronomical azimuth/altitude, in world axes (N, up, E) = (X, Y, Z). */
+// Mil-e Azhdaha fragment shader (from MilAzhdaha.kt) — same uniforms and
+// light rig as FRAGMENT_SHADER_P, warmer close-range stone response.
+private const val FRAGMENT_SHADER_M = """
+precision mediump float;
+uniform vec3 uSunDir;   uniform vec3 uSunColor;    // direction TO sun, colour*intensity
+uniform vec3 uMoonDir;  uniform vec3 uMoonColor;
+uniform vec3 uSkyAmb;   uniform vec3 uGroundAmb;   // hemisphere ambient
+uniform vec3 uCamPos;
+varying vec3 vN; varying vec3 vC; varying vec3 vW;
+float hash13(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7)))*43758.5453); }
+float vnoise(vec3 p){
+  vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash13(i),hash13(i+vec3(1,0,0)),f.x),
+                 mix(hash13(i+vec3(0,1,0)),hash13(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash13(i+vec3(0,0,1)),hash13(i+vec3(1,0,1)),f.x),
+                 mix(hash13(i+vec3(0,1,1)),hash13(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
+float fbm(vec3 p){ return 0.52*vnoise(p)+0.28*vnoise(p*2.13)+0.14*vnoise(p*4.7)+0.06*vnoise(p*9.3); }
+void main(){
+  vec3 N = normalize(vN);
+  // Noise-gradient bump: makes flat block faces read as hand-dressed stone
+  float _e=0.055;
+  float _h0=fbm(vW*3.0);
+  vec3 _g=vec3(fbm((vW+vec3(_e,0.0,0.0))*3.0)-_h0, fbm((vW+vec3(0.0,_e,0.0))*3.0)-_h0, fbm((vW+vec3(0.0,0.0,_e))*3.0)-_h0)/_e;
+  float bumpAmt = mix(0.21, 0.06, smoothstep(0.0,6.0,vW.y));   // base stone far rougher than the dressed top
+  N = normalize(N - bumpAmt*(_g - N*dot(_g,N)));
+  // Procedural limestone: broad tonal patches, fine grain, rain streaks,
+  // ground grime and a whisper of moss low down. No texture assets needed.
+  vec3 albedo = vC;
+  float patch = vnoise(vW*0.5);
+  float grain = fbm(vW*3.4);
+  float streak = vnoise(vec3(vW.x*9.0, vW.y*0.38, vW.z*9.0));
+  float tone = vnoise(vW*0.16+4.7);
+  albedo *= vec3(0.92+0.14*tone, 0.97+0.05*tone, 1.05-0.10*tone);   // slow warm/cool drift across the stone
+  albedo *= 0.74 + 0.38*patch + 0.16*grain;
+  albedo *= 0.905 + 0.135*streak;   // broken up below by grain so no clean bands
+  albedo *= 0.90 + 0.17*hash13(floor(vW*17.0));
+  float tool = sin((vW.x+vW.z)*34.0 + grain*7.0) * (1.0-abs(N.y)) * smoothstep(2.0,5.0,vW.y);
+  albedo *= 1.0 + 0.028*tool;                                       // diagonal chisel tooling on dressed faces
+  albedo *= 1.0 - 0.15*smoothstep(2.4,0.0,vW.y);
+  albedo *= 0.84 + 0.16*smoothstep(0.0,0.45,vW.y);                  // ground-contact darkening
+  float moss = smoothstep(0.66,0.92,vnoise(vW*1.25+7.3)) * smoothstep(8.0,2.5,vW.y);
+  albedo = mix(albedo, vec3(0.16,0.22,0.09), moss*0.28);
+  float strata = vnoise(vec3(vW.x*0.22, vW.y*1.35, vW.z*0.22));   // limestone bedding planes
+  albedo *= 0.96 + 0.08*strata;
+  float pit = step(0.94, hash13(floor(vW*34.0)));                  // weather pits (honeycombed low courses)
+  albedo *= 1.0 - 0.26*pit*(0.65+0.85*(1.0-smoothstep(0.6,2.6,vW.y)));
+  float varn = smoothstep(0.80,0.88, vnoise(vW*5.5+23.7));        // black lichen / desert varnish speckle
+  albedo = mix(albedo, vec3(0.13,0.12,0.11), varn*0.25);
+  float dust = smoothstep(0.55,0.92,N.y) * (0.5+0.5*vnoise(vW*1.7+3.1));  // settled dust on up-faces
+  albedo = mix(albedo, vec3(0.72,0.63,0.44), dust*0.38);
+  float splash = exp(-max(vW.y,0.0)*1.4);                          // rain-splash grime at the foot
+  albedo *= 1.0 - 0.13*splash*(0.6+0.4*grain);
+  float rust = smoothstep(0.62,0.78, vnoise(vW*0.9+19.1)) * (0.35+0.65*smoothstep(5.5,1.0,vW.y));
+  albedo = mix(albedo, vec3(0.45,0.26,0.13), rust*0.28);           // iron-oxide staining, stronger low down
+  float salt = smoothstep(0.55,0.75, vnoise(vW*1.4+31.3)) * exp(-max(vW.y,0.0)*0.9);
+  albedo = mix(albedo, vec3(0.78,0.74,0.66), salt*0.30);           // salt efflorescence near the base
+  float vein = pow(1.0-abs(2.0*vnoise(vec3(vW.x*1.1, vW.y*2.4, vW.z*1.1))-1.0), 7.0);   // white calcite veining
+  albedo += vein*0.13;
+  float lich = smoothstep(0.74,0.82, vnoise(vW*2.2+11.7));                               // orange lichen spots
+  albedo = mix(albedo, vec3(0.52,0.31,0.13), lich*0.15);
+  vec3 amb = mix(uGroundAmb, uSkyAmb, N.y*0.5+0.5);
+  vec3 col = albedo * amb;
+  float ds = max(dot(N, normalize(uSunDir)), 0.0);
+  col += albedo * uSunColor * ds;
+  float dm = max(dot(N, normalize(uMoonDir)), 0.0);
+  col += albedo * uMoonColor * dm;
+  vec3 V = normalize(uCamPos - vW);
+  vec3 H = normalize(normalize(uSunDir) + V);
+  col += uSunColor * pow(max(dot(N,H),0.0), 32.0) * 0.06;   // faint stone sheen
+  float rim = pow(1.0 - max(dot(N,V),0.0), 3.0);
+  col += uSunColor * rim * 0.12;                              // edge glow (strong when backlit)
+  col = vec3(1.0) - exp(-col * 1.55);                         // soft exposure (no clipped stone)
+  col = pow(col, vec3(0.4545));                               // linear → sRGB-ish
+  gl_FragColor = vec4(col, 1.0);
+}"""
+
 private fun dirFromAzAlt(azimuthDeg: Float, altitudeDeg: Float): FloatArray {
     val az = Math.toRadians(azimuthDeg.toDouble())
     val al = Math.toRadians(altitudeDeg.toDouble())
@@ -1421,11 +2077,12 @@ private fun lerp3(a: FloatArray, b: FloatArray, f: Float): FloatArray =
 // synchronised and may be called from any thread.
 // ============================================================================
 
-class PersepolisScene {
+class PersepolisMilAzhdahaScene {
 
-    /** World width (m) the fixed camera tries to show. 89 (default) reproduces
-     *  the HTML preview: the whole façade plus a margin of platform either side. */
-    @Volatile var visibleWidthMeters: Float = 89f
+    /** World width (m) the fixed camera tries to show. 116 (default) reproduces
+     *  the HTML preview: the façade at the far left (platform wings cut back)
+     *  plus the Mil-e Azhdaha tower at the right foreground. */
+    @Volatile var visibleWidthMeters: Float = 116f
 
     /** Where the platform's front toe (world y=0, z=8) sits in the viewport, as
      *  a fraction from the top. 0.80 (default) reproduces the HTML preview's
@@ -1433,10 +2090,11 @@ class PersepolisScene {
      *  base on the bottom edge of an overlay strip. */
     @Volatile var baseFractionFromTop: Float = 0.80f
 
-    /** Where the platform centroid (0,0,-2) sits in the viewport, as a fraction
-     *  of the width from the left. 0.5 (default) preserves the supplied centred
-     *  framing exactly; smaller values shift the unchanged fixed-camera view
-     *  toward the left by moving the orthographic window in view space. */
+    /** Where the combined frame's anchor (0,0,-2) sits in the viewport, as
+     *  a fraction of the width from the left. 0.5 (default) preserves the
+     *  supplied centred framing exactly; smaller values shift the unchanged
+     *  fixed-camera view toward the left by moving the orthographic window
+     *  in view space. */
     @Volatile var centerFractionFromLeft: Float = 0.5f
 
     /** If true (default), the camera zooms out on very wide/short viewports
@@ -1512,14 +2170,29 @@ class PersepolisScene {
     }
 
     // ---- GL resources (GL thread only) ----
-    // The mesh (~93k vertices) is split into ≤60k-vertex chunks at upload so
-    // plain 16-bit indices work on every target device — no extension needed.
+    // Each mesh (Persepolis 145,449 vertices, tower group 20,043) is split
+    // into ≤60k-vertex chunks at upload so plain 16-bit indices work on
+    // every target device — no extension needed.
     private class Chunk(val buffers: IntArray, val indexCount: Int)   // pos, normal, colour, index
-    private var program = 0
-    private val chunks = ArrayList<Chunk>()
-    private var uMVP = -1; private var uSunDir = -1; private var uSunColor = -1
-    private var uMoonDir = -1; private var uMoonColor = -1
-    private var uSkyAmb = -1; private var uGroundAmb = -1; private var uCamPos = -1
+    // Two programs share the vertex shader and the light uniforms but keep
+    // each monument's own fragment shader, exactly as in the HTML preview.
+    private class Prog(val id: Int) {
+        var uMVP = -1; var uSunDir = -1; var uSunColor = -1
+        var uMoonDir = -1; var uMoonColor = -1
+        var uSkyAmb = -1; var uGroundAmb = -1; var uCamPos = -1
+    }
+
+    /** A built mesh as plain arrays — memoised once per process (see companion). */
+    private class MeshArrays(
+        val positions: FloatArray,
+        val normals: FloatArray,
+        val colours: FloatArray,
+        val indices: IntArray,
+    )
+    private var progP: Prog? = null        // Persepolis
+    private var progM: Prog? = null        // Mil-e Azhdaha
+    private val chunksP = ArrayList<Chunk>()
+    private val chunksM = ArrayList<Chunk>()
 
     private val proj = FloatArray(16)
     private val view = FloatArray(16)
@@ -1534,7 +2207,7 @@ class PersepolisScene {
         if (ok[0] == 0) {
             val log = GLES30.glGetShaderInfoLog(s)
             GLES30.glDeleteShader(s)
-            throw RuntimeException("Persepolis shader compile failed: $log")
+            throw RuntimeException("PersepolisMilAzhdaha shader compile failed: $log")
         }
         return s
     }
@@ -1542,43 +2215,37 @@ class PersepolisScene {
     private fun floatBuffer(data: FloatArray): FloatBuffer =
         ByteBuffer.allocateDirect(data.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(data); position(0) }
 
-    /** Build the mesh and upload it. Call once per GL context (onSurfaceCreated). */
-    fun init() {
-        // ZIG integration guard (change 2 in the header note): init() runs on every fresh
-        // GL context, so drop resource names from a dead context before recreating them.
-        // On a brand-new context nothing else has allocated names yet in this context, so
-        // deleting stale names is a no-op; on a preserved context it frees the real thing.
-        if (program != 0 || chunks.isNotEmpty()) release()
+    private fun makeProgram(fragmentSrc: String): Prog {
         val vs = compile(GLES30.GL_VERTEX_SHADER, VERTEX_SHADER)
-        val fs = compile(GLES30.GL_FRAGMENT_SHADER, FRAGMENT_SHADER)
-        program = GLES30.glCreateProgram()
-        GLES30.glAttachShader(program, vs)
-        GLES30.glAttachShader(program, fs)
-        GLES30.glBindAttribLocation(program, 0, "aPos")
-        GLES30.glBindAttribLocation(program, 1, "aNormal")
-        GLES30.glBindAttribLocation(program, 2, "aColor")
-        GLES30.glLinkProgram(program)
+        val fs = compile(GLES30.GL_FRAGMENT_SHADER, fragmentSrc)
+        val id = GLES30.glCreateProgram()
+        GLES30.glAttachShader(id, vs)
+        GLES30.glAttachShader(id, fs)
+        GLES30.glBindAttribLocation(id, 0, "aPos")
+        GLES30.glBindAttribLocation(id, 1, "aNormal")
+        GLES30.glBindAttribLocation(id, 2, "aColor")
+        GLES30.glLinkProgram(id)
         GLES30.glDeleteShader(vs); GLES30.glDeleteShader(fs)
         val ok = IntArray(1)
-        GLES30.glGetProgramiv(program, GLES30.GL_LINK_STATUS, ok, 0)
-        if (ok[0] == 0) throw RuntimeException("Persepolis program link failed: ${GLES30.glGetProgramInfoLog(program)}")
-        uMVP = GLES30.glGetUniformLocation(program, "uMVP")
-        uSunDir = GLES30.glGetUniformLocation(program, "uSunDir")
-        uSunColor = GLES30.glGetUniformLocation(program, "uSunColor")
-        uMoonDir = GLES30.glGetUniformLocation(program, "uMoonDir")
-        uMoonColor = GLES30.glGetUniformLocation(program, "uMoonColor")
-        uSkyAmb = GLES30.glGetUniformLocation(program, "uSkyAmb")
-        uGroundAmb = GLES30.glGetUniformLocation(program, "uGroundAmb")
-        uCamPos = GLES30.glGetUniformLocation(program, "uCamPos")
+        GLES30.glGetProgramiv(id, GLES30.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) throw RuntimeException("PersepolisMilAzhdaha program link failed: ${GLES30.glGetProgramInfoLog(id)}")
+        val p = Prog(id)
+        p.uMVP = GLES30.glGetUniformLocation(id, "uMVP")
+        p.uSunDir = GLES30.glGetUniformLocation(id, "uSunDir")
+        p.uSunColor = GLES30.glGetUniformLocation(id, "uSunColor")
+        p.uMoonDir = GLES30.glGetUniformLocation(id, "uMoonDir")
+        p.uMoonColor = GLES30.glGetUniformLocation(id, "uMoonColor")
+        p.uSkyAmb = GLES30.glGetUniformLocation(id, "uSkyAmb")
+        p.uGroundAmb = GLES30.glGetUniformLocation(id, "uGroundAmb")
+        p.uCamPos = GLES30.glGetUniformLocation(id, "uCamPos")
+        return p
+    }
 
-        // ZIG integration (change 3 in the header note): buildScene() is deterministic,
-        // so its CPU arrays are built once per process (see meshArrays below) and only
-        // the chunking/upload below repeats for each new GL context.
-        val cached = meshArrays
-        val positions = cached.positions
-        val normals = cached.normals
-        val colours = cached.colours
-        val indices = cached.indices
+    private fun upload(mesh: MeshArrays, out: ArrayList<Chunk>) {
+        val positions = mesh.positions
+        val normals = mesh.normals
+        val colours = mesh.colours
+        val indices = mesh.indices
 
         // Remap into ≤60k-vertex chunks (see the Chunk note above). Primitives
         // are emitted with local vertices, so chunk-boundary duplication is
@@ -1602,7 +2269,7 @@ class PersepolisScene {
             sb.position(0)
             GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, b[3])
             GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, ib.size * 2, sb, GLES30.GL_STATIC_DRAW)
-            chunks.add(Chunk(b, ib.size))
+            out.add(Chunk(b, ib.size))
             map.clear(); cPos.clear(); cNor.clear(); cCol.clear(); cIdx.clear()
         }
         var ti = 0
@@ -1624,63 +2291,37 @@ class PersepolisScene {
             ti += 3
         }
         flushChunk()
+    }
+
+    /** Build both meshes and upload them. Call once per GL context (onSurfaceCreated). */
+    fun init() {
+        // onSurfaceCreated also runs when a fresh EGL context replaces a dead
+        // one (surface recreated, context-preservation failure). Resource
+        // names from the dead context are meaningless — and, worse, numeric
+        // names may be recycled — so drop every stale handle before
+        // rebuilding. The arrays themselves are memoised (see companion):
+        // both builders are deterministic, so a rebuild is bit-identical.
+        if (progP != null || progM != null || chunksP.isNotEmpty() || chunksM.isNotEmpty()) release()
+        progP = makeProgram(FRAGMENT_SHADER_P)
+        progM = makeProgram(FRAGMENT_SHADER_M)
+        upload(persepolisMeshArrays, chunksP)
+        upload(milMeshArrays, chunksM)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
-    /**
-     * Draw one frame into the current viewport. Does not clear colour (the
-     * sky behind shows through); pass [clear] = true for a standalone
-     * transparent surface. Safe to call between your own GL work: it binds
-     * its own program/buffers and enables depth test + back-face culling.
-     */
-    fun draw(width: Int, height: Int, clear: Boolean = false) {
-        if (program == 0 || width <= 0 || height <= 0) return
-        GLES30.glViewport(0, 0, width, height)
-        if (clear) {
-            GLES30.glClearColor(0f, 0f, 0f, 0f)   // transparent: composites over the sky
-            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
-        }
-        GLES30.glEnable(GLES30.GL_DEPTH_TEST)
-        GLES30.glEnable(GLES30.GL_CULL_FACE)
-        GLES30.glUseProgram(program)
-
-        val aspect = width.toFloat() / height.toFloat()
-        var visW = visibleWidthMeters
-        if (autoFitHeight) {
-            // Ensure the full 25 m from ground to column tops fits between the
-            // top of the viewport and the ground line: visH ≥ 25 / baseFraction.
-            val needW = aspect * (25f / max(baseFractionFromTop, 0.05f))
-            if (needW > visW) visW = needW
-        }
-        val visH = visW / aspect
-        Matrix.setLookAtM(view, 0, CAM[0], CAM[1], CAM[2], 0f, CAM_TARGET_Y, 0f, 0f, 1f, 0f)
-        // Ortho bounds live in VIEW space, and the camera is off-axis, so solve
-        // the centre by projecting real world points through the view matrix:
-        // X starts on the platform centroid (0,0,-2), then the ortho window is
-        // shifted so that centroid lands at centerFractionFromLeft (0.5 leaves
-        // the supplied framing unchanged); the ground line is the platform's
-        // FRONT TOE (0,0,8), which projects lowest at the angle.
-        val cv = FloatArray(4)
-        Matrix.multiplyMV(cv, 0, view, 0, floatArrayOf(0f, 0f, -2f, 1f), 0)
-        val centreX = cv[0] + (0.5f - centerFractionFromLeft.coerceIn(0f, 1f)) * visW
-        Matrix.multiplyMV(cv, 0, view, 0, floatArrayOf(0f, 0f, 8f, 1f), 0)
-        // Centre that puts the front toe at baseFractionFromTop (NDC = 1 − 2·fraction).
-        val centreY = cv[1] + (2f * baseFractionFromTop - 1f) * visH / 2f
-        Matrix.orthoM(proj, 0, centreX - visW / 2f, centreX + visW / 2f, centreY - visH / 2f, centreY + visH / 2f, 10f, 300f)
-        Matrix.multiplyMM(mvp, 0, proj, 0, view, 0)
-        GLES30.glUniformMatrix4fv(uMVP, 1, false, mvp, 0)
-
+    private fun drawMesh(p: Prog, chunks: ArrayList<Chunk>) {
+        GLES30.glUseProgram(p.id)
+        GLES30.glUniformMatrix4fv(p.uMVP, 1, false, mvp, 0)
         synchronized(lock) {
-            GLES30.glUniform3fv(uSunDir, 1, sunDir, 0)
-            GLES30.glUniform3fv(uSunColor, 1, sunColor, 0)
-            GLES30.glUniform3fv(uMoonDir, 1, moonDir, 0)
-            GLES30.glUniform3fv(uMoonColor, 1, moonColor, 0)
-            GLES30.glUniform3fv(uSkyAmb, 1, skyAmb, 0)
-            GLES30.glUniform3fv(uGroundAmb, 1, groundAmb, 0)
+            GLES30.glUniform3fv(p.uSunDir, 1, sunDir, 0)
+            GLES30.glUniform3fv(p.uSunColor, 1, sunColor, 0)
+            GLES30.glUniform3fv(p.uMoonDir, 1, moonDir, 0)
+            GLES30.glUniform3fv(p.uMoonColor, 1, moonColor, 0)
+            GLES30.glUniform3fv(p.uSkyAmb, 1, skyAmb, 0)
+            GLES30.glUniform3fv(p.uGroundAmb, 1, groundAmb, 0)
         }
-        GLES30.glUniform3fv(uCamPos, 1, CAM, 0)
-
+        GLES30.glUniform3fv(p.uCamPos, 1, CAM, 0)
         GLES30.glEnableVertexAttribArray(0)
         GLES30.glEnableVertexAttribArray(1)
         GLES30.glEnableVertexAttribArray(2)
@@ -1694,6 +2335,51 @@ class PersepolisScene {
             GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[3])
             GLES30.glDrawElements(GLES30.GL_TRIANGLES, chunk.indexCount, GLES30.GL_UNSIGNED_SHORT, 0)
         }
+    }
+
+    /**
+     * Draw one frame into the current viewport. Does not clear colour (the
+     * sky behind shows through); pass [clear] = true for a standalone
+     * transparent surface. Safe to call between your own GL work: it binds
+     * its own program/buffers and enables depth test + back-face culling.
+     */
+    fun draw(width: Int, height: Int, clear: Boolean = false) {
+        val pP = progP ?: return
+        val pM = progM ?: return
+        if (width <= 0 || height <= 0) return
+        GLES30.glViewport(0, 0, width, height)
+        if (clear) {
+            GLES30.glClearColor(0f, 0f, 0f, 0f)   // transparent: composites over the sky
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
+        }
+        GLES30.glEnable(GLES30.GL_DEPTH_TEST)
+        GLES30.glEnable(GLES30.GL_CULL_FACE)
+
+        val aspect = width.toFloat() / height.toFloat()
+        var visW = visibleWidthMeters
+        if (autoFitHeight) {
+            // Ensure the full 25 m from ground to column tops fits between the
+            // top of the viewport and the ground line: visH ≥ 25 / baseFraction.
+            val needW = aspect * (25f / max(baseFractionFromTop, 0.05f))
+            if (needW > visW) visW = needW
+        }
+        val visH = visW / aspect
+        Matrix.setLookAtM(view, 0, CAM[0], CAM[1], CAM[2], 0f, CAM_TARGET_Y, 0f, 0f, 1f, 0f)
+        // Ortho bounds live in VIEW space, and the camera is off-axis, so solve
+        // the centre by projecting real world points through the view matrix:
+        // X is centred on the platform centroid (0,0,-2); the ground line is
+        // the platform's FRONT TOE (0,0,8), which projects lowest at the angle.
+        val cv = FloatArray(4)
+        Matrix.multiplyMV(cv, 0, view, 0, floatArrayOf(0f, 0f, -2f, 1f), 0)
+        val centreX = cv[0] + (0.5f - centerFractionFromLeft.coerceIn(0f, 1f)) * visW
+        Matrix.multiplyMV(cv, 0, view, 0, floatArrayOf(0f, 0f, 8f, 1f), 0)
+        // Centre that puts the front toe at baseFractionFromTop (NDC = 1 − 2·fraction).
+        val centreY = cv[1] + (2f * baseFractionFromTop - 1f) * visH / 2f
+        Matrix.orthoM(proj, 0, centreX - visW / 2f, centreX + visW / 2f, centreY - visH / 2f, centreY + visH / 2f, 10f, 300f)
+        Matrix.multiplyMM(mvp, 0, proj, 0, view, 0)
+        drawMesh(pP, chunksP)   // Persepolis first…
+        drawMesh(pM, chunksM)   // …then the tower group standing in front of it
+
         GLES30.glDisableVertexAttribArray(0)
         GLES30.glDisableVertexAttribArray(1)
         GLES30.glDisableVertexAttribArray(2)
@@ -1703,10 +2389,10 @@ class PersepolisScene {
 
     /** Delete GL resources. Call on the GL thread when the context is lost/finished. */
     fun release() {
-        for (chunk in chunks) if (chunk.buffers[0] != 0) GLES30.glDeleteBuffers(4, chunk.buffers, 0)
-        chunks.clear()
-        if (program != 0) GLES30.glDeleteProgram(program)
-        program = 0
+        for (chunk in chunksP + chunksM) if (chunk.buffers[0] != 0) GLES30.glDeleteBuffers(4, chunk.buffers, 0)
+        chunksP.clear(); chunksM.clear()
+        progP?.let { GLES30.glDeleteProgram(it.id) }; progP = null
+        progM?.let { GLES30.glDeleteProgram(it.id) }; progM = null
     }
 
     companion object {
@@ -1716,25 +2402,32 @@ class PersepolisScene {
         private val CAM = floatArrayOf(-17f, 15.5f, 110f)
         private const val CAM_TARGET_Y = 9.0f
 
-        // ZIG integration (change 3 in the header note): the deterministic build's
-        // CPU-side arrays, created once per process. ~7 MB retained; every later
-        // GL context (surface recreation, theme return) re-uploads from these.
-        private class MeshArrays(
-            val positions: FloatArray,
-            val normals: FloatArray,
-            val colours: FloatArray,
-            val indices: IntArray,
-        )
-
-        private val meshArrays: MeshArrays by lazy {
-            val mesh = buildScene()
-            MeshArrays(
-                positions = mesh.pos.toFloatArray(),
-                normals = mesh.nor.toFloatArray(),
-                colours = mesh.col.toFloatArray(),
-                indices = mesh.idx.toIntArray(),
+        // The deterministic builders run once per process, in the order below;
+        // only the VBO uploads repeat per GL context (see [init]).
+        private val persepolisMeshArrays: MeshArrays by lazy {
+            meshArraysOf(
+                transformMesh(buildPersepolisScene(), 1f, 0f, PERSEPOLIS_X, 0f, 0f)
             )
         }
+        private val milMeshArrays: MeshArrays by lazy {
+            meshArraysOf(
+                transformMesh(
+                    buildMilLocalScene(),
+                    MIL_GROUP_SCALE,
+                    MIL_GROUP_ROTY,
+                    MIL_GROUP_X,
+                    MIL_GROUP_Y,
+                    MIL_GROUP_Z,
+                )
+            )
+        }
+
+        private fun meshArraysOf(mesh: MeshBuilder): MeshArrays = MeshArrays(
+            positions = mesh.pos.toFloatArray(),
+            normals = mesh.nor.toFloatArray(),
+            colours = mesh.col.toFloatArray(),
+            indices = mesh.idx.toIntArray(),
+        )
     }
 }
 
@@ -1744,13 +2437,13 @@ class PersepolisScene {
 // Remember to forward onPause()/onResume() from your Activity/Fragment.
 // ============================================================================
 
-class PersepolisView @JvmOverloads constructor(
+class PersepolisMilAzhdahaView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : GLSurfaceView(context, attrs) {
 
     /** The scene, exposed for framing controls and explicit-light APIs. */
-    val scene = PersepolisScene()
+    val scene = PersepolisMilAzhdahaScene()
 
     init {
         setEGLContextClientVersion(3)
@@ -1782,15 +2475,14 @@ class PersepolisView @JvmOverloads constructor(
         requestRender()
     }
 
-    /** Framing: visible world width in metres (89 = the preview look), the
+    /** Framing: visible world width in metres (116 = the preview look), the
      *  ground-line position as a fraction of the view height from the top
      *  (0.80 = the preview look; 0.995 plants the base on the bottom edge), and
-     *  the platform centroid's column as a fraction of the width from the left
-     *  (0.5 = centred preview look). */
+     *  optionally the combined frame's anchor x as a fraction from the left. */
     fun setFraming(
         visibleWidthMeters: Float,
         baseFractionFromTop: Float,
-        centerFractionFromLeft: Float = 0.5f
+        centerFractionFromLeft: Float = 0.5f,
     ) {
         scene.visibleWidthMeters = visibleWidthMeters
         scene.baseFractionFromTop = baseFractionFromTop

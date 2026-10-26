@@ -126,8 +126,9 @@ enum class SkyCanvasPresentation {
  *  2. the scene motion — drifting cloud veils and the breathing observer — on a faster tick, scene only;
  *  3. the interaction layer — selection ring and stardust — only while the user is touching it.
  *
- * Between layers 1 and 2, the scene on the photographic themes also carries the Persepolis relief
- * (see [PersepolisLandscape]): a transparent GL surface standing in layer 1's ground band, lit by the
+ * Between layers 1 and 2, the scene on the photographic themes also carries the combined
+ * Persepolis + Mil-e Azhdaha relief (see [PersepolisLandscape]): a transparent GL surface standing
+ * in layer 1's ground band, lit by the
  * same ephemeris, rendering one frame per sky-model change. It is a peer of the sky clock, not of the
  * motion clock, so it is not numbered with the repaint layers above.
  */
@@ -469,11 +470,12 @@ fun HeroSkyCanvas(
             )
         }
 
-        // Persepolis framing for this exact scene size (see PersepolisFraming): half the first
-        // integration's linear size, placed on the left and farther back in the ground plane. The
-        // sky pass recomputes the same result for its footprint-local grounding paint, so the stone
-        // and the painted ground meet at the same toe row and platform edges. Null unless this is
-        // the full-bleed scene on a photographic theme.
+        // Combined-landscape framing for this exact scene size (see PersepolisFraming): Persepolis
+        // at half the first integration's linear size, the whole group placed left and farther
+        // back in the ground plane. The sky pass recomputes the same result for its
+        // footprint-local grounding paint, so the stone and painted ground meet at the same toe,
+        // platform edges and tower-slope front. Null unless this is the full-bleed scene on a
+        // photographic theme.
         val persepolisFraming = if (isScene && PersepolisFeature.isEnabledFor(uiState.skyCanvasTheme)) {
             val density = LocalDensity.current
             val widthPx = with(density) { maxWidth.toPx() }
@@ -505,12 +507,13 @@ fun HeroSkyCanvas(
             )
         }
 
-        // --- PERSEPOLIS: THE GROUND'S SUBJECT ---
-        // The Apadana east façade as a transparent GL relief set into the left distance of layer 1's
-        // ground band, at half the size of the first integration: the ridges and mist shelf behind it
-        // are its backdrop, the deeper field below its toe is the foreground, and the localized
-        // earthwork the sky pass paints around its footprint seats it in the terrain. It is lit by
-        // this frame's real Sun and Moon and renders on demand (per sky-model change), never on the
+        // --- COMBINED LANDSCAPE: THE GROUND'S SUBJECTS ---
+        // Persepolis in the left distance and Mil-e Azhdaha on its limestone hillside, as one
+        // transparent GL relief set into layer 1's ground band: the ridges and mist shelf behind
+        // them are their backdrop, the deeper field below their feet is the foreground, and the
+        // localized earthwork the sky pass paints around both footprints seats them in the
+        // terrain. They are lit by
+        // this frame's real Sun and Moon and render on demand (per sky-model change), never on the
         // motion clock. Photographic themes only — PersepolisFeature is the gate.
         if (persepolisFraming != null) {
             PersepolisLandscape(

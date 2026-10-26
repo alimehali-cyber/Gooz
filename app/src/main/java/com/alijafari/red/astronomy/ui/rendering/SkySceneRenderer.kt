@@ -203,12 +203,13 @@ object SkySceneRenderer {
 
         // 7. Ground. The full-bleed scene gets the layered ground band (ridges, mist shelf, grass); the card
         //    and the fullscreen viewer keep the older single-silhouette landscape; the backdrop has neither.
-        //    On the photographic themes the Persepolis relief (a GL layer the caller composites above this
-        //    canvas) sits in the left distance of this ground band: the band is painted as usual — ridges
-        //    and mist are its backdrop, the field below its toe is the foreground — plus a localized
-        //    earthwork around the platform footprint (sand drift, banked end, contact shadow, debris).
-        //    The framing is recomputed here from the same inputs the GL host uses, so the painted earth
-        //    and the stone always meet at the same toe row and platform edges.
+        //    On the photographic themes the combined Persepolis + Mil-e Azhdaha relief (a GL layer
+        //    the caller composites above this canvas) sits in this ground band: the band is painted
+        //    as usual — ridges and mist are its backdrop, the field below its feet is the
+        //    foreground — plus a localized earthwork around the platform and tower-slope
+        //    footprints (sand drifts, banked slope side, contact shadows, debris). The framing is
+        //    recomputed here from the same inputs the GL host uses, so the painted earth and the
+        //    stone always meet at the same toe, platform edges and slope front.
         when {
             target.drawsScene -> {
                 val composition = SkySceneLayout.composition(

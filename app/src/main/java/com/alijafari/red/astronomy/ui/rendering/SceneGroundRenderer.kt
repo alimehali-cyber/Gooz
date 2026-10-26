@@ -24,11 +24,12 @@ import kotlin.math.sin
 object SceneGroundRenderer {
 
     /**
-     * @param persepolis resolved Persepolis framing for this exact canvas, or null when the ruin is
-     * not part of the scene. When set, a footprint-local worn-earth apron, banked side transition,
-     * contact shadow and debris are painted from the framing's platform bounds so the GL stone sits
-     * *in* the ground band instead of ending on a hard line above the grass. Everything else is
-     * unchanged: the ridges and the mist shelf stay behind the ruin (they are its distance backdrop),
+     * @param persepolis resolved combined-landscape framing for this exact canvas, or null when
+     * the ruins are not part of the scene. When set, a footprint-local worn-earth apron, banked
+     * side transition, contact shadows and debris are painted from both the Persepolis platform
+     * bounds and the Mil-e Azhdaha slope's projected bounds, so the GL stone sits *in* the
+     * ground band instead of ending on a hard line above the grass. Everything else is unchanged:
+     * the ridges and the mist shelf stay behind the ruins (they are their distance backdrop),
      * and the ground below the toe remains the foreground field the framing intends.
      */
     fun draw(
@@ -113,9 +114,9 @@ object SceneGroundRenderer {
             size = androidx.compose.ui.geometry.Size(width, height * 0.06f)
         )
 
-        // 5b. Persepolis earthwork: the worn ground the distant platform actually stands in.
+        // 5b. Combined-landscape earthwork: the worn ground the platform and tower slope stand in.
         if (persepolis != null) {
-            drawPersepolisGrounding(drawScope, composition, palette, lighting, persepolis)
+            drawCombinedLandscapeGrounding(drawScope, composition, palette, lighting, persepolis)
         }
 
         // 6. Grass line. Papercraft keeps hard cardstock edges instead of strokes.
@@ -144,22 +145,25 @@ object SceneGroundRenderer {
     }
 
     /**
-     * The earth the distant GL ruin stands in, painted only around its own footprint.
+     * The earth the distant GL ruins stand in, painted only around their own footprints.
      *
-     * At the half-scale, left-hand placement the platform no longer runs off both edges, so a
-     * full-width grounding band would read as a stripe. Instead this paints a small worn site:
-     * irregular drifts of sand over the field in front of the toe, a bank of earth spilling past the
-     * platform's open right end, a broken contact shadow directly under the forecourt, low drift
-     * hummocks, and fine stone-and-sand flecks. Every edge is either irregular, gradient-feathered,
-     * or both, and the whole patch feathers out to the right into the ordinary ground.
+     * At the half-scale, left-hand placement neither monument runs off both edges, so a
+     * full-width grounding band would read as a stripe. Instead this paints one small worn
+     * archaeological site: irregular drifts of sand over the field in front of the Persepolis
+     * toe, a bank of earth spilling from the tower slope's open right side, broken contact
+     * shadows under both the forecourt and the nearer slope front, low drift hummocks, and fine
+     * stone-and-sand flecks. The two contact treatments are separate because the slope's front
+     * step is closer to the viewer and projects below the Persepolis toe. Every edge is either
+     * irregular, gradient-feathered, or both, and the whole patch feathers out to the right
+     * into the ordinary ground.
      *
-     * It is still drawn under the GL surface, so within the stone footprint only the parts in front
-     * of the forecourt edge show; outside it, the patch is the dusty clearing the ruin occupies.
+     * It is still drawn under the GL surface, so within the stone footprints only the parts in
+     * front of their edges show; outside them, the patch is the dusty clearing the ruins occupy.
      * Colours are mixed from the active ground palette toward sand and scaled by the same
      * Sun-altitude brightness as the rest of the ground, so the patch warms, cools and disappears
      * into astronomical night with the terrain around it. All placement noise is deterministic.
      */
-    private fun drawPersepolisGrounding(
+    private fun drawCombinedLandscapeGrounding(
         drawScope: DrawScope,
         composition: SceneComposition,
         palette: ScenePalette,
@@ -173,11 +177,16 @@ object SceneGroundRenderer {
 
         val platformLeft = framing.platformLeftXPx
         val platformRight = framing.platformRightXPx
-        val footprintWidth = (platformRight - platformLeft).coerceAtLeast(1f)
+        val slopeLeft = framing.milSlopeLeftXPx
+        val slopeRight = framing.milSlopeRightXPx
+        val slopeFrontY = framing.milSlopeFrontYPx.coerceAtMost(height)
+        val combinedRight = maxOf(platformRight, slopeRight)
+        val footprintWidth = (combinedRight - platformLeft).coerceAtLeast(1f)
+        val slopeWidth = (slopeRight - slopeLeft).coerceAtLeast(1f)
         // The worn-earth patch starts a little before the stone (often off-canvas left) and tails
-        // off well past the platform's open end, so the clearing has no vertical boundary.
+        // off well past the slope's open right side, so the clearing has no vertical boundary.
         val apronLeft = (platformLeft - width * 0.030f).coerceAtLeast(-width * 0.02f)
-        val apronRight = (platformRight + width * 0.175f).coerceAtMost(width * 1.02f)
+        val apronRight = (combinedRight + width * 0.145f).coerceAtMost(width * 1.02f)
 
         val sand = lerp(Color(0xFF292216), Color(0xFFBEA06E), day)
         val earth = lerp(palette.groundTop, sand, 0.42f)
@@ -270,25 +279,41 @@ object SceneGroundRenderer {
             )
         )
 
-        // 2. Earth banked against the platform's open (right) end: one soft spill of soil toward
-        //    the viewer, spanning from under the slab end to the apron's tail. Most of its left
-        //    side is hidden by the GL stone; the visible right side fades into the field.
-        val bankLeft = platformRight - footprintWidth * 0.16f
-        val bankRight = platformRight + width * 0.155f
+        // 2. Earth banked against the slope's open right side: one soft spill of soil toward the
+        //    viewer, spanning from under the upper limestone sheets to the apron's tail. Most of
+        //    its left side is hidden by the GL slope; the visible right side fades into the field.
+        val bankLeft = slopeRight - slopeWidth * 0.42f
+        val bankRight = slopeRight + width * 0.145f
         drawSoftDrift(
             cx = (bankLeft + bankRight) / 2f,
-            cy = (toeY + height * 0.028f).coerceAtMost(height),
+            cy = ((toeY + slopeFrontY) / 2f + height * 0.024f).coerceAtMost(height),
             driftWidth = bankRight - bankLeft,
-            driftHeight = height * 0.068f,
+            driftHeight = height * 0.064f,
             outerColor = earth,
             innerColor = sand,
-            peakAlpha = 0.18f + 0.16f * day,
+            peakAlpha = 0.17f + 0.16f * day,
             layers = 16
         )
 
-        // 3. Broken contact shadow directly in front of the forecourt, following the stone only.
+        // A paler wash of limestone dust immediately in front of the stepped sheets. It sits
+        // below the GL slope's lowest front edge, so the sheets appear to shed their own pale
+        // grit onto the darker field rather than terminating on the generic apron colour.
+        drawSoftDrift(
+            cx = (slopeLeft + slopeRight) / 2f,
+            cy = (slopeFrontY + height * 0.016f).coerceAtMost(height),
+            driftWidth = slopeWidth * 1.14f,
+            driftHeight = height * 0.038f,
+            outerColor = earth,
+            innerColor = sand,
+            peakAlpha = 0.10f + 0.13f * day,
+            layers = 14
+        )
+
+        // 3. Broken contact shadow directly in front of the combined stone footprint. The
+        //    Persepolis forecourt and tower slope overlap in projection, so one continuous,
+        //    irregular shadow prevents a lit seam where the two masses meet.
         val shadowLeft = platformLeft.coerceAtLeast(-width * 0.01f)
-        val shadowRight = (platformRight + width * 0.018f).coerceAtMost(width)
+        val shadowRight = (combinedRight + width * 0.018f).coerceAtMost(width)
         val shadow = Path().apply {
             val segments = 32
             moveTo(shadowLeft, toeY - height * 0.003f)
@@ -311,6 +336,20 @@ object SceneGroundRenderer {
                 startY = toeY - height * 0.004f,
                 endY = (toeY + height * 0.027f).coerceAtMost(height)
             )
+        )
+
+        // 3b. A deeper, very soft contact crescent under the slope's front step. The GL sheets
+        //     cover its upper half; the visible lower half anchors the nearer limestone edge
+        //     without drawing a second hard horizontal shadow line.
+        drawSoftDrift(
+            cx = (slopeLeft + slopeRight) / 2f,
+            cy = (slopeFrontY + height * 0.004f).coerceAtMost(height),
+            driftWidth = slopeWidth * 1.06f,
+            driftHeight = height * 0.024f,
+            outerColor = darkEarth,
+            innerColor = Color.Black,
+            peakAlpha = 0.13f + 0.17f * day,
+            layers = 14
         )
 
         // 4. Low drift hummocks: soft elongated mounds scattered through the apron, denser near

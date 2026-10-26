@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 """
-Verify the Persepolis framing inside the Home sky scene, exactly.
+Verify the combined Persepolis + Mil-e Azhdaha framing in the Home scene, exactly.
 
-PersepolisFraming.kt places the ruin with an isotropic scale approximation
+PersepolisFraming.kt places Persepolis with an isotropic scale approximation
 (px per metre = viewport width / visible world width, anchored at the
-platform toe). The GL side, PersepolisScene.draw(), projects with a real
-off-axis lookAt + ortho. This script replicates those matrices (the Android
+platform toe), and places the nearer Mil-e Azhdaha group with precomputed
+fixed-camera view-space offsets. The GL side,
+PersepolisMilAzhdahaScene.draw(), projects with a real off-axis lookAt +
+ortho. This script replicates those matrices (the Android
 Matrix.setLookAtM / orthoM constructions, and draw()'s centre-solving code
-line for line) and projects landmark world points from the model — column
-tops, the great doorway's cornice, the facade ends, the forecourt edge —
+line for line) and projects landmark world points from both monument groups
 through the framing PersepolisFraming.forScene computes (also ported here).
 
 It proves, for a matrix of scene sizes:
   * the toe lands exactly on baseFractionFromTop (port sanity),
-  * the whole facade is inside the frame on phone-shaped scenes,
-  * the platform sits below the horizon and the tall columns rise above it,
-  * the columns stay clear of the header band,
-  * the great doorway's cornice (the tallest left-hand stone) stays below
-    the scene readout under the EXACT projection — the approximation in
-    PersepolisFraming is not conservative in that one direction, because a
-    structure 11 m behind the toe projects slightly higher,
-  * the forecourt's front edge falls inside the grounding bands painted by
-    SceneGroundRenderer, and
-  * how large the approximation error actually is (reported in dp).
+  * the whole Persepolis facade is inside the frame on phone-shaped scenes,
+  * the cut-back platform sits below the horizon and in the left landscape,
+  * the tall Persepolis columns rise above the horizon and clear the header,
+  * every tall structure inside the readout's protected width — including
+    the Mil-e Azhdaha tower, which PersepolisFraming does not need as a
+    separate guard — clears the readout under the EXACT projection,
+  * the baked, transformed corners of the tower slope's nine fixed sheets
+    match PersepolisFraming's slope footprint landmarks,
+  * both the forecourt front edge and the nearer slope front fall inside
+    the grounding bands painted by SceneGroundRenderer, and
+  * how large the Persepolis approximation error actually is (reported in dp).
 
 Stdlib only. Run from the repo root:  python3 tools/persepolis/verify_framing.py
 Exit code 0 = all checks passed.
@@ -75,7 +77,7 @@ def view_point(p):
 
 
 # --------------------------------------------------------------------------
-# PersepolisScene.draw() viewport math, ported line for line.
+# PersepolisMilAzhdahaScene.draw() viewport math, ported line for line.
 # Returns a function world -> (ndc_x, row_from_top_px).
 # --------------------------------------------------------------------------
 
@@ -117,6 +119,18 @@ REFERENCE_MAX_BUILDING_HEIGHT_FRACTION = 0.34
 BUILDING_HEIGHT_M = 23.6
 PLATFORM_TOP_M = 4.35
 GREAT_DOORWAY_TOP_M = PLATFORM_TOP_M + 10.4
+GREAT_DOORWAY_X_M = -35.3
+TALLEST_COLUMN_X_M = 16.5
+PLATFORM_LEFT_X_M = -56.98
+PLATFORM_RIGHT_X_M = 40.30
+FACADE_LEFT_X_M = -52.3
+FACADE_RIGHT_X_M = 36.3
+MIL_TOWER_CENTER_VIEW_OFFSET_M = 42.91
+MIL_TOWER_TOP_VIEW_HEIGHT_M = 16.19
+MIL_SLOPE_LEFT_VIEW_OFFSET_M = 17.12
+MIL_SLOPE_RIGHT_VIEW_OFFSET_M = 76.85
+MIL_SLOPE_TOP_VIEW_HEIGHT_M = 6.55
+MIL_SLOPE_FRONT_BELOW_TOE_VIEW_M = 1.55
 CENTER_FRACTION_FROM_LEFT = 0.30
 DISTANT_TOE_BELOW_HORIZON_FRACTION = 0.098
 MAX_TOE_FRACTION = 0.92
@@ -125,11 +139,12 @@ READOUT_CLEARANCE_DP = 5.0
 READOUT_RIGHT_DP = 250.0
 HORIZON_FRACTION = 0.70
 
-GUARD_STRUCTURES = [  # world x, top above toe, half width (metres)
-    (-39.7, 8.45, 2.5), (-34.4, 9.0, 2.7), (-25.6, GREAT_DOORWAY_TOP_M, 3.1),
-    (-5.9, PLATFORM_TOP_M + 7.8, 2.7), (1.4, PLATFORM_TOP_M + 9.9, 3.0),
-    (8.9, 16.92, 1.4), (26.2, BUILDING_HEIGHT_M, 1.1),
-    (29.3, PLATFORM_TOP_M + 15.7, 1.1),
+GUARD_STRUCTURES = [  # combined-scene world x, top above toe, half width (metres)
+    (-49.4, 8.45, 2.5), (-44.1, 9.0, 2.7),
+    (GREAT_DOORWAY_X_M, GREAT_DOORWAY_TOP_M, 3.1),
+    (-15.6, PLATFORM_TOP_M + 7.8, 2.7), (-8.3, PLATFORM_TOP_M + 9.9, 3.0),
+    (-0.8, 16.92, 1.4), (TALLEST_COLUMN_X_M, BUILDING_HEIGHT_M, 1.1),
+    (19.6, PLATFORM_TOP_M + 15.7, 1.1),
 ]
 
 
@@ -165,9 +180,17 @@ def for_scene(width_px, height_px, density):
         "platform_top_y": toe_y - PLATFORM_TOP_M * px_per_meter,
         "column_top_y": toe_y - BUILDING_HEIGHT_M * px_per_meter,
         "doorway_top_y": toe_y - GREAT_DOORWAY_TOP_M * px_per_meter,
+        "mil_tower_top_y": toe_y - MIL_TOWER_TOP_VIEW_HEIGHT_M * px_per_meter,
         "model_center_x": model_center_x,
-        "platform_left_x": model_center_x - 66.0 * px_per_meter,
-        "platform_right_x": model_center_x + 66.0 * px_per_meter,
+        "platform_left_x": model_center_x + PLATFORM_LEFT_X_M * px_per_meter,
+        "platform_right_x": model_center_x + PLATFORM_RIGHT_X_M * px_per_meter,
+        "facade_left_x": model_center_x + FACADE_LEFT_X_M * px_per_meter,
+        "facade_right_x": model_center_x + FACADE_RIGHT_X_M * px_per_meter,
+        "mil_tower_center_x": model_center_x + MIL_TOWER_CENTER_VIEW_OFFSET_M * px_per_meter,
+        "mil_slope_left_x": model_center_x + MIL_SLOPE_LEFT_VIEW_OFFSET_M * px_per_meter,
+        "mil_slope_right_x": model_center_x + MIL_SLOPE_RIGHT_VIEW_OFFSET_M * px_per_meter,
+        "mil_slope_top_y": toe_y - MIL_SLOPE_TOP_VIEW_HEIGHT_M * px_per_meter,
+        "mil_slope_front_y": toe_y + MIL_SLOPE_FRONT_BELOW_TOE_VIEW_M * px_per_meter,
         "readout_bottom": readout_bottom,
         "readout_right": readout_right,
         "guard_top_y": toe_y - guard_top_m * px_per_meter,
@@ -175,34 +198,78 @@ def for_scene(width_px, height_px, density):
 
 
 # --------------------------------------------------------------------------
-# Landmarks (world metres, from Persepolis.kt's element tables).
+# Landmarks (combined-scene world metres, from PersepolisMilAzhdaha.kt).
+# Persepolis builder-local x values already include PERSEPOLIS_X = -9.7 m.
 # --------------------------------------------------------------------------
 
 TOE = (0.0, 0.0, 8.0)
-CENTROID = (0.0, 0.0, -2.0)                 # the world point centreFractionFromLeft places
+CENTROID = (0.0, 0.0, -2.0)                 # the point centreFractionFromLeft places
 FORECOURT_FRONT_TOP = (0.0, 0.5, 11.0)      # forecourt slab: y 0..0.5, z ..11
 PLATFORM_FRONT_TOP = (0.0, 4.35, 4.7)       # upper slab front edge
-PLATFORM_CORNERS = [                        # forecourt slab corners (x +-66, z -13..11)
-    (-66.0, 0.5, 11.0), (66.0, 0.5, 11.0), (-66.0, 0.5, -13.0), (66.0, 0.5, -13.0),
+PLATFORM_CORNERS = [                        # cut-back forecourt: x -56.975..40.295, z -13..11
+    (-56.975, 0.5, 11.0), (40.295, 0.5, 11.0),
+    (-56.975, 0.5, -13.0), (40.295, 0.5, -13.0),
 ]
-TALLEST_COLUMN_TOP = (26.2, 23.55, -2.0)    # 4.35 platform + 19.2 column
-SECOND_COLUMN_TOP = (29.3, 20.05, -2.8)     # 4.35 + 15.7
-DOORWAY_TOP = (-25.6, 14.75, -3.4)          # great doorway cornice
-DOORWAY_TOP_LEFT = (-28.65, 14.75, -3.4)
-FAR_LEFT_FRAME_TOP = (-39.7, 8.45, 4.9)     # lowered ledge base 2.85 + 5.6
-FAR_LEFT_EDGE = (-42.15, 5.0, 4.9)          # leftmost modelled stone
-FAR_COLUMN_TOP = (39.3, 12.9, -8.4)         # far isolated broken stack (approx)
-STAIR_FACADE_RIGHT = (43.5, 2.6, 7.25)      # east-stair facade end / lion panel
+TALLEST_COLUMN_TOP = (16.5, 23.55, -2.0)    # 4.35 platform + 19.2 column
+SECOND_COLUMN_TOP = (19.6, 20.05, -2.8)     # 4.35 + 15.7
+DOORWAY_TOP = (-35.3, 14.75, -3.4)          # great doorway cornice
+DOORWAY_TOP_LEFT = (-38.35, 14.75, -3.4)
+FAR_LEFT_FRAME_TOP = (-49.4, 8.45, 4.9)     # lowered ledge base 2.85 + 5.6
+FAR_LEFT_EDGE = (-51.85, 5.0, 4.9)          # leftmost modelled Persepolis stone
+FAR_COLUMN_TOP = (29.6, 12.9, -8.4)         # far isolated broken stack (approx)
+STAIR_FACADE_RIGHT = (33.8, 2.6, 7.25)      # east-stair facade end / lion panel
 
-# Tall silhouettes for the exact readout check: (name, top point).
+# Mil-e Azhdaha group bake from the combined file.
+MIL_GROUP_SCALE = 2.04
+MIL_GROUP_ROTY = -0.20
+MIL_GROUP_X = 40.7
+MIL_GROUP_Y = 1.1
+MIL_GROUP_Z = 15.6
+MIL_TOWER_CENTER = (MIL_GROUP_X, MIL_GROUP_Y, MIL_GROUP_Z)
+MIL_TOWER_TOP = (MIL_GROUP_X, 16.298, MIL_GROUP_Z)  # 1.1 + 2.04 * 7.45 m local ruin top
+
+
+def mil_transform(p):
+    """transformMesh() from the combined file, for one local point."""
+    x, y, z = (c * MIL_GROUP_SCALE for c in p)
+    c = math.cos(MIL_GROUP_ROTY)
+    s = math.sin(MIL_GROUP_ROTY)
+    return (x * c + z * s + MIL_GROUP_X, y + MIL_GROUP_Y, -x * s + z * c + MIL_GROUP_Z)
+
+
+# The nine fixed sheets in milSlope(): centre xyz + size xyz, Mil-local metres.
+MIL_SLOPE_BOXES = [
+    (0.0, -0.295, 0.65, 13.6, 0.49, 12.3),
+    (8.0, 0.015, 1.65, 2.4, 1.11, 14.3),
+    (10.4, 0.325, 1.2, 2.4, 1.73, 13.4),
+    (12.8, 0.635, 1.9, 2.4, 2.35, 14.8),
+    (15.2, 0.945, 1.4, 2.4, 2.97, 13.8),
+    (-8.6, -0.415, 0.65, 3.6, 0.25, 12.3),
+    (-11.3, -0.49, 1.5, 2.2, 0.10, 8.0),
+    (2.0, -0.415, 8.1, 17.0, 0.25, 2.6),
+    (2.0, -0.49, 10.7, 14.0, 0.10, 2.6),
+]
+
+MIL_SLOPE_CORNERS = [
+    mil_transform((cx + dx, cy + dy, cz + dz))
+    for (cx, cy, cz, sx, sy, sz) in MIL_SLOPE_BOXES
+    for dx in (-sx / 2.0, sx / 2.0)
+    for dy in (-sy / 2.0, sy / 2.0)
+    for dz in (-sz / 2.0, sz / 2.0)
+]
+
+# Tall silhouettes for the exact readout check: (name, top point). The tower
+# is checked here even though PersepolisFraming's guard list omits it: the
+# taller Persepolis column to its left should always dominate the toe rule.
 READOUT_LANDMARKS = [
     ("far-left frame", FAR_LEFT_FRAME_TOP),
     ("great doorway", DOORWAY_TOP_LEFT),
-    ("mid door frame", (-5.9, 12.15, -4.2)),
-    ("central niche", (1.4, 14.25, -3.0)),
-    ("centre stack", (8.9, 16.92, -1.6)),
+    ("mid door frame", (-15.6, 12.15, -4.2)),
+    ("central niche", (-8.3, 14.25, -3.0)),
+    ("centre stack", (-0.8, 16.92, -1.6)),
     ("tallest column", TALLEST_COLUMN_TOP),
     ("second column", SECOND_COLUMN_TOP),
+    ("Mil-e Azhdaha tower", MIL_TOWER_TOP),
 ]
 
 SIZES = [
@@ -222,6 +289,18 @@ def main():
         print(("  PASS  " if cond else "  FAIL  ") + msg)
         if not cond:
             failures.append(msg)
+
+    # Size-independent audit of the transformed fixed slope sheets.
+    slope_world_x = (min(p[0] for p in MIL_SLOPE_CORNERS), max(p[0] for p in MIL_SLOPE_CORNERS))
+    slope_world_y = (min(p[1] for p in MIL_SLOPE_CORNERS), max(p[1] for p in MIL_SLOPE_CORNERS))
+    slope_world_z = (min(p[2] for p in MIL_SLOPE_CORNERS), max(p[2] for p in MIL_SLOPE_CORNERS))
+    check(
+        abs(slope_world_y[0]) < 0.01 and slope_world_y[1] > 6.0,
+        "fixed Mil slope sheets bottom out on world y=0 "
+        f"(world x {slope_world_x[0]:.2f}..{slope_world_x[1]:.2f}, "
+        f"y {slope_world_y[0]:.3f}..{slope_world_y[1]:.2f}, "
+        f"z {slope_world_z[0]:.2f}..{slope_world_z[1]:.2f})",
+    )
 
     for w, h, density, label in SIZES:
         print(f"\n{label}  ({w:.0f}x{h:.0f}px @density {density:g})")
@@ -246,7 +325,7 @@ def main():
         centre_frac = (ndc_centre + 1.0) / 2.0
         check(
             abs(centre_frac - CENTER_FRACTION_FROM_LEFT) < 1e-6,
-            f"platform centroid on the left-third column (fraction {centre_frac:.2f})",
+            f"combined-frame anchor on the left-third column (fraction {centre_frac:.2f})",
         )
 
         _, toe_row = project(TOE)
@@ -289,14 +368,58 @@ def main():
         right_frac = (ndc_right + 1.0) / 2.0
         check(
             0.0 <= left_frac and right_frac <= 0.62,
-            f"whole facade in frame on the left (spans {left_frac:.2f}..{right_frac:.2f} of width)",
+            f"whole Persepolis facade in frame on the left (spans {left_frac:.2f}..{right_frac:.2f} of width)",
         )
 
         corner_fracs = [(project(c)[0] + 1.0) / 2.0 for c in PLATFORM_CORNERS]
         exact_platform_right = max(corner_fracs) * w
         check(
             max(corner_fracs) <= 0.70,
-            f"platform ends in the left of the landscape (right edge at {max(corner_fracs):.2f} of width)",
+            f"cut-back platform ends before the open right landscape (right edge at {max(corner_fracs):.2f} of width)",
+        )
+
+        # Exact Mil tower/slope placement against PersepolisFraming's fields.
+        tower_ndc, tower_row = project(MIL_TOWER_TOP)
+        tower_x = (tower_ndc + 1.0) / 2.0 * w
+        err_tower_x = abs(tower_x - f["mil_tower_center_x"]) / dp
+        err_tower_top = abs(tower_row - f["mil_tower_top_y"]) / dp
+        check(
+            max(err_tower_x, err_tower_top) < 1.0,
+            "Mil tower view-space landmarks match exact projection "
+            f"(centre x {tower_x / w:.3f} of width, top {tower_row / h:.3f} of scene; "
+            f"errors {err_tower_x:.2f}/{err_tower_top:.2f}dp)",
+        )
+        check(
+            0.0 < tower_x < w and tower_row > 0.36 * h,
+            "Mil tower is in frame and clear of the header band",
+        )
+
+        slope_projected = [project(c) for c in MIL_SLOPE_CORNERS]
+        exact_slope_left = min((ndc + 1.0) / 2.0 * w for ndc, _ in slope_projected)
+        exact_slope_right = max((ndc + 1.0) / 2.0 * w for ndc, _ in slope_projected)
+        exact_slope_top = min(row for _, row in slope_projected)
+        exact_slope_front = max(row for _, row in slope_projected)
+        slope_errors = [
+            abs(exact_slope_left - f["mil_slope_left_x"]) / dp,
+            abs(exact_slope_right - f["mil_slope_right_x"]) / dp,
+            abs(exact_slope_top - f["mil_slope_top_y"]) / dp,
+            abs(exact_slope_front - f["mil_slope_front_y"]) / dp,
+        ]
+        check(
+            max(slope_errors) < 1.0,
+            "Mil slope footprint landmarks match its transformed fixed sheets "
+            f"(x {exact_slope_left / w:.3f}..{exact_slope_right / w:.3f} of width, "
+            f"rows {exact_slope_top / h:.3f}..{exact_slope_front / h:.3f}; "
+            f"max error {max(slope_errors):.2f}dp)",
+        )
+        check(
+            exact_slope_right <= 0.76 * w,
+            f"combined group leaves the right landscape open (slope ends at {exact_slope_right / w:.2f} of width)",
+        )
+        check(
+            f["toe_y"] < exact_slope_front <= f["toe_y"] + 0.027 * h,
+            "slope front is nearer than the Persepolis toe but inside its contact-shadow band "
+            f"({(exact_slope_front - f['toe_y']) / dp:+.1f}dp from toe row)",
         )
 
         _, fore_row = project(FORECOURT_FRONT_TOP)
@@ -306,14 +429,14 @@ def main():
             f"forecourt front edge inside the painted grounding bands ({(fore_row - f['toe_y']) / dp:+.1f}dp from toe row)",
         )
 
-        # Approximation quality (informational, with a generous bound):
+        # Approximation quality for the Persepolis landmarks (generous bound):
         err_col = abs(col_row - f["column_top_y"]) / dp
         err_door = abs(door_row - f["doorway_top_y"]) / dp
         err_plat = abs(platform_row - f["platform_top_y"]) / dp
         err_edge = abs(exact_platform_right - f["platform_right_x"]) / dp
         check(
             max(err_col, err_door, err_plat, err_edge) < 8.0,
-            f"isotropic-scale approximation error < 8dp (column {err_col:.1f}, doorway {err_door:.1f}, platform {err_plat:.1f}, platform edge {err_edge:.1f})",
+            f"Persepolis isotropic-scale approximation error < 8dp (column {err_col:.1f}, doorway {err_door:.1f}, platform {err_plat:.1f}, platform edge {err_edge:.1f})",
         )
 
     print("\n" + ("ALL CHECKS PASSED" if not failures else f"{len(failures)} FAILURE(S)"))

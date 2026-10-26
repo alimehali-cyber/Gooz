@@ -17,17 +17,18 @@ import com.alijafari.red.astronomy.ui.rendering.PersepolisFraming
 import com.alijafari.red.astronomy.ui.rendering.SkySceneFrame
 
 /**
- * Feature gate for the Persepolis landscape, mirroring
+ * Feature gate for the combined Persepolis + Mil-e Azhdaha landscape, mirroring
  * [com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature].
  *
- * The ruin is a realistically lit limestone relief, so it belongs to the two photographic themes. The
+ * The two ruins are realistically lit limestone reliefs, so they belong to the two photographic
+ * themes. The
  * other themes are deliberate flat styles — cut paper, watercolour, monochrome, and the red
  * night-vision Observatory mode, whose whole purpose is to emit nothing but red light — and they keep
  * their existing stylised ground unchanged. The gate is the single switch for the whole feature: the
  * GL layer in HeroSkyCanvas and the grounding paint in the sky pass both read it.
  */
 object PersepolisFeature {
-    // Enabled in every build. Set to false only to disable the Persepolis landscape entirely.
+    // Enabled in every build. Set to false only to disable the combined landscape entirely.
     const val INTEGRATION_ENABLED = true
 
     /** True for the photographic themes the realistic relief is art-directed for. */
@@ -37,7 +38,7 @@ object PersepolisFeature {
 }
 
 /**
- * Moonlight intensity for [PersepolisView.setMoon] from the illuminated fraction.
+ * Moonlight intensity for [PersepolisMilAzhdahaView.setMoon] from the illuminated fraction.
  *
  * The model's own guidance: ≈0.22 is a bright full Moon, scaled by the illuminated fraction. The view
  * additionally fades the light out as the Moon approaches the horizon and switches it off below it.
@@ -46,7 +47,8 @@ internal fun persepolisMoonIntensity(illuminationPercent: Double): Float =
     (0.22 * illuminationPercent.coerceIn(0.0, 100.0) / 100.0).toFloat()
 
 /**
- * Compose host for [PersepolisView]: the Apadana east façade as the ground of the Home sky scene.
+ * Compose host for [PersepolisMilAzhdahaView]: the Apadana east façade in the left distance and
+ * the Mil-e Azhdaha tower on its limestone hillside as the ground of the Home sky scene.
  *
  * The view is the file's own Option A: a transparent `GLSurfaceView` (`setZOrderOnTop(true)`,
  * RGBA8888 + depth, render-on-demand) laid over the sky canvas, showing through wherever there is no
@@ -62,7 +64,8 @@ internal fun persepolisMoonIntensity(illuminationPercent: Double): Float =
  *
  * The lighting feed is ZIG's own ephemeris, unchanged: [SkySceneFrame.sunHoriz] and
  * [SkySceneFrame.moonData] already carry astronomical azimuth (0° = N, 90° = E) and altitude — exactly
- * the convention [PersepolisView.setSun]/[PersepolisView.setMoon] take — so the ruin is lit by the
+ * the convention [PersepolisMilAzhdahaView.setSun]/[PersepolisMilAzhdahaView.setMoon] take — so
+ * both ruins are lit by the
  * same Sun and Moon that light the sky behind it, including while the finger scrubs time. Updates are
  * keyed on the ephemeris values, so the GL view renders one frame per sky-model change (the usual 15 s
  * bucket at idle, per frame while scrubbing) and costs nothing between them.
@@ -77,7 +80,7 @@ fun PersepolisLandscape(
     framing: PersepolisFraming.Result,
     modifier: Modifier = Modifier
 ) {
-    var view by remember { mutableStateOf<PersepolisView?>(null) }
+    var view by remember { mutableStateOf<PersepolisMilAzhdahaView?>(null) }
 
     val sunAzimuthDeg = frame.sunHoriz.azimuthDeg.toFloat()
     val sunAltitudeDeg = frame.sunHoriz.altitudeDeg.toFloat()
@@ -119,7 +122,7 @@ fun PersepolisLandscape(
 
     AndroidView(
         factory = { context ->
-            PersepolisView(context).apply {
+            PersepolisMilAzhdahaView(context).apply {
                 // Framing and lights are set before the surface exists, so the first drawn frame is
                 // already the composed one; the effects above keep them current afterwards.
                 setFraming(
@@ -136,7 +139,7 @@ fun PersepolisLandscape(
         update = {},
         onRelease = { released ->
             // Free the VBOs on the GL thread while it still exists, then pause it. If the event is
-            // dropped because the surface is already gone, PersepolisScene.init()'s context guard
+            // dropped because the surface is already gone, PersepolisMilAzhdahaScene.init()'s guard
             // covers the next surface.
             runCatching { released.queueEvent { released.scene.release() } }
             released.onPause()
