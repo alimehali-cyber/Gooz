@@ -24,13 +24,13 @@ relief — fluted drums, composite capitals, relief registers, limestone grain. 
 
 ## 1. What was integrated, and how exactly
 
-The model arrived as one self-contained Kotlin file (`Persepolis.kt`: OpenGL ES 2.0, no assets, the
+The model arrived as one self-contained Kotlin file (`Persepolis.kt`: OpenGL ES, no assets, the
 geometry generated procedurally into static VBOs — 139,517 triangles — with a fixed camera from the
 south-east and all "3D behaviour" in the lighting). It now lives at
 `app/src/main/java/com/alijafari/red/astronomy/ui/persepolis/Persepolis.kt`, **integrated exactly** —
 same geometry builder, same element tables, same GLSL (Lambert + hemisphere ambient + specular/rim +
 procedural limestone: tonal patches, grain, rain streaks, bedding planes, settled dust), same camera,
-same Sun/Moon light derivation — with four changes, each recorded in the file's header note:
+same Sun/Moon light derivation — with five changes, each recorded in the file's header note:
 
 | # | Change | Why |
 |---|---|---|
@@ -38,6 +38,7 @@ same Sun/Moon light derivation — with four changes, each recorded in the file'
 | 2 | `PersepolisScene.init()` drops stale GL names before rebuilding | `init()` runs per fresh EGL context; Home's scene is a `LazyColumn` item, so the surface *will* be destroyed and recreated on scroll. Unpatched, the second `init()` appended a second chunk set and drew buffer names from the dead context |
 | 3 | CPU mesh arrays memoised per process | `buildScene()` is deterministic (fixed LCG seed), so the arrays are bit-identical; only the VBO upload repeats per context. Scroll-back-to-top stays near-instant instead of rebuilding ~140 k triangles on the GL thread. ~7 MB retained |
 | 4 | `setPreserveEGLContextOnPause(true)` | Backgrounding the app need not re-upload static VBOs where the driver keeps the context; change 2 covers the rest |
+| 5 | GL calls via the ES 3.0 API on an ES 3.0 context (was ES 2.0) | The app declares ES 3.0 in its manifest and keeps every renderer on it, guarded by `AnimationRecordPrecisionTest.legacyRenderersStayOnGles3…` — which duly failed the first CI run of this change. ES 3.0 is a strict superset for everything the file calls and compiles its GLSL ES 1.00 shaders unchanged, so this is a namespace change (`GLES30`, client version 3) plus three comment updates; the shaders are byte-identical |
 
 Hosting uses the file's **Option A** — its own `PersepolisView`, a transparent `GLSurfaceView`
 (RGBA8888 + depth, `RENDERMODE_WHEN_DIRTY`) composited over the sky — wrapped by

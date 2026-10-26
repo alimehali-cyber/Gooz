@@ -30,7 +30,7 @@ package com.alijafari.red.astronomy.ui.persepolis
 
 import android.content.Context
 import android.graphics.PixelFormat
-import android.opengl.GLES20
+import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.AttributeSet
@@ -54,7 +54,7 @@ import kotlin.math.sqrt
  * PERSEPOLIS — Apadana east façade as a lit 3D landscape feature for Android.
  * ============================================================================
  * Single self-contained Kotlin file. Dependencies: Android SDK only
- * (OpenGL ES 2.0). No WebView, no Filament/SceneView, no model assets —
+ * (OpenGL ES 3.0; see integration change 5 above). No WebView, no Filament/SceneView, no model assets —
  * the geometry is generated procedurally below into static VBOs
  * (139,517 triangles / 146,793 vertices, measured; split into ≤60k-vertex
  * chunks — three at this count — so plain 16-bit indices work everywhere), so
@@ -1513,14 +1513,14 @@ class PersepolisScene {
     private val mvp = FloatArray(16)
 
     private fun compile(type: Int, src: String): Int {
-        val s = GLES20.glCreateShader(type)
-        GLES20.glShaderSource(s, src)
-        GLES20.glCompileShader(s)
+        val s = GLES30.glCreateShader(type)
+        GLES30.glShaderSource(s, src)
+        GLES30.glCompileShader(s)
         val ok = IntArray(1)
-        GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, ok, 0)
+        GLES30.glGetShaderiv(s, GLES30.GL_COMPILE_STATUS, ok, 0)
         if (ok[0] == 0) {
-            val log = GLES20.glGetShaderInfoLog(s)
-            GLES20.glDeleteShader(s)
+            val log = GLES30.glGetShaderInfoLog(s)
+            GLES30.glDeleteShader(s)
             throw RuntimeException("Persepolis shader compile failed: $log")
         }
         return s
@@ -1536,27 +1536,27 @@ class PersepolisScene {
         // On a brand-new context nothing else has allocated names yet in this context, so
         // deleting stale names is a no-op; on a preserved context it frees the real thing.
         if (program != 0 || chunks.isNotEmpty()) release()
-        val vs = compile(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER)
-        val fs = compile(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER)
-        program = GLES20.glCreateProgram()
-        GLES20.glAttachShader(program, vs)
-        GLES20.glAttachShader(program, fs)
-        GLES20.glBindAttribLocation(program, 0, "aPos")
-        GLES20.glBindAttribLocation(program, 1, "aNormal")
-        GLES20.glBindAttribLocation(program, 2, "aColor")
-        GLES20.glLinkProgram(program)
-        GLES20.glDeleteShader(vs); GLES20.glDeleteShader(fs)
+        val vs = compile(GLES30.GL_VERTEX_SHADER, VERTEX_SHADER)
+        val fs = compile(GLES30.GL_FRAGMENT_SHADER, FRAGMENT_SHADER)
+        program = GLES30.glCreateProgram()
+        GLES30.glAttachShader(program, vs)
+        GLES30.glAttachShader(program, fs)
+        GLES30.glBindAttribLocation(program, 0, "aPos")
+        GLES30.glBindAttribLocation(program, 1, "aNormal")
+        GLES30.glBindAttribLocation(program, 2, "aColor")
+        GLES30.glLinkProgram(program)
+        GLES30.glDeleteShader(vs); GLES30.glDeleteShader(fs)
         val ok = IntArray(1)
-        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, ok, 0)
-        if (ok[0] == 0) throw RuntimeException("Persepolis program link failed: ${GLES20.glGetProgramInfoLog(program)}")
-        uMVP = GLES20.glGetUniformLocation(program, "uMVP")
-        uSunDir = GLES20.glGetUniformLocation(program, "uSunDir")
-        uSunColor = GLES20.glGetUniformLocation(program, "uSunColor")
-        uMoonDir = GLES20.glGetUniformLocation(program, "uMoonDir")
-        uMoonColor = GLES20.glGetUniformLocation(program, "uMoonColor")
-        uSkyAmb = GLES20.glGetUniformLocation(program, "uSkyAmb")
-        uGroundAmb = GLES20.glGetUniformLocation(program, "uGroundAmb")
-        uCamPos = GLES20.glGetUniformLocation(program, "uCamPos")
+        GLES30.glGetProgramiv(program, GLES30.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) throw RuntimeException("Persepolis program link failed: ${GLES30.glGetProgramInfoLog(program)}")
+        uMVP = GLES30.glGetUniformLocation(program, "uMVP")
+        uSunDir = GLES30.glGetUniformLocation(program, "uSunDir")
+        uSunColor = GLES30.glGetUniformLocation(program, "uSunColor")
+        uMoonDir = GLES30.glGetUniformLocation(program, "uMoonDir")
+        uMoonColor = GLES30.glGetUniformLocation(program, "uMoonColor")
+        uSkyAmb = GLES30.glGetUniformLocation(program, "uSkyAmb")
+        uGroundAmb = GLES30.glGetUniformLocation(program, "uGroundAmb")
+        uCamPos = GLES30.glGetUniformLocation(program, "uCamPos")
 
         // ZIG integration (change 3 in the header note): buildScene() is deterministic,
         // so its CPU arrays are built once per process (see meshArrays below) and only
@@ -1575,20 +1575,20 @@ class PersepolisScene {
         fun flushChunk() {
             if (cIdx.size == 0) return
             val b = IntArray(4)
-            GLES20.glGenBuffers(4, b, 0)
+            GLES30.glGenBuffers(4, b, 0)
             val p = cPos.toFloatArray(); val n = cNor.toFloatArray(); val c = cCol.toFloatArray()
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[0])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, p.size * 4, floatBuffer(p), GLES20.GL_STATIC_DRAW)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[1])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, n.size * 4, floatBuffer(n), GLES20.GL_STATIC_DRAW)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[2])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, c.size * 4, floatBuffer(c), GLES20.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[0])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, p.size * 4, floatBuffer(p), GLES30.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[1])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, n.size * 4, floatBuffer(n), GLES30.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[2])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, c.size * 4, floatBuffer(c), GLES30.GL_STATIC_DRAW)
             val ib = cIdx.toIntArray()
             val sb: ShortBuffer = ByteBuffer.allocateDirect(ib.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
             for (i in ib) sb.put(i.toShort())   // bit pattern preserved; read back as UNSIGNED_SHORT
             sb.position(0)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, b[3])
-            GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, ib.size * 2, sb, GLES20.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, b[3])
+            GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, ib.size * 2, sb, GLES30.GL_STATIC_DRAW)
             chunks.add(Chunk(b, ib.size))
             map.clear(); cPos.clear(); cNor.clear(); cCol.clear(); cIdx.clear()
         }
@@ -1611,8 +1611,8 @@ class PersepolisScene {
             ti += 3
         }
         flushChunk()
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
     /**
@@ -1623,14 +1623,14 @@ class PersepolisScene {
      */
     fun draw(width: Int, height: Int, clear: Boolean = false) {
         if (program == 0 || width <= 0 || height <= 0) return
-        GLES20.glViewport(0, 0, width, height)
+        GLES30.glViewport(0, 0, width, height)
         if (clear) {
-            GLES20.glClearColor(0f, 0f, 0f, 0f)   // transparent: composites over the sky
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+            GLES30.glClearColor(0f, 0f, 0f, 0f)   // transparent: composites over the sky
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
         }
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
-        GLES20.glEnable(GLES20.GL_CULL_FACE)
-        GLES20.glUseProgram(program)
+        GLES30.glEnable(GLES30.GL_DEPTH_TEST)
+        GLES30.glEnable(GLES30.GL_CULL_FACE)
+        GLES30.glUseProgram(program)
 
         val aspect = width.toFloat() / height.toFloat()
         var visW = visibleWidthMeters
@@ -1654,43 +1654,43 @@ class PersepolisScene {
         val centreY = cv[1] + (2f * baseFractionFromTop - 1f) * visH / 2f
         Matrix.orthoM(proj, 0, centreX - visW / 2f, centreX + visW / 2f, centreY - visH / 2f, centreY + visH / 2f, 10f, 300f)
         Matrix.multiplyMM(mvp, 0, proj, 0, view, 0)
-        GLES20.glUniformMatrix4fv(uMVP, 1, false, mvp, 0)
+        GLES30.glUniformMatrix4fv(uMVP, 1, false, mvp, 0)
 
         synchronized(lock) {
-            GLES20.glUniform3fv(uSunDir, 1, sunDir, 0)
-            GLES20.glUniform3fv(uSunColor, 1, sunColor, 0)
-            GLES20.glUniform3fv(uMoonDir, 1, moonDir, 0)
-            GLES20.glUniform3fv(uMoonColor, 1, moonColor, 0)
-            GLES20.glUniform3fv(uSkyAmb, 1, skyAmb, 0)
-            GLES20.glUniform3fv(uGroundAmb, 1, groundAmb, 0)
+            GLES30.glUniform3fv(uSunDir, 1, sunDir, 0)
+            GLES30.glUniform3fv(uSunColor, 1, sunColor, 0)
+            GLES30.glUniform3fv(uMoonDir, 1, moonDir, 0)
+            GLES30.glUniform3fv(uMoonColor, 1, moonColor, 0)
+            GLES30.glUniform3fv(uSkyAmb, 1, skyAmb, 0)
+            GLES30.glUniform3fv(uGroundAmb, 1, groundAmb, 0)
         }
-        GLES20.glUniform3fv(uCamPos, 1, CAM, 0)
+        GLES30.glUniform3fv(uCamPos, 1, CAM, 0)
 
-        GLES20.glEnableVertexAttribArray(0)
-        GLES20.glEnableVertexAttribArray(1)
-        GLES20.glEnableVertexAttribArray(2)
+        GLES30.glEnableVertexAttribArray(0)
+        GLES30.glEnableVertexAttribArray(1)
+        GLES30.glEnableVertexAttribArray(2)
         for (chunk in chunks) {
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[0])
-            GLES20.glVertexAttribPointer(0, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[1])
-            GLES20.glVertexAttribPointer(1, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[2])
-            GLES20.glVertexAttribPointer(2, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[3])
-            GLES20.glDrawElements(GLES20.GL_TRIANGLES, chunk.indexCount, GLES20.GL_UNSIGNED_SHORT, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[0])
+            GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[1])
+            GLES30.glVertexAttribPointer(1, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[2])
+            GLES30.glVertexAttribPointer(2, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[3])
+            GLES30.glDrawElements(GLES30.GL_TRIANGLES, chunk.indexCount, GLES30.GL_UNSIGNED_SHORT, 0)
         }
-        GLES20.glDisableVertexAttribArray(0)
-        GLES20.glDisableVertexAttribArray(1)
-        GLES20.glDisableVertexAttribArray(2)
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES30.glDisableVertexAttribArray(0)
+        GLES30.glDisableVertexAttribArray(1)
+        GLES30.glDisableVertexAttribArray(2)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
     /** Delete GL resources. Call on the GL thread when the context is lost/finished. */
     fun release() {
-        for (chunk in chunks) if (chunk.buffers[0] != 0) GLES20.glDeleteBuffers(4, chunk.buffers, 0)
+        for (chunk in chunks) if (chunk.buffers[0] != 0) GLES30.glDeleteBuffers(4, chunk.buffers, 0)
         chunks.clear()
-        if (program != 0) GLES20.glDeleteProgram(program)
+        if (program != 0) GLES30.glDeleteProgram(program)
         program = 0
     }
 
@@ -1738,7 +1738,7 @@ class PersepolisView @JvmOverloads constructor(
     val scene = PersepolisScene()
 
     init {
-        setEGLContextClientVersion(2)
+        setEGLContextClientVersion(3)
         setEGLConfigChooser(8, 8, 8, 8, 16, 0)   // RGBA8888 + depth, for alpha compositing
         // ZIG integration (change 4 in the header note): keep the static VBOs across
         // Activity pauses when the driver allows it; init()'s guard covers the rest.
