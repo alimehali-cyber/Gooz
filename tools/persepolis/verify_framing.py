@@ -125,12 +125,12 @@ PLATFORM_LEFT_X_M = -56.98
 PLATFORM_RIGHT_X_M = 40.30
 FACADE_LEFT_X_M = -52.3
 FACADE_RIGHT_X_M = 36.3
-MIL_TOWER_CENTER_VIEW_OFFSET_M = 42.91
-MIL_TOWER_TOP_VIEW_HEIGHT_M = 16.19
-MIL_SLOPE_LEFT_VIEW_OFFSET_M = 17.12
-MIL_SLOPE_RIGHT_VIEW_OFFSET_M = 76.85
-MIL_SLOPE_TOP_VIEW_HEIGHT_M = 6.55
-MIL_SLOPE_FRONT_BELOW_TOE_VIEW_M = 1.55
+MIL_TOWER_CENTER_VIEW_OFFSET_M = 108.14
+MIL_TOWER_TOP_VIEW_HEIGHT_M = 16.78
+MIL_SLOPE_LEFT_VIEW_OFFSET_M = 82.34
+MIL_SLOPE_RIGHT_VIEW_OFFSET_M = 142.08
+MIL_SLOPE_TOP_VIEW_HEIGHT_M = 7.14
+MIL_SLOPE_FRONT_BELOW_TOE_VIEW_M = 0.97
 CENTER_FRACTION_FROM_LEFT = 0.30
 DISTANT_TOE_BELOW_HORIZON_FRACTION = 0.098
 MAX_TOE_FRACTION = 0.92
@@ -223,10 +223,11 @@ STAIR_FACADE_RIGHT = (33.8, 2.6, 7.25)      # east-stair facade end / lion panel
 MIL_GROUP_SCALE = 2.04
 MIL_GROUP_ROTY = -0.20
 MIL_GROUP_X = 40.7
+MIL_HOME_RIGHT_SHIFT_M = 66.0
 MIL_GROUP_Y = 1.1
 MIL_GROUP_Z = 15.6
-MIL_TOWER_CENTER = (MIL_GROUP_X, MIL_GROUP_Y, MIL_GROUP_Z)
-MIL_TOWER_TOP = (MIL_GROUP_X, 16.298, MIL_GROUP_Z)  # 1.1 + 2.04 * 7.45 m local ruin top
+MIL_TOWER_CENTER = (MIL_GROUP_X + MIL_HOME_RIGHT_SHIFT_M, MIL_GROUP_Y, MIL_GROUP_Z)
+MIL_TOWER_TOP = (MIL_TOWER_CENTER[0], 16.298, MIL_GROUP_Z)  # 1.1 + 2.04 * 7.45 m local ruin top
 
 
 def mil_transform(p):
@@ -234,7 +235,11 @@ def mil_transform(p):
     x, y, z = (c * MIL_GROUP_SCALE for c in p)
     c = math.cos(MIL_GROUP_ROTY)
     s = math.sin(MIL_GROUP_ROTY)
-    return (x * c + z * s + MIL_GROUP_X, y + MIL_GROUP_Y, -x * s + z * c + MIL_GROUP_Z)
+    return (
+        x * c + z * s + MIL_GROUP_X + MIL_HOME_RIGHT_SHIFT_M,
+        y + MIL_GROUP_Y,
+        -x * s + z * c + MIL_GROUP_Z,
+    )
 
 
 # The nine fixed sheets in milSlope(): centre xyz + size xyz, Mil-local metres.
@@ -412,9 +417,21 @@ def main():
             f"rows {exact_slope_top / h:.3f}..{exact_slope_front / h:.3f}; "
             f"max error {max(slope_errors):.2f}dp)",
         )
+        phone_window = f["visible_width_m"] <= 180.0
         check(
-            exact_slope_right <= 0.76 * w,
-            f"combined group leaves the right landscape open (slope ends at {exact_slope_right / w:.2f} of width)",
+            tower_x >= 0.58 * w
+            and exact_slope_left > exact_platform_right + 0.10 * w
+            and (
+                not phone_window
+                or (tower_x >= 0.89 * w and exact_slope_right >= 1.03 * w)
+            ),
+            "Mil stands alone at the far right with open plain from Persepolis "
+            f"(platform {exact_platform_right / w:.2f}, slope {exact_slope_left / w:.2f}.."
+            f"{exact_slope_right / w:.2f}; phone slope is cropped by the edge)"
+            if phone_window else
+            "Mil stands alone to the right with open plain from Persepolis "
+            f"(platform {exact_platform_right / w:.2f}, slope {exact_slope_left / w:.2f}.."
+            f"{exact_slope_right / w:.2f})",
         )
         check(
             f["toe_y"] < exact_slope_front <= f["toe_y"] + 0.027 * h,

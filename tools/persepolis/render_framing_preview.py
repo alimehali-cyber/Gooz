@@ -11,9 +11,9 @@ the model's own fixed camera (verify_framing.projector) with
 PersepolisFraming's numbers, over the Home scene's ground stack (ridges,
 mist, ground, and the localized earthwork around both footprints)
 replicated from SceneGroundRenderer. It exists so the composition can be
-eyeballed — Persepolis at half size in the left distance, the tower near
-the middle, its slope grounded in the field, and the readout clear of
-stone — without a device.
+eyeballed — Persepolis at half size in the left distance, open plain, then
+the tower at the far right with its slope cropped by the edge and grounded
+in its own clearing, and the readout clear of stone — without a device.
 
 Requires Pillow. Run from the repo root:
     python3 tools/persepolis/render_framing_preview.py
@@ -55,10 +55,10 @@ def depth_tone(base, z):
     return lerp(base, (226, 158, 110), t)
 
 
-STONE = (198, 183, 154)
-STONE_DARK = (116, 109, 100)
-STONE_COL = (208, 193, 162)
-PLATFORM_TONE = (172, 158, 132)
+STONE = (184, 132, 82)
+STONE_DARK = (118, 86, 56)
+STONE_COL = (198, 150, 96)
+PLATFORM_TONE = (170, 126, 78)
 
 
 def quad(draw, pts, fill):
@@ -160,10 +160,10 @@ def main():
         t = (y - GROUND_TOP) / (H - GROUND_TOP)
         d.line([(0, y), (W, y)], fill=lerp((62, 72, 52), (12, 18, 14), t))
 
-    # Localized earthwork around both footprints
-    # (SceneGroundRenderer.drawCombinedLandscapeGrounding): an irregular worn-earth apron
-    # tailing past the slope's right side, limestone dust and contact shadows under both the
-    # platform toe and slope front, drift hummocks and debris flecks.
+    # Localized earthwork around each footprint separately
+    # (SceneGroundRenderer.drawCombinedLandscapeGrounding): two irregular worn-earth
+    # clearings with ordinary field between them, limestone dust at the slope, contact
+    # shadows under both contact rows, drift hummocks and debris flecks.
     def rnd(seed):
         v = math.sin(seed * 12.9898) * 43758.5453
         return v - math.floor(v)
@@ -181,45 +181,53 @@ def main():
     plat_l, plat_r = FRAMING["platform_left_x"], FRAMING["platform_right_x"]
     slope_l, slope_r = FRAMING["mil_slope_left_x"], FRAMING["mil_slope_right_x"]
     slope_front = min(FRAMING["mil_slope_front_y"], H)
-    combined_r = max(plat_r, slope_r)
-    apron_l = max(plat_l - W * 0.030, -W * 0.02)
-    apron_r = min(combined_r + W * 0.145, W * 1.02)
-    segs = 36
+    papron_l = max(plat_l - W * 0.030, -W * 0.02)
+    papron_r = plat_r + W * 0.105
+    sapron_l = slope_l - W * 0.065
+    sapron_r = W * 1.03
 
-    def tail_taper(p):
-        t = min(max((p - 0.76) / 0.24, 0.0), 1.0)
+    def smooth01(t):
+        t = min(max(t, 0.0), 1.0)
         return t * t * (3 - 2 * t)
 
-    apron_pts = []
-    for i in range(segs + 1):
-        p = i / segs
-        taper = tail_taper(p)
-        top_depth = 0.020 + 0.004 * math.sin(p * math.pi * 4 + 0.7) + 0.002 * math.sin(p * math.pi * 9 + 2.0)
-        apron_pts.append((
-            apron_l + (apron_r - apron_l) * p,
-            TOE_Y - H * top_depth * (1 - taper) + H * 0.012 * taper,
-        ))
-    for i in range(segs, -1, -1):
-        p = i / segs
-        taper = tail_taper(p)
-        bottom_depth = 0.064 + 0.010 * math.sin(p * math.pi * 4 + 1.3) + 0.005 * math.sin(p * math.pi * 7 + 0.4)
-        depth = bottom_depth * (1 - taper) + 0.020 * taper
-        apron_pts.append((
-            apron_l + (apron_r - apron_l) * p,
-            min(TOE_Y + H * depth, H),
-        ))
-    d.polygon(apron_pts, fill=(190, 160, 110, 64))
+    def apron_points(left, right, base_y, phase):
+        pts = []
+        segs = 36
+        for i in range(segs + 1):
+            p = i / segs
+            taper = max(smooth01((0.16 - p) / 0.16), smooth01((p - 0.76) / 0.24))
+            top_depth = (
+                0.020
+                + 0.004 * math.sin(p * math.pi * 4 + phase)
+                + 0.002 * math.sin(p * math.pi * 9 + phase * 2.7)
+            )
+            pts.append((
+                left + (right - left) * p,
+                base_y - H * top_depth * (1 - taper) + H * 0.012 * taper,
+            ))
+        for i in range(segs, -1, -1):
+            p = i / segs
+            taper = max(smooth01((0.16 - p) / 0.16), smooth01((p - 0.76) / 0.24))
+            bottom_depth = (
+                0.064
+                + 0.010 * math.sin(p * math.pi * 4 + phase + 0.6)
+                + 0.005 * math.sin(p * math.pi * 7 + phase * 0.6)
+            )
+            depth = bottom_depth * (1 - taper) + 0.020 * taper
+            pts.append((left + (right - left) * p, min(base_y + H * depth, H)))
+        return pts
 
-    bank_l = slope_r - (slope_r - slope_l) * 0.42
-    bank_r = slope_r + W * 0.145
+    d.polygon(apron_points(papron_l, papron_r, TOE_Y, 0.7), fill=(190, 160, 110, 64))
+    d.polygon(apron_points(sapron_l, sapron_r, slope_front, 2.3), fill=(199, 160, 107, 50))
+
     soft_drift(
-        (bank_l + bank_r) / 2,
-        min((TOE_Y + slope_front) / 2 + H * 0.024, H),
-        bank_r - bank_l,
-        H * 0.064,
-        peak_alpha=0.29,
+        slope_l + (slope_r - slope_l) * 0.20,
+        min(slope_front + H * 0.020, H),
+        (slope_r - slope_l) * 0.66,
+        H * 0.058,
+        peak_alpha=0.27,
         layers=16,
-        rgb=(183, 154, 108),
+        rgb=(199, 160, 107),
     )
     soft_drift(
         (slope_l + slope_r) / 2,
@@ -228,11 +236,11 @@ def main():
         H * 0.038,
         peak_alpha=0.20,
         layers=14,
-        rgb=(196, 168, 118),
+        rgb=(199, 160, 107),
     )
 
     shadow_l = max(plat_l, -W * 0.01)
-    shadow_r = min(combined_r + W * 0.018, W)
+    shadow_r = min(plat_r + W * 0.018, W)
     shadow_pts = [(shadow_l, TOE_Y - H * 0.003), (shadow_r, TOE_Y - H * 0.002)]
     for i in range(32, -1, -1):
         p = i / 32
@@ -251,18 +259,31 @@ def main():
         layers=14,
         rgb=(0, 0, 0),
     )
-    for i in range(7):
-        rw_ = (combined_r - plat_l) * (0.13 + rnd(i * 23.7 + 5.7) * 0.16)
-        rh_ = H * (0.010 + rnd(i * 31.3 + 0.5) * 0.018)
-        cx = apron_l + (apron_r - apron_l) * (0.08 + 0.84 * ((i + rnd(i * 17.1 + 10.1) * 0.8) / 7))
-        cy = TOE_Y + H * (0.012 + rnd(i * 23.7 + 5.7) * 0.055)
-        soft_drift(cx, cy, rw_, rh_, peak_alpha=0.10, layers=10, rgb=(196, 168, 118))
-    for i in range(44):
-        x = apron_l + (apron_r - apron_l) * ((i + rnd(i * 41.0 + 21.1) * 0.9) / 44)
-        y = min(TOE_Y - H * 0.004 + H * 0.082 * rnd(i * 13.9 + 3.7) ** 2, H)
-        ln = (2 + rnd(i * 29.3 + 8.3) * 7) * 1.4
-        d.line([(x, y), (x + ln, y + (rnd(i * 41.0 + 21.1) - 0.5) * ln * 0.35)],
-               fill=(205, 178, 126, 90), width=2)
+    for count, left, right, base_y, site_w, seed in (
+        (5, papron_l, papron_r, TOE_Y, plat_r - plat_l, 10.1),
+        (3, sapron_l, sapron_r, slope_front, slope_r - slope_l, 40.5),
+    ):
+        for i in range(count):
+            rw_ = site_w * (0.13 + rnd(i * 23.7 + seed) * 0.16)
+            rh_ = H * (0.010 + rnd(i * 31.3 + seed) * 0.018)
+            cx = left + (right - left) * (
+                0.08 + 0.84 * ((i + rnd(i * 17.1 + seed) * 0.8) / count)
+            )
+            cy = base_y + H * (0.012 + rnd(i * 23.7 + seed) * 0.055)
+            soft_drift(cx, cy, rw_, rh_, peak_alpha=0.10, layers=10, rgb=(199, 160, 107))
+    for count, left, right, base_y, seed in (
+        (30, papron_l, papron_r, TOE_Y, 21.1),
+        (18, sapron_l, sapron_r, slope_front, 61.9),
+    ):
+        for i in range(count):
+            x = left + (right - left) * ((i + rnd(i * 41.0 + seed) * 0.9) / count)
+            y = min(base_y - H * 0.004 + H * 0.082 * rnd(i * 13.9 + seed) ** 2, H)
+            ln = (2 + rnd(i * 29.3 + seed) * 7) * 1.4
+            d.line(
+                [(x, y), (x + ln, y + (rnd(i * 41.0 + seed) - 0.5) * ln * 0.35)],
+                fill=(205, 168, 118, 90),
+                width=2,
+            )
 
     # Cut-back platform fronts + floor (world x includes the -9.7 m bake).
     rect_xz(d, -56.17, 39.50, 0.5, 2.6, 7.25, lerp(PLATFORM_TONE, (90, 76, 58), 0.25))
@@ -313,14 +334,14 @@ def main():
     for cx, cy, cz, sx, sy, sz in slope_boxes:
         mil_box(
             d, cx, cz, cy - sy / 2.0, cy + sy / 2.0, sx, sz,
-            front=(126, 115, 94), side=(106, 98, 82), top=(178, 165, 138),
+            front=(148, 104, 62), side=(114, 80, 48), top=(188, 138, 86),
         )
     mil_box(d, 0, 0, 0.0, 1.0, 4.85, 4.85,
-            front=(142, 132, 112), side=(112, 104, 88), top=(188, 176, 150))
+            front=(162, 116, 70), side=(122, 86, 52), top=(196, 148, 94))
     mil_box(d, 0, 0, 1.0, 5.7, 3.80, 3.80,
-            front=(174, 162, 136), side=(128, 119, 100), top=(196, 184, 158))
+            front=(188, 136, 82), side=(140, 98, 58), top=(204, 158, 102))
     mil_box(d, 0, 0, 5.7, 7.45, 3.35, 3.35,
-            front=(160, 149, 126), side=(118, 110, 94), top=(190, 178, 152))
+            front=(176, 126, 76), side=(130, 92, 56), top=(198, 150, 96))
 
     # Annotations.
     try:
@@ -345,7 +366,7 @@ def main():
     for x in range(int(slope_l), int(slope_r), 34):
         d.line([(x, slope_front), (min(x + 20, slope_r), slope_front)],
                fill=(170, 230, 255, 190), width=2)
-    label((slope_l + 10, slope_front + 10), "Mil slope front", small)
+    label((slope_l + 8, slope_front + 34), "Mil slope front", small)
 
     readout_bottom = FRAMING["readout_bottom"]
     rx, ry, rw, rh = 60, readout_bottom - 45 * DENSITY, 690, 45 * DENSITY
@@ -362,9 +383,9 @@ def main():
     label((col_x + 18, col_y + 6), "19.2 m column", small)
 
     tower_x, tower_y = px(vf.MIL_TOWER_TOP)
-    label((tower_x + 42, tower_y + 4), "Mil-e Azhdaha", small)
+    label((tower_x - 202, tower_y + 4), "Mil-e Azhdaha", small)
 
-    label((36, H - 74), "Framing diagram: Persepolis in left distance; Mil tower and slope at centre.", small)
+    label((36, H - 74), "Framing diagram: Persepolis left; open plain; Mil tower/slope cropped at right.", small)
     label((36, H - 44), "Massing via the combined model's camera; on device, GL renders the full relief.", small)
 
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "docs", "persepolis-framing.png")

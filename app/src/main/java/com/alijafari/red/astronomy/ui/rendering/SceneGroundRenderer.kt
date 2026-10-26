@@ -147,15 +147,15 @@ object SceneGroundRenderer {
     /**
      * The earth the distant GL ruins stand in, painted only around their own footprints.
      *
-     * At the half-scale, left-hand placement neither monument runs off both edges, so a
-     * full-width grounding band would read as a stripe. Instead this paints one small worn
-     * archaeological site: irregular drifts of sand over the field in front of the Persepolis
-     * toe, a bank of earth spilling from the tower slope's open right side, broken contact
-     * shadows under both the forecourt and the nearer slope front, low drift hummocks, and fine
-     * stone-and-sand flecks. The two contact treatments are separate because the slope's front
+     * At the half-scale placement Persepolis is in the left distance and Mil-e Azhdaha is a
+     * separate far-right site whose slope runs off the edge, so one continuous grounding band
+     * would invent a sand bridge across the plain between them. Instead this paints two small
+     * worn clearings and leaves the intervening field ordinary: irregular earth in front of the
+     * Persepolis toe, and limestone dust/talus around the tower slope's visible downslope and
+     * front step. Broken contact shadows, low drift hummocks and fine debris are likewise local
+     * to each footprint. The two contact treatments remain separate because the slope's front
      * step is closer to the viewer and projects below the Persepolis toe. Every edge is either
-     * irregular, gradient-feathered, or both, and the whole patch feathers out to the right
-     * into the ordinary ground.
+     * irregular, gradient-feathered, or both.
      *
      * It is still drawn under the GL surface, so within the stone footprints only the parts in
      * front of their edges show; outside them, the patch is the dusty clearing the ruins occupy.
@@ -180,15 +180,18 @@ object SceneGroundRenderer {
         val slopeLeft = framing.milSlopeLeftXPx
         val slopeRight = framing.milSlopeRightXPx
         val slopeFrontY = framing.milSlopeFrontYPx.coerceAtMost(height)
-        val combinedRight = maxOf(platformRight, slopeRight)
-        val footprintWidth = (combinedRight - platformLeft).coerceAtLeast(1f)
+        val platformWidth = (platformRight - platformLeft).coerceAtLeast(1f)
         val slopeWidth = (slopeRight - slopeLeft).coerceAtLeast(1f)
-        // The worn-earth patch starts a little before the stone (often off-canvas left) and tails
-        // off well past the slope's open right side, so the clearing has no vertical boundary.
-        val apronLeft = (platformLeft - width * 0.030f).coerceAtLeast(-width * 0.02f)
-        val apronRight = (combinedRight + width * 0.145f).coerceAtMost(width * 1.02f)
+        // Two local clearings, not one archaeological causeway: Persepolis' earth tails into
+        // the field shortly past its cut-back platform, while the slope's dust begins around
+        // its visible downslope feather and is allowed to continue off the right edge with it.
+        val persepolisApronLeft = (platformLeft - width * 0.030f).coerceAtLeast(-width * 0.02f)
+        val persepolisApronRight = platformRight + width * 0.105f
+        val slopeApronLeft = slopeLeft - width * 0.065f
+        val slopeApronRight = width * 1.03f
 
         val sand = lerp(Color(0xFF292216), Color(0xFFBEA06E), day)
+        val limestoneDust = lerp(Color(0xFF2B2118), Color(0xFFC7A06B), day)
         val earth = lerp(palette.groundTop, sand, 0.42f)
         val darkEarth = lerp(palette.groundBottom, sand, 0.18f)
 
@@ -221,77 +224,85 @@ object SceneGroundRenderer {
             }
         }
 
-        // 1. Irregular worn-earth apron: smoothly undulating top and bottom edges, strongest at the
-        //    toe and dissolving downward into the field. The right-hand end tapers almost to a point
-        //    before the horizontal gradient reaches transparency, so there is no vertical cut edge.
-        val apronTop = toeY - height * 0.032f
-        val apronBottom = (toeY + height * 0.095f).coerceAtMost(height)
-        val apron = Path().apply {
-            val segments = 36
-            fun tailTaper(p: Float): Float {
-                val t = ((p - 0.76f) / 0.24f).coerceIn(0f, 1f)
-                return t * t * (3f - 2f * t)
+        // 1. Two irregular worn-earth aprons: smoothly undulating edges, strongest at each
+        //    site's own contact row and dissolving downward into the field. Both ends taper and
+        //    fade horizontally, so an on-screen patch edge never becomes a vertical cut line.
+        fun drawApron(left: Float, right: Float, baseY: Float, peakScale: Float, phase: Float) {
+            if (right <= left) return
+            val apronTop = baseY - height * 0.032f
+            val apronBottom = (baseY + height * 0.095f).coerceAtMost(height)
+            fun smooth01(t: Float): Float {
+                val x = t.coerceIn(0f, 1f)
+                return x * x * (3f - 2f * x)
             }
-            moveTo(apronLeft, toeY - height * 0.020f)
-            for (i in 1..segments) {
-                val p = i / segments.toFloat()
-                val x = apronLeft + (apronRight - apronLeft) * p
-                val taper = tailTaper(p)
-                val topDepth = 0.020f +
-                    0.004f * sin(p * PI.toFloat() * 4f + 0.7f) +
-                    0.002f * sin(p * PI.toFloat() * 9f + 2.0f)
-                val y = toeY - height * topDepth * (1f - taper) + height * 0.012f * taper
-                lineTo(x, y)
+            fun endTaper(p: Float): Float = maxOf(
+                smooth01((0.16f - p) / 0.16f),
+                smooth01((p - 0.76f) / 0.24f)
+            )
+            val apron = Path().apply {
+                val segments = 36
+                moveTo(left, baseY + height * 0.012f)
+                for (i in 1..segments) {
+                    val p = i / segments.toFloat()
+                    val x = left + (right - left) * p
+                    val taper = endTaper(p)
+                    val topDepth = 0.020f +
+                        0.004f * sin(p * PI.toFloat() * 4f + phase) +
+                        0.002f * sin(p * PI.toFloat() * 9f + phase * 2.7f)
+                    val y = baseY - height * topDepth * (1f - taper) + height * 0.012f * taper
+                    lineTo(x, y)
+                }
+                for (i in segments downTo 0) {
+                    val p = i / segments.toFloat()
+                    val x = left + (right - left) * p
+                    val taper = endTaper(p)
+                    val bottomDepth = 0.064f +
+                        0.010f * sin(p * PI.toFloat() * 4f + phase + 0.6f) +
+                        0.005f * sin(p * PI.toFloat() * 7f + phase * 0.6f)
+                    val depth = bottomDepth * (1f - taper) + 0.020f * taper
+                    lineTo(x, (baseY + height * depth).coerceAtMost(height))
+                }
+                close()
             }
-            for (i in segments downTo 0) {
-                val p = i / segments.toFloat()
-                val x = apronLeft + (apronRight - apronLeft) * p
-                val taper = tailTaper(p)
-                val bottomDepth = 0.064f +
-                    0.010f * sin(p * PI.toFloat() * 4f + 1.3f) +
-                    0.005f * sin(p * PI.toFloat() * 7f + 0.4f)
-                val depth = bottomDepth * (1f - taper) + 0.020f * taper
-                lineTo(x, (toeY + height * depth).coerceAtMost(height))
-            }
-            close()
+            drawScope.drawPath(
+                path = apron,
+                brush = Brush.verticalGradient(
+                    0.0f to Color.Transparent,
+                    0.34f to earth.copy(alpha = (0.09f + 0.18f * day) * peakScale),
+                    0.47f to sand.copy(alpha = (0.11f + 0.21f * day) * peakScale),
+                    0.66f to Color.Transparent,
+                    1.0f to Color.Transparent,
+                    startY = apronTop,
+                    endY = apronBottom
+                )
+            )
+            // A faint second pass feathered at both ends melts each clearing into the field.
+            drawScope.drawPath(
+                path = apron,
+                brush = Brush.horizontalGradient(
+                    0.0f to Color.Transparent,
+                    0.18f to sand.copy(alpha = (0.025f + 0.035f * day) * peakScale),
+                    0.78f to sand.copy(alpha = (0.018f + 0.028f * day) * peakScale),
+                    1.0f to Color.Transparent,
+                    startX = left,
+                    endX = right
+                )
+            )
         }
-        drawScope.drawPath(
-            path = apron,
-            brush = Brush.verticalGradient(
-                0.0f to Color.Transparent,
-                0.34f to earth.copy(alpha = 0.09f + 0.18f * day),
-                0.47f to sand.copy(alpha = 0.11f + 0.21f * day),
-                0.66f to Color.Transparent,
-                1.0f to Color.Transparent,
-                startY = apronTop,
-                endY = apronBottom
-            )
-        )
-        // A faint second pass feathered horizontally, so the tapered tail melts into the field.
-        drawScope.drawPath(
-            path = apron,
-            brush = Brush.horizontalGradient(
-                0.0f to sand.copy(alpha = 0.025f + 0.035f * day),
-                0.68f to sand.copy(alpha = 0.018f + 0.028f * day),
-                1.0f to Color.Transparent,
-                startX = apronLeft,
-                endX = apronRight
-            )
-        )
+        drawApron(persepolisApronLeft, persepolisApronRight, toeY, peakScale = 1f, phase = 0.7f)
+        drawApron(slopeApronLeft, slopeApronRight, slopeFrontY, peakScale = 0.78f, phase = 2.3f)
 
-        // 2. Earth banked against the slope's open right side: one soft spill of soil toward the
-        //    viewer, spanning from under the upper limestone sheets to the apron's tail. Most of
-        //    its left side is hidden by the GL slope; the visible right side fades into the field.
-        val bankLeft = slopeRight - slopeWidth * 0.42f
-        val bankRight = slopeRight + width * 0.145f
+        // 2. Talus banked around the slope's visible downslope feather. The upslope itself now
+        //    exits the right edge, so the useful host-side work is at the left/front transition
+        //    where the lowest limestone sheets die into the ordinary field.
         drawSoftDrift(
-            cx = (bankLeft + bankRight) / 2f,
-            cy = ((toeY + slopeFrontY) / 2f + height * 0.024f).coerceAtMost(height),
-            driftWidth = bankRight - bankLeft,
-            driftHeight = height * 0.064f,
+            cx = slopeLeft + slopeWidth * 0.20f,
+            cy = (slopeFrontY + height * 0.020f).coerceAtMost(height),
+            driftWidth = slopeWidth * 0.66f,
+            driftHeight = height * 0.058f,
             outerColor = earth,
-            innerColor = sand,
-            peakAlpha = 0.17f + 0.16f * day,
+            innerColor = limestoneDust,
+            peakAlpha = 0.15f + 0.15f * day,
             layers = 16
         )
 
@@ -304,16 +315,16 @@ object SceneGroundRenderer {
             driftWidth = slopeWidth * 1.14f,
             driftHeight = height * 0.038f,
             outerColor = earth,
-            innerColor = sand,
+            innerColor = limestoneDust,
             peakAlpha = 0.10f + 0.13f * day,
             layers = 14
         )
 
-        // 3. Broken contact shadow directly in front of the combined stone footprint. The
-        //    Persepolis forecourt and tower slope overlap in projection, so one continuous,
-        //    irregular shadow prevents a lit seam where the two masses meet.
+        // 3. Broken contact shadow directly in front of the Persepolis forecourt only. The
+        //    far-right slope gets its own softer crescent below; the plain between the sites
+        //    must not inherit a continuous shadow from either one.
         val shadowLeft = platformLeft.coerceAtLeast(-width * 0.01f)
-        val shadowRight = (combinedRight + width * 0.018f).coerceAtMost(width)
+        val shadowRight = (platformRight + width * 0.018f).coerceAtMost(width)
         val shadow = Path().apply {
             val segments = 32
             moveTo(shadowLeft, toeY - height * 0.003f)
@@ -352,42 +363,95 @@ object SceneGroundRenderer {
             layers = 14
         )
 
-        // 4. Low drift hummocks: soft elongated mounds scattered through the apron, denser near
-        //    the toe and thinning toward the viewer — light on sand, not separate objects.
-        for (i in 0 until 7) {
-            val r1 = pseudoRandom(i * 17_171 + 101)
-            val r2 = pseudoRandom(i * 23_777 + 57)
-            val r3 = pseudoRandom(i * 31_337 + 5)
-            drawSoftDrift(
-                cx = apronLeft + (apronRight - apronLeft) * (0.08f + 0.84f * ((i + r1 * 0.8f) / 7f)),
-                cy = toeY + height * (0.012f + r2 * 0.055f),
-                driftWidth = footprintWidth * (0.13f + r2 * 0.16f),
-                driftHeight = height * (0.010f + r3 * 0.018f),
-                outerColor = earth,
-                innerColor = sand,
-                peakAlpha = (0.05f + 0.07f * day) * (0.6f + 0.4f * r3),
-                layers = 10
-            )
+        // 4. Low drift hummocks and fine debris, kept inside the two clearings. They are
+        //    deterministic, denser at each contact row and dissipate toward the viewer; none
+        //    is scattered across the untouched plain between the monuments.
+        fun drawHummocks(
+            count: Int,
+            left: Float,
+            right: Float,
+            baseY: Float,
+            siteWidth: Float,
+            lightColor: Color,
+            seedOffset: Int
+        ) {
+            for (i in 0 until count) {
+                val r1 = pseudoRandom(i * 17_171 + seedOffset)
+                val r2 = pseudoRandom(i * 23_777 + seedOffset + 57)
+                val r3 = pseudoRandom(i * 31_337 + seedOffset + 5)
+                drawSoftDrift(
+                    cx = left + (right - left) * (0.08f + 0.84f * ((i + r1 * 0.8f) / count)),
+                    cy = baseY + height * (0.012f + r2 * 0.055f),
+                    driftWidth = siteWidth * (0.13f + r2 * 0.16f),
+                    driftHeight = height * (0.010f + r3 * 0.018f),
+                    outerColor = earth,
+                    innerColor = lightColor,
+                    peakAlpha = (0.05f + 0.07f * day) * (0.6f + 0.4f * r3),
+                    layers = 10
+                )
+            }
         }
 
-        // 5. Fine debris: short light/dark flecks (fallen chips, grit) concentrated at the toe and
-        //    dissipating down the apron. Deterministic, so the site does not shimmer between ticks.
-        for (i in 0 until 44) {
-            val r1 = pseudoRandom(i * 41_003 + 211)
-            val r2 = pseudoRandom(i * 13_981 + 37)
-            val r3 = pseudoRandom(i * 29_297 + 83)
-            val x = apronLeft + (apronRight - apronLeft) * ((i + r1 * 0.9f) / 44f)
-            val y = (toeY - height * 0.004f + height * 0.082f * r2 * r2).coerceAtMost(height)
-            val len = (2f + r3 * 7f) * (height / 900f).coerceIn(0.7f, 1.8f)
-            val fleck = if (r3 > 0.45f) sand else darkEarth
-            drawScope.drawLine(
-                color = fleck.copy(alpha = (0.10f + 0.16f * day) * (0.5f + 0.5f * r1)),
-                start = Offset(x, y),
-                end = Offset(x + len, y + (r1 - 0.5f) * len * 0.35f),
-                strokeWidth = 1.1f + r3 * 1.5f,
-                cap = StrokeCap.Round
-            )
+        fun drawDebris(
+            count: Int,
+            left: Float,
+            right: Float,
+            baseY: Float,
+            lightFleck: Color,
+            seedOffset: Int
+        ) {
+            for (i in 0 until count) {
+                val r1 = pseudoRandom(i * 41_003 + seedOffset)
+                val r2 = pseudoRandom(i * 13_981 + seedOffset + 37)
+                val r3 = pseudoRandom(i * 29_297 + seedOffset + 83)
+                val x = left + (right - left) * ((i + r1 * 0.9f) / count)
+                val y = (baseY - height * 0.004f + height * 0.082f * r2 * r2).coerceAtMost(height)
+                val len = (2f + r3 * 7f) * (height / 900f).coerceIn(0.7f, 1.8f)
+                val fleck = if (r3 > 0.45f) lightFleck else darkEarth
+                drawScope.drawLine(
+                    color = fleck.copy(alpha = (0.10f + 0.16f * day) * (0.5f + 0.5f * r1)),
+                    start = Offset(x, y),
+                    end = Offset(x + len, y + (r1 - 0.5f) * len * 0.35f),
+                    strokeWidth = 1.1f + r3 * 1.5f,
+                    cap = StrokeCap.Round
+                )
+            }
         }
+
+        drawHummocks(
+            count = 5,
+            left = persepolisApronLeft,
+            right = persepolisApronRight,
+            baseY = toeY,
+            siteWidth = platformWidth,
+            lightColor = sand,
+            seedOffset = 101
+        )
+        drawHummocks(
+            count = 3,
+            left = slopeApronLeft,
+            right = slopeApronRight,
+            baseY = slopeFrontY,
+            siteWidth = slopeWidth,
+            lightColor = limestoneDust,
+            seedOffset = 40_501
+        )
+        drawDebris(
+            count = 30,
+            left = persepolisApronLeft,
+            right = persepolisApronRight,
+            baseY = toeY,
+            lightFleck = sand,
+            seedOffset = 211
+        )
+        drawDebris(
+            count = 18,
+            left = slopeApronLeft,
+            right = slopeApronRight,
+            baseY = slopeFrontY,
+            lightFleck = limestoneDust,
+            seedOffset = 61_927
+        )
     }
 
     /**

@@ -13,8 +13,9 @@ import org.junit.Test
  *
  * The ruins' own camera and lighting live in PersepolisMilAzhdaha.kt and need a GL context; what
  * ZIG decides — and what can therefore be proven on the JVM — is where that camera's output lands
- * in the scene: Persepolis at exactly half its first linear size, both groups in the left/centre
- * distance, the whole façade on screen, the platform and tower slope in the ground band, the
+ * in the scene: Persepolis at exactly half its first linear size in the left distance and
+ * Mil-e Azhdaha alone at the far right, the whole façade on screen, the platform and tower slope
+ * in the ground band, the
  * columns against the sky, and no stone over the readout. Those are the assertions below, over a
  * matrix of scene sizes spanning the HomeScreen clamp (52 % of the viewport, 312–560 dp tall)
  * from a small phone to a tablet.
@@ -84,7 +85,7 @@ class PersepolisFramingTest {
     }
 
     @Test
-    fun theCombinedGroupSitsInTheLeftOfTheLandscape() {
+    fun persepolisStaysLeftAndMilStandsAloneAtTheRight() {
         sizes.forEach { size ->
             val framing = framingFor(size)
             assertEquals(
@@ -99,22 +100,24 @@ class PersepolisFramingTest {
                 framing.modelCenterXPx,
                 0.5f
             )
-            // The whole detailed Persepolis façade remains in frame in the left of the scene.
-            // Its platform has been cut back in the combined builder and now ends near the
-            // tower, while the Mil slope is the combined group's right boundary — still leaving
-            // at least the right quarter as open landscape.
+            // Persepolis' whole detailed façade remains in frame at the left, exactly as in
+            // the previous framing. Its cut-back platform now ends well before the Mil slope:
+            // at least a tenth of the scene is ordinary open plain between the two sites.
             assertTrue("${size.label}: façade left in frame", framing.facadeLeftXPx >= 0f)
             assertTrue(
                 "${size.label}: façade confined to the left (right=${framing.facadeRightXPx / size.widthPx})",
                 framing.facadeRightXPx <= size.widthPx * 0.56f
             )
             assertTrue(
-                "${size.label}: cut-back platform ends at the tower (right=${framing.platformRightXPx / size.widthPx})",
+                "${size.label}: cut-back platform unchanged (right=${framing.platformRightXPx / size.widthPx})",
                 framing.platformRightXPx <= size.widthPx * 0.56f
             )
             assertTrue(
-                "${size.label}: Mil slope leaves open landscape (right=${framing.milSlopeRightXPx / size.widthPx})",
-                framing.milSlopeRightXPx <= size.widthPx * 0.76f
+                "${size.label}: Mil slope separated by open plain " +
+                    "(platform=${framing.platformRightXPx / size.widthPx}, " +
+                    "slope=${framing.milSlopeLeftXPx / size.widthPx})",
+                framing.milSlopeLeftXPx > framing.platformRightXPx + size.widthPx * 0.10f &&
+                    framing.milTowerCenterXPx > size.widthPx * 0.58f
             )
             assertTrue(
                 "${size.label}: combined footprint ordering",
@@ -124,6 +127,7 @@ class PersepolisFramingTest {
                     framing.milSlopeLeftXPx < framing.milTowerCenterXPx &&
                     framing.milTowerCenterXPx < framing.milSlopeRightXPx &&
                     framing.facadeRightXPx < framing.platformRightXPx &&
+                    framing.platformRightXPx < framing.milSlopeLeftXPx &&
                     framing.platformRightXPx < framing.milSlopeRightXPx
             )
         }
@@ -170,12 +174,12 @@ class PersepolisFramingTest {
             )
         }
 
-        // The canonical phone composition: tower near the middle, its fixed limestone sheets
-        // spanning the centre-right, and open ground beyond them.
+        // The canonical phone composition: Persepolis left, open plain, then the tower at
+        // the far right with its upslope running modestly beyond the edge of the frame.
         val phone = framingFor(sizes.first { it.label == "phone 360x420dp" })
-        assertEquals(0.541f, phone.milTowerCenterXPx / 1080f, 0.002f)
-        assertEquals(0.396f, phone.milSlopeLeftXPx / 1080f, 0.002f)
-        assertEquals(0.732f, phone.milSlopeRightXPx / 1080f, 0.002f)
+        assertEquals(0.908f, phone.milTowerCenterXPx / 1080f, 0.002f)
+        assertEquals(0.763f, phone.milSlopeLeftXPx / 1080f, 0.002f)
+        assertEquals(1.098f, phone.milSlopeRightXPx / 1080f, 0.002f)
     }
 
     @Test

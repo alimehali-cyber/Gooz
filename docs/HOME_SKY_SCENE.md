@@ -89,7 +89,7 @@ photographic themes, the Persepolis GL layer between the first two:
    Repaints on the 1 Hz shared clock, or per frame while the finger scrubs time.
 1b. **Persepolis + Mil-e Azhdaha** (`PersepolisLandscape`, photographic scene only) — the Apadana
    relief at half its first linear size in the left distance and the Mil-e Azhdaha tower on its
-   limestone slope near the centre, both lit by the same ephemeris and rendered on demand. See
+   limestone slope at the far right, both lit by the same ephemeris and rendered on demand. See
    [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 2. **Motion** (`SkySceneRenderer.drawSceneMotion`, scene only) — the drifting cloud veils.
    ~24 fps while idle. Separate node, so the astronomy is never repainted for a drifting cloud.
@@ -104,10 +104,11 @@ edges and skips the strokes; everything else gets the soft version.
 
 When the combined relief is active, this band is its environment and is painted underneath it —
 ridges and mist as its distance, the deeper field below the platform toe and nearer slope front as
-foreground — plus a footprint-local earthwork from `PersepolisFraming`: an irregular worn-earth
-apron, a bank and limestone-dust wash against the tower slope, broken contact shadows at both
-contact rows, drift hummocks and debris flecks. The patch feathers into the ordinary ground and
-follows the Sun-altitude brightness, so neither monument ends on a full-width grounding stripe.
+foreground — plus two separate footprint-local earthworks from `PersepolisFraming`: an irregular
+worn-earth apron at Persepolis and a limestone-dust/talus clearing beneath the far-right tower
+slope, each with its own contact shadow, drift hummocks and debris flecks. Ordinary field remains
+between them. Both patches feather into the ground and follow the Sun-altitude brightness, so
+neither monument ends on a full-width grounding stripe.
 
 ### Clouds — `CloudVeilRenderer`
 

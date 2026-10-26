@@ -3,9 +3,8 @@ package com.alijafari.red.astronomy.ui.persepolis
 // ============================================================================
 // ZIG INTEGRATION NOTE (the only changes from the file as supplied)
 // ----------------------------------------------------------------------------
-// This combined Persepolis + Mil-e Azhdaha file is integrated exactly as
-// provided — same procedural geometry, same shaders, same fixed camera,
-// same combined-scene transforms and same lighting model — with six changes:
+// This combined Persepolis + Mil-e Azhdaha file preserves the supplied
+// procedural geometry, fixed camera and lighting model, with eight changes:
 //
 //  1. The package line above (as the original first line instructed).
 //  2. [PersepolisMilAzhdahaScene.init] first drops GL resource names left
@@ -22,12 +21,22 @@ package com.alijafari.red.astronomy.ui.persepolis
 //     backgrounding the app does not force VBO re-uploads when the context
 //     survives. Change 2 covers the devices where preservation fails.
 //  5. The renderer is hosted through the OpenGL ES 3.0 Android API and an
-//     ES 3.0 EGL context. The shader sources and all rendering operations
-//     are otherwise unchanged; this only follows the app's renderer policy.
+//     ES 3.0 EGL context. That conversion itself changes no shader source
+//     or rendering operation; it only follows the app's renderer policy.
 //  6. [PersepolisMilAzhdahaScene.centerFractionFromLeft] adds an optional
 //     horizontal offset to the orthographic window. Its 0.5 default is the
 //     supplied centred framing; ZIG passes 0.30 to place the unchanged
 //     fixed-camera group in the left distance of the Home landscape.
+//  7. The Mil-e Azhdaha group receives one additional Home-only +66 m
+//     world-x translation when its cached mesh is baked. Persepolis' own
+//     transform and every framing input are untouched; on phone-shaped
+//     scenes this puts the tower at the far right and lets its upslope run
+//     modestly beyond the right edge, as a naturally cropped hillside.
+//  8. Persepolis' palette and fragment response are harmonized toward
+//     Mil-e Azhdaha's warm limestone (see PAL_P and FRAGMENT_SHADER_P).
+//     The value hierarchy of frames, columns, relief and platform is kept,
+//     and the added surface detail is scaled for Persepolis' greater
+//     viewing distance. Mil-e Azhdaha's palette and shader are unchanged.
 //
 // Hosting, framing and the Sun/Moon feed live outside this file: see
 // PersepolisLandscape (Compose host) and
@@ -240,18 +249,24 @@ import kotlin.math.sqrt
 private const val PLATFORM_Y = 4.35f   // top of upper platform slab (structures sit here)
 private const val FRONT_Z = 7.25f      // east face of lower platform / stair cheek
 
-/** Persepolis stone palette (indices used by [buildPersepolisScene]). */
+/** Persepolis stone palette (indices used by [buildPersepolisScene]).
+ *
+ *  ZIG change 8: each warmable entry is moved roughly 80–85% from the
+ *  supplied cool-grey Persepolis colour toward the corresponding warm
+ *  Mil-e Azhdaha limestone in [PAL_M], while keeping Persepolis' relative
+ *  values (relief and columns brightest, platform/rubble lower). Indices
+ *  2, 3 and 8 were already shared or nearly shared by the two palettes. */
 private val PAL_P: Array<FloatArray> = arrayOf(
-    floatArrayOf(0.63f, 0.60f, 0.53f), // 0 limestone light (bright grey local stone)
-    floatArrayOf(0.52f, 0.49f, 0.43f), // 1 limestone mid
+    floatArrayOf(0.64f, 0.46f, 0.27f), // 0 warm limestone light
+    floatArrayOf(0.53f, 0.37f, 0.20f), // 1 warm limestone mid
     floatArrayOf(0.38f, 0.38f, 0.37f), // 2 dark grey frame stone (Majdabad limestone)
     floatArrayOf(0.20f, 0.19f, 0.18f), // 3 recess / shadow gap
-    floatArrayOf(0.69f, 0.65f, 0.57f), // 4 pale relief stone
-    floatArrayOf(0.47f, 0.44f, 0.39f), // 5 rubble
-    floatArrayOf(0.56f, 0.52f, 0.45f), // 6 platform
-    floatArrayOf(0.67f, 0.63f, 0.55f), // 7 column stone
+    floatArrayOf(0.70f, 0.52f, 0.31f), // 4 pale warm relief stone
+    floatArrayOf(0.46f, 0.33f, 0.18f), // 5 warm rubble
+    floatArrayOf(0.58f, 0.43f, 0.26f), // 6 warm platform stone
+    floatArrayOf(0.65f, 0.46f, 0.25f), // 7 warm column stone
     floatArrayOf(0.72f, 0.63f, 0.44f), // 8 wind-blown sand / settled dust
-    floatArrayOf(0.31f, 0.28f, 0.24f), // 9 weather stain / spall scar
+    floatArrayOf(0.32f, 0.26f, 0.20f), // 9 weather stain / spall scar
 )
 
 // ============================================================================
@@ -1400,6 +1415,7 @@ private fun buildPersepolisScene(): MeshBuilder {
 private const val MIL_GROUP_SCALE = 2.04f
 private const val MIL_GROUP_ROTY = -0.20f
 private const val MIL_GROUP_X = 40.7f
+private const val MIL_HOME_RIGHT_SHIFT_M = 66f   // ZIG change 7: tower to the far right; Persepolis unchanged
 private const val MIL_GROUP_Y = 1.1f
 private const val MIL_GROUP_Z = 15.6f
 private const val PERSEPOLIS_X = -9.7f   // combined scene: Persepolis pushed to the far left of the frame
@@ -1918,7 +1934,7 @@ private fun buildMilLocalScene(): MeshBuilder {
 }
 
 // ============================================================================
-// Shaders (GLSL ES 1.00, compiled unchanged on the ES 3.0 context — identical to the HTML preview)
+// Shaders (GLSL ES 1.00 on the ES 3.0 context; Persepolis harmonized in ZIG change 8)
 // ============================================================================
 
 private const val VERTEX_SHADER = """
@@ -1942,24 +1958,41 @@ float vnoise(vec3 p){
              mix(mix(hash13(i+vec3(0,0,1)),hash13(i+vec3(1,0,1)),f.x),
                  mix(hash13(i+vec3(0,1,1)),hash13(i+vec3(1,1,1)),f.x),f.y),f.z);
 }
+float fbm(vec3 p){ return 0.52*vnoise(p)+0.28*vnoise(p*2.13)+0.14*vnoise(p*4.7)+0.06*vnoise(p*9.3); }
 void main(){
   vec3 N = normalize(vN);
-  // Procedural limestone: broad tonal patches, fine grain, rain streaks,
-  // ground grime and a whisper of moss low down. No texture assets needed.
+  // ZIG change 8: a restrained, distance-scaled relative of the Mil stone
+  // response. The bump is deliberately much weaker than the foreground
+  // tower's, so dressed faces lose their CG flatness without turning the
+  // distant relief into high-frequency noise.
+  float _e=0.07;
+  float _h0=vnoise(vW*3.0);
+  vec3 _g=vec3(vnoise((vW+vec3(_e,0.0,0.0))*3.0)-_h0,
+               vnoise((vW+vec3(0.0,_e,0.0))*3.0)-_h0,
+               vnoise((vW+vec3(0.0,0.0,_e))*3.0)-_h0)/_e;
+  float bumpAmt = mix(0.075, 0.030, smoothstep(4.35,14.0,vW.y));
+  N = normalize(N - bumpAmt*(_g - N*dot(_g,N)));
+  // Warm procedural limestone: broad mineral drift, multi-scale grain,
+  // rain streaks, iron staining and ground grime. No texture assets needed.
   vec3 albedo = vC;
   float patch = vnoise(vW*0.5);
-  float grain = vnoise(vW*4.2);
+  float grain = fbm(vW*3.6);
   float streak = vnoise(vec3(vW.x*6.0, vW.y*0.32, vW.z*6.0));
-  albedo *= 0.80 + 0.30*patch + 0.12*grain;
-  albedo *= 0.89 + 0.16*streak;
-  albedo *= 0.92 + 0.13*hash13(floor(vW*13.0));
-  albedo *= 1.0 - 0.20*smoothstep(2.4,0.0,vW.y);
-  float moss = smoothstep(0.66,0.92,vnoise(vW*1.25+7.3)) * smoothstep(8.0,2.5,vW.y);
-  albedo = mix(albedo, vec3(0.16,0.22,0.09), moss*0.28);
+  float tone = vnoise(vW*0.16+4.7);
+  albedo *= vec3(0.94+0.11*tone, 0.98+0.04*tone, 1.04-0.08*tone);  // slow warm/cool mineral drift
+  albedo *= 0.78 + 0.34*patch + 0.14*grain;
+  albedo *= 0.90 + 0.14*streak;
+  albedo *= 0.94 + 0.10*hash13(floor(vW*7.0));
+  albedo *= 1.0 - 0.18*smoothstep(2.4,0.0,vW.y);
+  float iron = smoothstep(0.68,0.84,vnoise(vW*0.85+19.1)) *
+      (0.25+0.75*smoothstep(10.0,4.35,vW.y));
+  albedo = mix(albedo, vec3(0.45,0.26,0.13), iron*0.13);          // sparse iron-oxide staining
+  float bio = smoothstep(0.72,0.95,vnoise(vW*1.25+7.3)) * smoothstep(7.0,2.5,vW.y);
+  albedo = mix(albedo, vec3(0.23,0.24,0.13), bio*0.10);            // dry olive-brown staining, not lawn moss
   float strata = vnoise(vec3(vW.x*0.22, vW.y*1.35, vW.z*0.22));   // limestone bedding planes
   albedo *= 0.96 + 0.08*strata;
-  float pit = step(0.94, hash13(floor(vW*27.0)));                  // weather pits
-  albedo *= 1.0 - 0.20*pit;
+  float pit = step(0.965, hash13(floor(vW*18.0)));                 // sparse weather pits
+  albedo *= 1.0 - 0.14*pit;
   float dust = smoothstep(0.55,0.92,N.y) * (0.5+0.5*vnoise(vW*1.7+3.1));  // settled dust on up-faces
   albedo = mix(albedo, vec3(0.72,0.63,0.44), dust*0.38);
   float splash = exp(-max(vW.y-4.35,0.0)*1.9) * step(4.34,vW.y);  // rain-splash grime above the platform
@@ -1972,9 +2005,11 @@ void main(){
   col += albedo * uMoonColor * dm;
   vec3 V = normalize(uCamPos - vW);
   vec3 H = normalize(normalize(uSunDir) + V);
-  col += uSunColor * pow(max(dot(N,H),0.0), 24.0) * 0.045;   // faint stone sheen
+  col += uSunColor * pow(max(dot(N,H),0.0), 24.0) * 0.030;   // faint stone sheen
   float rim = pow(1.0 - max(dot(N,V),0.0), 3.0);
-  col += uSunColor * rim * 0.12;                              // edge glow (strong when backlit)
+  col += uSunColor * rim * 0.065;                             // restrained backlit edge response
+  float aerial = (1.0-smoothstep(-14.0,18.0,vW.z)) * 0.04;   // a trace of distance haze at the back
+  col = mix(col, amb*0.72, aerial);
   col = vec3(1.0) - exp(-col * 1.55);                         // soft exposure (no clipped stone)
   col = pow(col, vec3(0.4545));                               // linear → sRGB-ish
   gl_FragColor = vec4(col, 1.0);
@@ -2415,7 +2450,7 @@ class PersepolisMilAzhdahaScene {
                     buildMilLocalScene(),
                     MIL_GROUP_SCALE,
                     MIL_GROUP_ROTY,
-                    MIL_GROUP_X,
+                    MIL_GROUP_X + MIL_HOME_RIGHT_SHIFT_M,
                     MIL_GROUP_Y,
                     MIL_GROUP_Z,
                 )

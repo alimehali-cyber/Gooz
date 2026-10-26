@@ -3,11 +3,12 @@
 **Scope:** the full-bleed Home sky scene (`HeroSkyCanvas`, `SkyCanvasPresentation.SCENE`), on the two
 photographic themes. The ground band's subjects are now two Iranian stone monuments in one supplied
 fixed-camera composition: the Apadana east façade at Persepolis in the left distance, and the
-Mil-e Azhdaha fire-temple tower near the centre, standing on its stepped limestone hillside. Both are
-rendered as lit procedural 3D reliefs by the same real Sun and Moon that light the sky behind them.
-Persepolis retains the approved half-size, leftward and farther-back placement from the previous
-iteration; a footprint-local earthwork in the painted ground seats both the cut-back platform and
-the nearer tower slope in the terrain.
+Mil-e Azhdaha fire-temple tower at the far right, standing on a stepped limestone hillside that
+runs modestly beyond the phone frame. Both are rendered as lit procedural 3D reliefs by the same
+real Sun and Moon that light the sky behind them. Persepolis retains the approved half-size,
+leftward and farther-back placement from the previous iteration; separate footprint-local
+earthworks in the painted ground seat its cut-back platform and the nearer tower slope without
+inventing a continuous archaeological patch across the plain between them.
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests '*PersepolisFramingTest*'
@@ -31,9 +32,10 @@ The replacement arrived as one self-contained Kotlin file (`PersepolisMilAzhdaha
 no assets, geometry generated procedurally into static VBOs — 148,985 triangles / 165,492 vertices —
 with one fixed camera and all "3D behaviour" in the lighting). It now lives at
 `app/src/main/java/com/alijafari/red/astronomy/ui/persepolis/PersepolisMilAzhdaha.kt`,
-**integrated exactly** — same builders, same element tables, same combined-scene transforms, same
-two GLSL fragment shaders, same camera and same Sun/Moon light derivation — with six changes, each
-recorded in the file's header note:
+**integrated exactly where the Home scene permits** — same builders, same element tables, same
+fixed camera and same Sun/Moon light derivation — with eight changes, each recorded in the file's
+header note. The first six are host/lifecycle adaptations; the last two are the explicitly
+requested Home placement and material harmonization:
 
 | # | Change | Why |
 |---|---|---|
@@ -43,12 +45,15 @@ recorded in the file's header note:
 | 4 | `setPreserveEGLContextOnPause(true)` | Backgrounding the app need not re-upload static VBOs where the driver keeps the context; change 2 covers the rest |
 | 5 | GL calls via the ES 3.0 API on an ES 3.0 context (was ES 2.0) | The app declares ES 3.0 in its manifest and keeps every renderer on it, guarded by `AnimationRecordPrecisionTest.legacyRenderersStayOnGles3…`. ES 3.0 compiles the supplied GLSL ES 1.00 shaders unchanged; this is an Android API/context change, not a shader rewrite |
 | 6 | Optional `centerFractionFromLeft` framing input | Places the unchanged fixed-camera combined group left of centre by shifting only the orthographic window. The default remains 0.5 (the supplied centred framing); ZIG passes 0.30 for the Home landscape |
+| 7 | `MIL_HOME_RIGHT_SHIFT_M = 66 m`, applied only to the cached Mil mesh | Moves the complete tower/foot/slope group to the far right without touching any Persepolis transform. On the retained 178 m phone window the tower centre lands at 90.8 % of width and its slope spans 76.3–109.8 %, so the upslope is cropped by the edge rather than terminating inside the field |
+| 8 | Persepolis palette warmed toward the Mil limestone family; restrained distance-scaled grain, tooling relief, sparse iron/dry bio-staining and aerial softening in `FRAGMENT_SHADER_P` | The supplied Persepolis program was deliberately cooler and comparatively flat, which made the two ruins look as if they came from different material worlds. Its indices now retain their value hierarchy but share Mil-e Azhdaha's warm limestone response; the Mil program and palette remain exactly as supplied |
 
-The combined file's own placement is preserved: Persepolis is baked at `PERSEPOLIS_X = -9.7 m`, its
-empty platform wings are cut back, and the Mil group is baked at 2.04× scale, −0.20 rad yaw and
-translation `(40.7, 1.1, 15.6)`. The retained Mil geometry is the tower, its local rubble/sand/scrub
-foot group and `milSlope()`; the standalone wide bedrock pavement and ledge set excluded by the
-combined builder stay excluded.
+Persepolis' placement is preserved exactly: it is baked at `PERSEPOLIS_X = -9.7 m`, and its empty
+platform wings remain cut back. The Mil group retains its supplied 2.04× scale, −0.20 rad yaw and
+base translation `(40.7, 1.1, 15.6)`, then receives the Home-only +66 m world-x translation, for a
+baked tower centre of `(106.7, 1.1, 15.6)`. The retained Mil geometry is the tower, its local
+rubble/sand/scrub foot group and `milSlope()`; the standalone wide bedrock pavement and ledge set
+excluded by the combined builder stay excluded.
 
 Hosting uses the file's **Option A** — its own `PersepolisMilAzhdahaView`, a transparent
 `GLSurfaceView` (RGBA8888 + depth, `RENDERMODE_WHEN_DIRTY`) composited over the sky — wrapped by
@@ -84,11 +89,15 @@ No new astronomy. `SkySceneFrame` already computes, for the exact instant the sk
 
 `PersepolisLandscape` forwards both, with the Moon's intensity scaled by the illuminated fraction
 as the file prescribes (`0.22 × fraction`, `persepolisMoonIntensity`). One shared light state feeds
-both monument programs: Persepolis keeps its cooler distant-limestone fragment response, while
-Mil-e Azhdaha keeps its warmer close-range stone shader with noise-gradient bump, tooling, desert
-varnish, salt, calcite and lichen detail. Colour, intensity, twilight fade and hemisphere ambient
-are derived inside `PersepolisMilAzhdahaScene.setSun` from altitude, exactly as supplied — in
-agreement with the Compose sky's own `LightingState`, because both read the same Sun altitude.
+both monument programs. Mil-e Azhdaha keeps its supplied warm close-range stone shader with
+noise-gradient bump, tooling, desert varnish, salt, calcite and lichen detail. Persepolis now uses
+a closely related warm limestone palette and a quieter, distance-scaled version of the same material
+language — fine grain, shallow tooling relief, sparse iron and dry biological staining — with less
+specular/rim response and a little more aerial softening, so it reads as the same stone farther
+away rather than as a different grey material. Colour, intensity, twilight fade and hemisphere
+ambient are still derived inside `PersepolisMilAzhdahaScene.setSun` from altitude, exactly as
+supplied — in agreement with the Compose sky's own `LightingState`, because both read the same Sun
+altitude.
 
 Updates are `LaunchedEffect`s keyed on the ephemeris values, so the GL view renders **one frame per
 sky-model change**: every 15 s bucket at idle (zero cost between), per frame while the finger
@@ -106,17 +115,19 @@ priority order:
    width — the earlier model's 89 m window on phones, or the aspect-grown width required by its
    34 % building-height cap on wide scenes — is still doubled. The combined file's own 116 m
    default is therefore deliberately not used in Home: it would undo the approved 50 % reduction.
-2. **A left-hand combined group.** The combined-frame anchor `(0, 0, -2)` sits at 0.30 of the
-   width. Exact projection puts Persepolis' detailed façade at about 2–50 % of a phone scene; its
-   cut-back platform ends near 53 %. The tower centre is at 54.1 %, and its slope spans
-   39.6–73.2 %, leaving the right quarter open. On wider scenes the same group contracts toward
-   the left/centre: the slope ends at 55.8 % on the tested tablet and 51.6 % on the wide-short
-   scene.
+2. **Persepolis left, Mil-e Azhdaha alone at the right.** The combined-frame anchor `(0, 0, -2)`
+   still sits at 0.30 of the width, so every Persepolis landmark is unchanged: exact projection
+   puts its detailed façade at about 2–50 % of a phone scene and its cut-back platform ends near
+   53 %. The shifted tower centre is at 90.8 %, while its slope spans 76.3–109.8 %: the tower and
+   downslope remain legible, the upslope exits through the edge, and ordinary plain separates the
+   platform from the slope's left feather. On genuinely wider windows, which reveal more world
+   rather than merely stretching the same one, the whole slope naturally returns inside the frame:
+   it spans 57.7–77.8 % on the tested tablet and 53.1–69.9 % on the wide-short scene.
 3. **Farther back in the ground plane.** The Persepolis toe targets 0.098 of the scene below the
    horizon — about 0.798 of the scene — as before. The platform top and slope top stay below the
    horizon, both tall Persepolis columns still cross it, and a deep foreground field remains in
    front of the stone. The Mil slope is nearer the camera: its fixed front step projects about
-   1.55 view-metres below the Persepolis toe, so the framing exposes a separate slope-front row
+   0.97 view-metres below the Persepolis toe, so the framing exposes a separate slope-front row
    instead of forcing both monuments onto one contact line.
 4. **No stone over the readout.** The GL surface composites *above* its Compose siblings. The toe
    is lowered only as needed until the tallest Persepolis structure entering the protected
@@ -128,9 +139,10 @@ priority order:
 
 The Persepolis pixel landmarks continue to use the isotropic `widthPx / visibleWidthMeters`
 approximation. The Mil tower and slope instead use precomputed fixed-camera **view-space offsets**:
-the tower's baked world centre `(40.7, 15.6)` in XZ projects to +42.91 view-metres from the anchor,
-and the nine fixed slope sheets project to +17.12…+76.85 view-metres. In world terms those sheets
-span x 13.68…75.72 m, y 0…6.06 m and z 0.39…43.24 m; their bottoms land on world y = 0. Using the
+the tower's shifted baked world centre `(106.7, 15.6)` in XZ projects to +108.14 view-metres from
+the anchor, and the nine fixed slope sheets project to +82.34…+142.08 view-metres. In world terms
+those sheets span x 79.68…141.72 m, y 0…6.06 m and z 0.39…43.24 m; their bottoms land on world
+y = 0. Using the
 view-space values keeps the painted contact patch registered with the nearer slope to within
 0.02 dp in the exact verifier, rather than allowing a multi-metre depth-coupling error.
 
@@ -138,12 +150,12 @@ Measured results (exact lookAt/ortho, `verify_framing.py`):
 
 | Scene | Visible width | Toe at | Sky silhouette, two tall columns | Slope span | Binding readout clearance |
 |---|---|---|---|---|---|
-| 320 × 380 dp | 178.0 m | 0.798 | 6.3 / 0.2 dp above horizon | 0.396–0.732 | tallest column +5.7 dp |
-| 360 × 420 dp | 178.0 m | 0.798 | 7.9 / 0.9 dp | 0.396–0.732 | tallest column +4.1 dp |
-| 430 × 480 dp | 178.0 m | 0.804 | 8.5 / 0.3 dp | 0.396–0.732 | tallest column +3.5 dp |
-| 360 × 312 dp | 178.0 m | 0.831 | 8.3 / 1.4 dp | 0.396–0.732 | tallest column +3.7 dp |
-| 1200 × 560 dp | 297.5 m | 0.798 | 42.9 / 29.1 dp | 0.358–0.558 | great doorway +6.2 dp |
-| 800 × 312 dp | 356.0 m | 0.799 | 23.4 / 15.7 dp | 0.348–0.516 | centre stack +3.8 dp |
+| 320 × 380 dp | 178.0 m | 0.798 | 6.3 / 0.2 dp above horizon | 0.763–1.098 | tallest column +5.7 dp |
+| 360 × 420 dp | 178.0 m | 0.798 | 7.9 / 0.9 dp | 0.763–1.098 | tallest column +4.1 dp |
+| 430 × 480 dp | 178.0 m | 0.804 | 8.5 / 0.3 dp | 0.763–1.098 | tallest column +3.5 dp |
+| 360 × 312 dp | 178.0 m | 0.831 | 8.3 / 1.4 dp | 0.763–1.098 | tallest column +3.7 dp |
+| 1200 × 560 dp | 297.5 m | 0.798 | 42.9 / 29.1 dp | 0.577–0.778 | great doorway +6.2 dp |
+| 800 × 312 dp | 356.0 m | 0.799 | 23.4 / 15.7 dp | 0.531–0.699 | centre stack +3.8 dp |
 
 The framing also guarantees the scene's internal `autoFitHeight` never widens the view past the
 chosen width, so the scale the ground painter assumes is the scale the camera uses.
@@ -151,19 +163,19 @@ chosen width, so the scale the ground painter assumes is the scale the camera us
 ### Grounding (why it does not look pasted)
 
 A transparent overlay ends on a hard line unless the host paints the contact. `SkySceneRenderer`
-passes the full framing to `SceneGroundRenderer.drawCombinedLandscapeGrounding`, which paints one
-worn archaeological site around both footprints, after the ground gradient and before the grass:
+passes the full framing to `SceneGroundRenderer.drawCombinedLandscapeGrounding`, which now paints
+**two separate worn clearings**, after the ground gradient and before the grass:
 
-- an **irregular worn-earth apron**, with wavy top/bottom edges and both vertical and horizontal
-  feathering, strongest at the platform toe and dissolving down and to the right into the field;
-- an **earth bank** against the slope's open right/upslope side, spilling toward the viewer so the
-  stepped limestone sheets do not terminate as clipped rectangles;
-- a pale **limestone-dust wash** immediately in front of the slope, so its sheets appear to shed
-  their own grit onto the darker field;
-- one continuous **broken contact shadow** across the overlapping Persepolis/slope footprint,
-  plus a deeper soft contact crescent at the slope's nearer front step;
-- low, soft **drift hummocks** and deterministic light/dark **debris flecks**, concentrated near
-  the stone and thinning into the foreground.
+- an **irregular Persepolis apron** around the cut-back platform, with wavy edges and both vertical
+  and horizontal feathering, strongest at the toe and dissolving into the ordinary field;
+- a lower-alpha **Mil slope apron** based on the exact slope footprint, extending past the right
+  edge on phones so no artificial terminal rim appears where the 3D hillside is cropped;
+- **talus and limestone dust** beneath the slope's visible downslope/front contact, where weathered
+  material would actually collect — not a decorative bank past an off-screen upslope;
+- a platform-only **broken contact shadow**, plus a deeper soft crescent at the slope's nearer
+  front step;
+- low, soft **drift hummocks** and deterministic light/dark **debris flecks** seeded separately in
+  each clearing, so no line of procedural debris bridges the untouched field between the sites.
 
 The soft drifts are built from many equal-alpha shells whose source-over accumulation reaches the
 intended peak gradually; earlier few-step ellipses produced visible concentric contour rings and

@@ -30,16 +30,17 @@ import kotlin.math.min
  *     [LINEAR_SCALE_FRACTION] = 0.5. Persepolis therefore lands at exactly its established
  *     half size; the combined file's own 2.04× Mil-e Azhdaha bake is then read at that same
  *     scene scale.
- *  2. **A left-hand, distant group.** The combined-frame anchor sits at
- *     [CENTER_FRACTION_FROM_LEFT] (30 % across). Persepolis, already baked 9.7 m left in the
- *     combined file, occupies the left distance; the tower stands near the middle on its
- *     stepped limestone slope; and the right-hand quarter remains open terrain and sky. On a
- *     phone the slope spans roughly 40–73 % of the width, with the tower centre near 54 %.
+ *  2. **Persepolis left, Mil-e Azhdaha far right.** The combined-frame anchor still sits at
+ *     [CENTER_FRACTION_FROM_LEFT] (30 % across), and Persepolis' transform and framing inputs
+ *     are unchanged. The Mil group alone receives the model's additional +66 m world-x Home
+ *     shift. On a phone its tower centre is near 91 % of the width and its slope spans roughly
+ *     76–110 %: the tower remains legible at the edge while the upslope is naturally cropped
+ *     by the frame, with ordinary open plain between the two sites.
  *  3. **Farther back in the ground plane.** The Persepolis toe targets
  *     [DISTANT_TOE_BELOW_HORIZON_FRACTION] of the scene below the horizon (about 0.798 of the
  *     scene): more foreground field in front of the stone, the platform top still below the
  *     horizon, and only the tallest columns breaking the horizon line. The tower slope's front
- *     step projects about 1.55 view-metres lower than that toe, which is why the grounding
+ *     step projects about 0.97 view-metres lower than that toe, which is why the grounding
  *     gets its own slope-front landmark instead of pretending both monuments share one edge.
  *  4. **Stone never covers the readout.** The caption block sits bottom-start above the
  *     horizon. The toe is therefore also pushed down until the tallest structure that actually
@@ -115,27 +116,28 @@ object PersepolisFraming {
 
     /**
      * Mil-e Azhdaha tower centre as a view-space x offset from the combined-frame anchor.
-     * The baked world centre is (40.7, 15.6) in XZ; under the off-axis fixed camera that
-     * projects to +42.91 view-metres, not +40.7.
+     * After the model's Home-only +66 m shift, the baked world centre is (106.7, 15.6) in XZ;
+     * under the off-axis fixed camera that projects to +108.14 view-metres.
      */
-    const val MIL_TOWER_CENTER_VIEW_OFFSET_M = 42.91f
+    const val MIL_TOWER_CENTER_VIEW_OFFSET_M = 108.14f
 
     /**
      * Tower top as a view-space height above the Persepolis toe. The ruined stone reaches
-     * world y ≈ 16.30 m; at the tower's nearer depth it projects to +16.19 view-metres.
+     * world y ≈ 16.30 m; at the shifted tower's position/depth it projects to +16.78
+     * view-metres.
      */
-    const val MIL_TOWER_TOP_VIEW_HEIGHT_M = 16.19f
+    const val MIL_TOWER_TOP_VIEW_HEIGHT_M = 16.78f
 
     /**
      * Projected bounds of the nine fixed sheets of the tower's stepped limestone hillside,
-     * after the file's baked 2.04× scale, −0.20 rad yaw and (40.7, 1.1, 15.6) translation.
-     * In world coordinates those sheets span x 13.68…75.72 m, y 0…6.06 m and z 0.39…43.24 m;
+     * after the file's baked 2.04× scale, −0.20 rad yaw and (106.7, 1.1, 15.6) translation.
+     * In world coordinates those sheets span x 79.68…141.72 m, y 0…6.06 m and z 0.39…43.24 m;
      * these are the corresponding fixed-camera view-space offsets used for grounding.
      */
-    const val MIL_SLOPE_LEFT_VIEW_OFFSET_M = 17.12f
-    const val MIL_SLOPE_RIGHT_VIEW_OFFSET_M = 76.85f
-    const val MIL_SLOPE_TOP_VIEW_HEIGHT_M = 6.55f
-    const val MIL_SLOPE_FRONT_BELOW_TOE_VIEW_M = 1.55f
+    const val MIL_SLOPE_LEFT_VIEW_OFFSET_M = 82.34f
+    const val MIL_SLOPE_RIGHT_VIEW_OFFSET_M = 142.08f
+    const val MIL_SLOPE_TOP_VIEW_HEIGHT_M = 7.14f
+    const val MIL_SLOPE_FRONT_BELOW_TOE_VIEW_M = 0.97f
 
     /** Where the combined-frame anchor lands in the viewport, as a fraction from the left. */
     const val CENTER_FRACTION_FROM_LEFT = 0.30f
