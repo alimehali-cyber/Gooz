@@ -469,10 +469,11 @@ fun HeroSkyCanvas(
             )
         }
 
-        // Persepolis framing for this exact scene size (see PersepolisFraming): where the platform toe
-        // lands and how much of the façade the GL camera shows. The sky pass recomputes the same result
-        // for its grounding paint, so the stone and the painted ground meet on the same pixel row.
-        // Null unless this is the full-bleed scene on a photographic theme.
+        // Persepolis framing for this exact scene size (see PersepolisFraming): half the first
+        // integration's linear size, placed on the left and farther back in the ground plane. The
+        // sky pass recomputes the same result for its footprint-local grounding paint, so the stone
+        // and the painted ground meet at the same toe row and platform edges. Null unless this is
+        // the full-bleed scene on a photographic theme.
         val persepolisFraming = if (isScene && PersepolisFeature.isEnabledFor(uiState.skyCanvasTheme)) {
             val density = LocalDensity.current
             val widthPx = with(density) { maxWidth.toPx() }
@@ -480,8 +481,10 @@ fun HeroSkyCanvas(
             PersepolisFraming.forScene(
                 widthPx = widthPx,
                 heightPx = heightPx,
+                horizonYPx = heightPx * horizonFraction,
                 readoutBottomPx = heightPx * horizonFraction -
                     with(density) { PersepolisFraming.READOUT_INSET_DP.dp.toPx() },
+                readoutRightPx = with(density) { PersepolisFraming.READOUT_RIGHT_DP.dp.toPx() },
                 readoutClearancePx = with(density) { PersepolisFraming.READOUT_CLEARANCE_DP.dp.toPx() }
             )
         } else null
@@ -503,11 +506,12 @@ fun HeroSkyCanvas(
         }
 
         // --- PERSEPOLIS: THE GROUND'S SUBJECT ---
-        // The Apadana east façade as a transparent GL relief standing in layer 1's ground band: the
-        // ridges and mist shelf behind it are its distance, the field below its platform toe is the
-        // foreground, and the sand apron + contact shadow painted by the sky pass at the same toe row
-        // ground it. It is lit by this frame's real Sun and Moon and renders on demand (per sky-model
-        // change), never on the motion clock. Photographic themes only — PersepolisFeature is the gate.
+        // The Apadana east façade as a transparent GL relief set into the left distance of layer 1's
+        // ground band, at half the size of the first integration: the ridges and mist shelf behind it
+        // are its backdrop, the deeper field below its toe is the foreground, and the localized
+        // earthwork the sky pass paints around its footprint seats it in the terrain. It is lit by
+        // this frame's real Sun and Moon and renders on demand (per sky-model change), never on the
+        // motion clock. Photographic themes only — PersepolisFeature is the gate.
         if (persepolisFraming != null) {
             PersepolisLandscape(
                 frame = skyFrame,

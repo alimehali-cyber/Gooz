@@ -13,9 +13,10 @@ import org.junit.Test
  *
  * The ruin's own camera and lighting live in Persepolis.kt and need a GL context; what ZIG decides —
  * and what can therefore be proven on the JVM — is where that camera's output lands in the scene:
- * the whole façade on screen, the platform in the ground band, the columns against the sky, and no
- * stone over the readout. Those are the assertions below, over a matrix of scene sizes spanning the
- * HomeScreen clamp (52 % of the viewport, 312–560 dp tall) from a small phone to a tablet.
+ * exactly half its first linear size, in the left distance, with the whole façade on screen, the
+ * platform in the ground band, the columns against the sky, and no stone over the readout. Those
+ * are the assertions below, over a matrix of scene sizes spanning the HomeScreen clamp (52 % of
+ * the viewport, 312–560 dp tall) from a small phone to a tablet.
  *
  * Sizes are physical pixels at the density noted per case, because that is what the GL viewport and
  * the sky canvas are both measured in. The full lookAt/ortho projection of landmark points is checked
@@ -39,22 +40,81 @@ class PersepolisFramingTest {
         return PersepolisFraming.forScene(
             widthPx = size.widthPx,
             heightPx = size.heightPx,
+            horizonYPx = horizonY,
             readoutBottomPx = horizonY - PersepolisFraming.READOUT_INSET_DP * size.density,
+            readoutRightPx = PersepolisFraming.READOUT_RIGHT_DP * size.density,
             readoutClearancePx = PersepolisFraming.READOUT_CLEARANCE_DP * size.density
         )
     }
 
     @Test
-    fun phonesShowTheWholeFacadeAtTheModelsOwnWidth() {
-        // Phone-shaped scenes (aspect below the height-cap threshold) keep the model's 89 m window:
-        // nothing modelled is cropped — the platform simply runs off both edges, as designed.
+    fun theRuinRendersAtExactlyHalfItsFirstLinearSize() {
+        sizes.forEach { size ->
+            val framing = framingFor(size)
+            val aspect = size.widthPx / size.heightPx
+            // The first integration's framing, recomputed: the model window, widened by the old cap.
+            val referenceVisibleWidth = maxOf(
+                PersepolisFraming.DEFAULT_VISIBLE_WIDTH_M,
+                aspect * PersepolisFraming.BUILDING_HEIGHT_M /
+                    PersepolisFraming.REFERENCE_MAX_BUILDING_HEIGHT_FRACTION
+            )
+            assertEquals(
+                "${size.label}: twice the reference visible width",
+                referenceVisibleWidth / PersepolisFraming.LINEAR_SCALE_FRACTION,
+                framing.visibleWidthMeters,
+                0.01f
+            )
+            assertEquals(
+                "${size.label}: half the reference pixels per metre",
+                0.5f * size.widthPx / referenceVisibleWidth,
+                framing.pxPerMeter,
+                0.001f
+            )
+        }
+        // On phone-shaped scenes that is concretely the 178 m window (twice the model's 89 m).
         sizes.filter { it.widthPx / it.heightPx < 1.2f }.forEach { size ->
+            assertEquals(
+                "${size.label}: half-scale phone window",
+                178f,
+                framingFor(size).visibleWidthMeters,
+                0.001f
+            )
+        }
+    }
+
+    @Test
+    fun theFacadeSitsInTheLeftOfTheLandscape() {
+        sizes.forEach { size ->
             val framing = framingFor(size)
             assertEquals(
-                "${size.label}: full façade width",
-                PersepolisFraming.DEFAULT_VISIBLE_WIDTH_M,
-                framing.visibleWidthMeters,
-                0.001f
+                "${size.label}: centroid on the left third",
+                PersepolisFraming.CENTER_FRACTION_FROM_LEFT,
+                framing.centerFractionFromLeft,
+                0.0001f
+            )
+            assertEquals(
+                "${size.label}: model centre column",
+                size.widthPx * PersepolisFraming.CENTER_FRACTION_FROM_LEFT,
+                framing.modelCenterXPx,
+                0.5f
+            )
+            // The whole detailed façade remains in frame, entirely in the left ~62 % of the scene,
+            // and the wider platform ends by ~68 % — open landscape to the right.
+            assertTrue("${size.label}: façade left in frame", framing.facadeLeftXPx >= 0f)
+            assertTrue(
+                "${size.label}: façade confined to the left (right=${framing.facadeRightXPx / size.widthPx})",
+                framing.facadeRightXPx <= size.widthPx * 0.62f
+            )
+            assertTrue(
+                "${size.label}: platform ends in the left (right=${framing.platformRightXPx / size.widthPx})",
+                framing.platformRightXPx <= size.widthPx * 0.68f
+            )
+            assertTrue(
+                "${size.label}: footprint ordering",
+                framing.platformLeftXPx < framing.facadeLeftXPx &&
+                    framing.facadeLeftXPx < framing.modelCenterXPx &&
+                    framing.modelCenterXPx < framing.facadeRightXPx &&
+                    framing.facadeRightXPx < framing.platformRightXPx
             )
         }
     }
@@ -69,8 +129,10 @@ class PersepolisFramingTest {
                 framing.toeYPx > composition.groundTopY
             )
             assertTrue(
-                "${size.label}: a foreground strip remains below the toe",
-                framing.toeYPx <= size.heightPx * PersepolisFraming.MAX_TOE_FRACTION + 0.5f &&
+                "${size.label}: toe is farther back, with a deeper foreground below it",
+                framing.toeYPx >= composition.horizonY + size.heightPx * 0.095f &&
+                    framing.toeYPx <= size.heightPx * 0.86f &&
+                    framing.toeYPx <= size.heightPx * PersepolisFraming.MAX_TOE_FRACTION + 0.5f &&
                     framing.toeYPx < size.heightPx
             )
             assertEquals(
@@ -111,14 +173,20 @@ class PersepolisFramingTest {
 
     @Test
     fun noStoneReachesTheReadout() {
-        // The GL surface composites above the Compose readout inside its bounds, so the tallest
-        // left-hand structure (the great doorway) must stay below the readout's bottom edge.
+        // The GL surface composites above the Compose readout inside its bounds. Moving the ruin
+        // left puts more than the great doorway under the caption, so the guard is the tallest
+        // structure whose projected span actually enters the protected readout width at this size.
         sizes.forEach { size ->
             val framing = framingFor(size)
             val readoutBottom = size.heightPx * SkySceneLayout.HORIZON_FRACTION -
                 PersepolisFraming.READOUT_INSET_DP * size.density
             assertTrue(
-                "${size.label}: doorway cornice (${framing.greatDoorwayTopYPx}) below readout bottom ($readoutBottom)",
+                "${size.label}: guarded structure (${framing.readoutGuardTopYPx}) below readout bottom ($readoutBottom)",
+                framing.readoutGuardTopYPx >= readoutBottom +
+                    PersepolisFraming.READOUT_CLEARANCE_DP * size.density - 0.5f
+            )
+            assertTrue(
+                "${size.label}: doorway cornice also below readout bottom",
                 framing.greatDoorwayTopYPx >= readoutBottom +
                     PersepolisFraming.READOUT_CLEARANCE_DP * size.density - 0.5f
             )

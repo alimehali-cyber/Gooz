@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import kotlin.math.PI
+import kotlin.math.pow
 import kotlin.math.sin
 
 /**
@@ -23,19 +24,19 @@ import kotlin.math.sin
 object SceneGroundRenderer {
 
     /**
-     * @param persepolisToeYPx pixel row where the Persepolis platform's front toe meets this ground
-     * ([PersepolisFraming.Result.toeYPx]), or null when the ruin is not part of the scene. When set,
-     * a sand apron and a contact shadow are painted at that row so the GL stone sits *in* the ground
-     * band instead of ending on a hard line above the grass. Everything else is unchanged: the ridges
-     * and the mist shelf stay behind the ruin (they are its distance backdrop), and the ground below
-     * the toe remains the foreground field the framing intends.
+     * @param persepolis resolved Persepolis framing for this exact canvas, or null when the ruin is
+     * not part of the scene. When set, a footprint-local worn-earth apron, banked side transition,
+     * contact shadow and debris are painted from the framing's platform bounds so the GL stone sits
+     * *in* the ground band instead of ending on a hard line above the grass. Everything else is
+     * unchanged: the ridges and the mist shelf stay behind the ruin (they are its distance backdrop),
+     * and the ground below the toe remains the foreground field the framing intends.
      */
     fun draw(
         drawScope: DrawScope,
         composition: SceneComposition,
         theme: SkyCanvasTheme,
         lighting: LightingState,
-        persepolisToeYPx: Float? = null
+        persepolis: PersepolisFraming.Result? = null
     ) {
         val palette = scenePalette(theme, lighting)
         val width = composition.widthPx
@@ -112,9 +113,9 @@ object SceneGroundRenderer {
             size = androidx.compose.ui.geometry.Size(width, height * 0.06f)
         )
 
-        // 5b. Persepolis grounding: where the stone forecourt ends and this field begins.
-        if (persepolisToeYPx != null) {
-            drawPersepolisGrounding(drawScope, composition, lighting, persepolisToeYPx)
+        // 5b. Persepolis earthwork: the worn ground the distant platform actually stands in.
+        if (persepolis != null) {
+            drawPersepolisGrounding(drawScope, composition, palette, lighting, persepolis)
         }
 
         // 6. Grass line. Papercraft keeps hard cardstock edges instead of strokes.
@@ -143,55 +144,211 @@ object SceneGroundRenderer {
     }
 
     /**
-     * The seam between the GL ruin and the painted ground: a wind-blown sand apron banked against the
-     * platform toe (the semi-desert site the model itself drifts sand against its walls from), and the
-     * soft contact shadow the platform throws onto the field in front of it.
+     * The earth the distant GL ruin stands in, painted only around its own footprint.
      *
-     * Both are drawn under the GL surface, so only the parts in front of the forecourt's stone edge are
-     * visible — which is exactly the parts that should be: sand and shadow spilling toward the viewer,
-     * stopping at the stone. Colours follow the same Sun-altitude brightness as the rest of the ground,
-     * so the seam warms and darkens with the scene and all but disappears at astronomical night, where
-     * the ground is already near-black.
+     * At the half-scale, left-hand placement the platform no longer runs off both edges, so a
+     * full-width grounding band would read as a stripe. Instead this paints a small worn site:
+     * irregular drifts of sand over the field in front of the toe, a bank of earth spilling past the
+     * platform's open right end, a broken contact shadow directly under the forecourt, low drift
+     * hummocks, and fine stone-and-sand flecks. Every edge is either irregular, gradient-feathered,
+     * or both, and the whole patch feathers out to the right into the ordinary ground.
+     *
+     * It is still drawn under the GL surface, so within the stone footprint only the parts in front
+     * of the forecourt edge show; outside it, the patch is the dusty clearing the ruin occupies.
+     * Colours are mixed from the active ground palette toward sand and scaled by the same
+     * Sun-altitude brightness as the rest of the ground, so the patch warms, cools and disappears
+     * into astronomical night with the terrain around it. All placement noise is deterministic.
      */
     private fun drawPersepolisGrounding(
         drawScope: DrawScope,
         composition: SceneComposition,
+        palette: ScenePalette,
         lighting: LightingState,
-        toeYPx: Float
+        framing: PersepolisFraming.Result
     ) {
         val width = composition.widthPx
         val height = composition.heightPx
+        val toeY = framing.toeYPx
         val day = lighting.ambientBrightness.coerceIn(0f, 1f)
 
-        // Sand apron: strongest at the toe line, feathering out over the foreground field.
+        val platformLeft = framing.platformLeftXPx
+        val platformRight = framing.platformRightXPx
+        val footprintWidth = (platformRight - platformLeft).coerceAtLeast(1f)
+        // The worn-earth patch starts a little before the stone (often off-canvas left) and tails
+        // off well past the platform's open end, so the clearing has no vertical boundary.
+        val apronLeft = (platformLeft - width * 0.030f).coerceAtLeast(-width * 0.02f)
+        val apronRight = (platformRight + width * 0.175f).coerceAtMost(width * 1.02f)
+
         val sand = lerp(Color(0xFF292216), Color(0xFFBEA06E), day)
-        val apronTop = toeYPx - height * 0.012f
-        val apronBottom = (toeYPx + height * 0.060f).coerceAtMost(height)
-        drawScope.drawRect(
+        val earth = lerp(palette.groundTop, sand, 0.42f)
+        val darkEarth = lerp(palette.groundBottom, sand, 0.18f)
+
+        // Soft elliptical falloff built from many equal-alpha shells. Solving the shell alpha
+        // from the desired centre opacity makes the source-over accumulation reach that peak at
+        // the middle while changing by only a percent or two per shell — low enough that the
+        // shells disappear instead of reading as contour rings.
+        fun drawSoftDrift(
+            cx: Float,
+            cy: Float,
+            driftWidth: Float,
+            driftHeight: Float,
+            outerColor: Color,
+            innerColor: Color,
+            peakAlpha: Float,
+            layers: Int
+        ) {
+            val safeLayers = layers.coerceAtLeast(2)
+            val shellAlpha = 1f - (1f - peakAlpha.coerceIn(0f, 0.95f)).pow(1f / safeLayers)
+            for (layer in 0 until safeLayers) {
+                val t = layer / (safeLayers - 1).toFloat()
+                val scale = 1f - 0.92f * t
+                val w = driftWidth * scale
+                val h = driftHeight * scale
+                drawScope.drawOval(
+                    color = lerp(outerColor, innerColor, t).copy(alpha = shellAlpha),
+                    topLeft = Offset(cx - w / 2f, cy - h / 2f),
+                    size = androidx.compose.ui.geometry.Size(w, h)
+                )
+            }
+        }
+
+        // 1. Irregular worn-earth apron: smoothly undulating top and bottom edges, strongest at the
+        //    toe and dissolving downward into the field. The right-hand end tapers almost to a point
+        //    before the horizontal gradient reaches transparency, so there is no vertical cut edge.
+        val apronTop = toeY - height * 0.032f
+        val apronBottom = (toeY + height * 0.095f).coerceAtMost(height)
+        val apron = Path().apply {
+            val segments = 36
+            fun tailTaper(p: Float): Float {
+                val t = ((p - 0.76f) / 0.24f).coerceIn(0f, 1f)
+                return t * t * (3f - 2f * t)
+            }
+            moveTo(apronLeft, toeY - height * 0.020f)
+            for (i in 1..segments) {
+                val p = i / segments.toFloat()
+                val x = apronLeft + (apronRight - apronLeft) * p
+                val taper = tailTaper(p)
+                val topDepth = 0.020f +
+                    0.004f * sin(p * PI.toFloat() * 4f + 0.7f) +
+                    0.002f * sin(p * PI.toFloat() * 9f + 2.0f)
+                val y = toeY - height * topDepth * (1f - taper) + height * 0.012f * taper
+                lineTo(x, y)
+            }
+            for (i in segments downTo 0) {
+                val p = i / segments.toFloat()
+                val x = apronLeft + (apronRight - apronLeft) * p
+                val taper = tailTaper(p)
+                val bottomDepth = 0.064f +
+                    0.010f * sin(p * PI.toFloat() * 4f + 1.3f) +
+                    0.005f * sin(p * PI.toFloat() * 7f + 0.4f)
+                val depth = bottomDepth * (1f - taper) + 0.020f * taper
+                lineTo(x, (toeY + height * depth).coerceAtMost(height))
+            }
+            close()
+        }
+        drawScope.drawPath(
+            path = apron,
             brush = Brush.verticalGradient(
                 0.0f to Color.Transparent,
-                0.22f to sand.copy(alpha = 0.16f + 0.30f * day),
+                0.34f to earth.copy(alpha = 0.09f + 0.18f * day),
+                0.47f to sand.copy(alpha = 0.11f + 0.21f * day),
+                0.66f to Color.Transparent,
                 1.0f to Color.Transparent,
                 startY = apronTop,
                 endY = apronBottom
-            ),
-            topLeft = Offset(0f, apronTop),
-            size = androidx.compose.ui.geometry.Size(width, (apronBottom - apronTop).coerceAtLeast(1f))
+            )
+        )
+        // A faint second pass feathered horizontally, so the tapered tail melts into the field.
+        drawScope.drawPath(
+            path = apron,
+            brush = Brush.horizontalGradient(
+                0.0f to sand.copy(alpha = 0.025f + 0.035f * day),
+                0.68f to sand.copy(alpha = 0.018f + 0.028f * day),
+                1.0f to Color.Transparent,
+                startX = apronLeft,
+                endX = apronRight
+            )
         )
 
-        // Contact shadow: a short, soft occlusion band directly in front of the forecourt edge.
-        val shadowTop = toeYPx - height * 0.004f
-        val shadowBottom = (toeYPx + height * 0.028f).coerceAtMost(height)
-        drawScope.drawRect(
-            brush = Brush.verticalGradient(
-                0.0f to Color.Black.copy(alpha = 0.10f + 0.22f * day),
-                1.0f to Color.Transparent,
-                startY = shadowTop,
-                endY = shadowBottom
-            ),
-            topLeft = Offset(0f, shadowTop),
-            size = androidx.compose.ui.geometry.Size(width, (shadowBottom - shadowTop).coerceAtLeast(1f))
+        // 2. Earth banked against the platform's open (right) end: one soft spill of soil toward
+        //    the viewer, spanning from under the slab end to the apron's tail. Most of its left
+        //    side is hidden by the GL stone; the visible right side fades into the field.
+        val bankLeft = platformRight - footprintWidth * 0.16f
+        val bankRight = platformRight + width * 0.155f
+        drawSoftDrift(
+            cx = (bankLeft + bankRight) / 2f,
+            cy = (toeY + height * 0.028f).coerceAtMost(height),
+            driftWidth = bankRight - bankLeft,
+            driftHeight = height * 0.068f,
+            outerColor = earth,
+            innerColor = sand,
+            peakAlpha = 0.18f + 0.16f * day,
+            layers = 16
         )
+
+        // 3. Broken contact shadow directly in front of the forecourt, following the stone only.
+        val shadowLeft = platformLeft.coerceAtLeast(-width * 0.01f)
+        val shadowRight = (platformRight + width * 0.018f).coerceAtMost(width)
+        val shadow = Path().apply {
+            val segments = 32
+            moveTo(shadowLeft, toeY - height * 0.003f)
+            lineTo(shadowRight, toeY - height * 0.002f)
+            for (i in segments downTo 0) {
+                val p = i / segments.toFloat()
+                val x = shadowLeft + (shadowRight - shadowLeft) * p
+                val depth = 0.018f +
+                    0.005f * sin(p * PI.toFloat() * 6f + 0.8f) +
+                    0.002f * sin(p * PI.toFloat() * 11f + 2.2f)
+                lineTo(x, (toeY + height * depth).coerceAtMost(height))
+            }
+            close()
+        }
+        drawScope.drawPath(
+            path = shadow,
+            brush = Brush.verticalGradient(
+                0.0f to Color.Black.copy(alpha = 0.12f + 0.20f * day),
+                1.0f to Color.Transparent,
+                startY = toeY - height * 0.004f,
+                endY = (toeY + height * 0.027f).coerceAtMost(height)
+            )
+        )
+
+        // 4. Low drift hummocks: soft elongated mounds scattered through the apron, denser near
+        //    the toe and thinning toward the viewer — light on sand, not separate objects.
+        for (i in 0 until 7) {
+            val r1 = pseudoRandom(i * 17_171 + 101)
+            val r2 = pseudoRandom(i * 23_777 + 57)
+            val r3 = pseudoRandom(i * 31_337 + 5)
+            drawSoftDrift(
+                cx = apronLeft + (apronRight - apronLeft) * (0.08f + 0.84f * ((i + r1 * 0.8f) / 7f)),
+                cy = toeY + height * (0.012f + r2 * 0.055f),
+                driftWidth = footprintWidth * (0.13f + r2 * 0.16f),
+                driftHeight = height * (0.010f + r3 * 0.018f),
+                outerColor = earth,
+                innerColor = sand,
+                peakAlpha = (0.05f + 0.07f * day) * (0.6f + 0.4f * r3),
+                layers = 10
+            )
+        }
+
+        // 5. Fine debris: short light/dark flecks (fallen chips, grit) concentrated at the toe and
+        //    dissipating down the apron. Deterministic, so the site does not shimmer between ticks.
+        for (i in 0 until 44) {
+            val r1 = pseudoRandom(i * 41_003 + 211)
+            val r2 = pseudoRandom(i * 13_981 + 37)
+            val r3 = pseudoRandom(i * 29_297 + 83)
+            val x = apronLeft + (apronRight - apronLeft) * ((i + r1 * 0.9f) / 44f)
+            val y = (toeY - height * 0.004f + height * 0.082f * r2 * r2).coerceAtMost(height)
+            val len = (2f + r3 * 7f) * (height / 900f).coerceIn(0.7f, 1.8f)
+            val fleck = if (r3 > 0.45f) sand else darkEarth
+            drawScope.drawLine(
+                color = fleck.copy(alpha = (0.10f + 0.16f * day) * (0.5f + 0.5f * r1)),
+                start = Offset(x, y),
+                end = Offset(x + len, y + (r1 - 0.5f) * len * 0.35f),
+                strokeWidth = 1.1f + r3 * 1.5f,
+                cap = StrokeCap.Round
+            )
+        }
     }
 
     /**

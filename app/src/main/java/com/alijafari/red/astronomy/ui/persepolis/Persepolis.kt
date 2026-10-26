@@ -4,7 +4,7 @@ package com.alijafari.red.astronomy.ui.persepolis
 // ZIG INTEGRATION NOTE (the only changes from the file as supplied)
 // ----------------------------------------------------------------------------
 // This file is integrated exactly as provided — same procedural geometry,
-// same shaders, same fixed camera, same lighting model — with four changes:
+// same shaders, same fixed camera, same lighting model — with six changes:
 //
 //  1. The package line above (as the original first line instructed).
 //  2. [PersepolisScene.init] first drops GL resource names left over from a
@@ -21,6 +21,13 @@ package com.alijafari.red.astronomy.ui.persepolis
 //  4. [PersepolisView] preserves its EGL context on pause, so backgrounding
 //     the app does not force a VBO re-upload when the context survives.
 //     Change 2 covers the devices where preservation fails.
+//  5. The renderer is hosted through the OpenGL ES 3.0 Android API and an
+//     ES 3.0 EGL context. The shader source and all rendering operations are
+//     otherwise unchanged; this only follows the app's renderer policy.
+//  6. [PersepolisScene.centerFractionFromLeft] adds an optional horizontal
+//     offset to the orthographic window. Its 0.5 default is the supplied
+//     centred framing; ZIG passes 0.30 to place the unchanged fixed-camera
+//     model in the left distance of the Home landscape.
 //
 // Hosting, framing and the Sun/Moon feed live outside this file:
 // see PersepolisLandscape (Compose host) and
@@ -1330,7 +1337,7 @@ private fun buildScene(): MeshBuilder {
 }
 
 // ============================================================================
-// Shaders (OpenGL ES 2.0 / GLSL ES 1.00 — identical to the HTML preview)
+// Shaders (GLSL ES 1.00, compiled unchanged on the ES 3.0 context — identical to the HTML preview)
 // ============================================================================
 
 private const val VERTEX_SHADER = """
@@ -1426,6 +1433,12 @@ class PersepolisScene {
      *  base on the bottom edge of an overlay strip. */
     @Volatile var baseFractionFromTop: Float = 0.80f
 
+    /** Where the platform centroid (0,0,-2) sits in the viewport, as a fraction
+     *  of the width from the left. 0.5 (default) preserves the supplied centred
+     *  framing exactly; smaller values shift the unchanged fixed-camera view
+     *  toward the left by moving the orthographic window in view space. */
+    @Volatile var centerFractionFromLeft: Float = 0.5f
+
     /** If true (default), the camera zooms out on very wide/short viewports
      *  so the 19 m columns are never cropped. */
     @Volatile var autoFitHeight: Boolean = true
@@ -1500,7 +1513,7 @@ class PersepolisScene {
 
     // ---- GL resources (GL thread only) ----
     // The mesh (~93k vertices) is split into ≤60k-vertex chunks at upload so
-    // plain 16-bit indices work on every ES 2.0 device — no extension needed.
+    // plain 16-bit indices work on every target device — no extension needed.
     private class Chunk(val buffers: IntArray, val indexCount: Int)   // pos, normal, colour, index
     private var program = 0
     private val chunks = ArrayList<Chunk>()
@@ -1644,11 +1657,13 @@ class PersepolisScene {
         Matrix.setLookAtM(view, 0, CAM[0], CAM[1], CAM[2], 0f, CAM_TARGET_Y, 0f, 0f, 1f, 0f)
         // Ortho bounds live in VIEW space, and the camera is off-axis, so solve
         // the centre by projecting real world points through the view matrix:
-        // X is centred on the platform centroid (0,0,-2); the ground line is
-        // the platform's FRONT TOE (0,0,8), which projects lowest at the angle.
+        // X starts on the platform centroid (0,0,-2), then the ortho window is
+        // shifted so that centroid lands at centerFractionFromLeft (0.5 leaves
+        // the supplied framing unchanged); the ground line is the platform's
+        // FRONT TOE (0,0,8), which projects lowest at the angle.
         val cv = FloatArray(4)
         Matrix.multiplyMV(cv, 0, view, 0, floatArrayOf(0f, 0f, -2f, 1f), 0)
-        val centreX = cv[0]
+        val centreX = cv[0] + (0.5f - centerFractionFromLeft.coerceIn(0f, 1f)) * visW
         Matrix.multiplyMV(cv, 0, view, 0, floatArrayOf(0f, 0f, 8f, 1f), 0)
         // Centre that puts the front toe at baseFractionFromTop (NDC = 1 − 2·fraction).
         val centreY = cv[1] + (2f * baseFractionFromTop - 1f) * visH / 2f
@@ -1767,12 +1782,19 @@ class PersepolisView @JvmOverloads constructor(
         requestRender()
     }
 
-    /** Framing: visible world width in metres (89 = the preview look), and
-     *  the ground-line position as a fraction of the view height from the
-     *  top (0.80 = the preview look; 0.995 plants the base on the bottom edge). */
-    fun setFraming(visibleWidthMeters: Float, baseFractionFromTop: Float) {
+    /** Framing: visible world width in metres (89 = the preview look), the
+     *  ground-line position as a fraction of the view height from the top
+     *  (0.80 = the preview look; 0.995 plants the base on the bottom edge), and
+     *  the platform centroid's column as a fraction of the width from the left
+     *  (0.5 = centred preview look). */
+    fun setFraming(
+        visibleWidthMeters: Float,
+        baseFractionFromTop: Float,
+        centerFractionFromLeft: Float = 0.5f
+    ) {
         scene.visibleWidthMeters = visibleWidthMeters
         scene.baseFractionFromTop = baseFractionFromTop
+        scene.centerFractionFromLeft = centerFractionFromLeft
         requestRender()
     }
 }

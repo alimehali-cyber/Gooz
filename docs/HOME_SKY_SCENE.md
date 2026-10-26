@@ -82,10 +82,14 @@ was tapped would be a surprise; the next eclipse is a fact about the sky, not ab
 
 ## 2. Layers
 
-Drawn in `HeroSkyCanvas`, which now has three independent draw nodes:
+Drawn in `HeroSkyCanvas`, which now has three independent Compose draw nodes plus, on the
+photographic themes, the Persepolis GL layer between the first two:
 
 1. **Sky** (`SkySceneRenderer.drawSky`) — atmosphere, Milky Way, stars, Sun, Moon, planets, ground.
    Repaints on the 1 Hz shared clock, or per frame while the finger scrubs time.
+1b. **Persepolis** (`PersepolisLandscape`, photographic scene only) — the Apadana relief at half its
+   first linear size in the left distance, lit by the same ephemeris and rendered on demand. See
+   [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 2. **Motion** (`SkySceneRenderer.drawSceneMotion`, scene only) — the drifting cloud veils.
    ~24 fps while idle. Separate node, so the astronomy is never repainted for a drifting cloud.
 3. **Interaction** — selection ring and stardust. Only alive while the user is touching the canvas.
@@ -97,10 +101,12 @@ bottom fade into the app background. Ridges are summed sines sampled with quadra
 shows. Grass positions are deterministic (no shimmer between ticks). Papercraft keeps hard cardstock
 edges and skips the strokes; everything else gets the soft version.
 
-When the Persepolis relief is active (above), this band is its environment and is painted unchanged
-underneath it — ridges and mist as its distance, the field below the platform toe as foreground — plus
-a grounding seam at the toe row (`PersepolisFraming`): a sand apron feathering down the field and a
-short contact shadow in front of the forecourt, both following the Sun-altitude brightness.
+When the Persepolis relief is active, this band is its environment and is painted underneath it —
+ridges and mist as its distance, the deeper field below the platform toe as foreground — plus a
+footprint-local earthwork from `PersepolisFraming`: an irregular worn-earth apron, a bank against
+the platform's open right end, a broken contact shadow, drift hummocks and debris flecks. The patch
+feathers into the ordinary ground and follows the Sun-altitude brightness, so the smaller, more
+distant ruin does not end on a full-width grounding stripe.
 
 ### Clouds — `CloudVeilRenderer`
 

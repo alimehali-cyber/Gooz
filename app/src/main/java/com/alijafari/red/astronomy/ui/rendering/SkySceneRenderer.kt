@@ -204,10 +204,11 @@ object SkySceneRenderer {
         // 7. Ground. The full-bleed scene gets the layered ground band (ridges, mist shelf, grass); the card
         //    and the fullscreen viewer keep the older single-silhouette landscape; the backdrop has neither.
         //    On the photographic themes the Persepolis relief (a GL layer the caller composites above this
-        //    canvas) stands in this ground band: the band is painted as usual — ridges and mist are the
-        //    ruin's backdrop, the field below its toe is the foreground — plus the grounding seam at the
-        //    toe row. The framing is recomputed here from the same inputs the GL host uses, so the seam
-        //    and the stone always meet on the same pixel row.
+        //    canvas) sits in the left distance of this ground band: the band is painted as usual — ridges
+        //    and mist are its backdrop, the field below its toe is the foreground — plus a localized
+        //    earthwork around the platform footprint (sand drift, banked end, contact shadow, debris).
+        //    The framing is recomputed here from the same inputs the GL host uses, so the painted earth
+        //    and the stone always meet at the same toe row and platform edges.
         when {
             target.drawsScene -> {
                 val composition = SkySceneLayout.composition(
@@ -215,21 +216,23 @@ object SkySceneRenderer {
                     heightPx = canvasH,
                     horizonFraction = SkySceneLayout.HORIZON_FRACTION
                 )
-                val persepolisToeY = if (PersepolisFeature.isEnabledFor(theme)) {
+                val persepolis = if (PersepolisFeature.isEnabledFor(theme)) {
                     PersepolisFraming.forScene(
                         widthPx = canvasW,
                         heightPx = canvasH,
+                        horizonYPx = composition.horizonY,
                         readoutBottomPx = composition.horizonY -
                             with(drawScope) { PersepolisFraming.READOUT_INSET_DP.dp.toPx() },
+                        readoutRightPx = with(drawScope) { PersepolisFraming.READOUT_RIGHT_DP.dp.toPx() },
                         readoutClearancePx = with(drawScope) { PersepolisFraming.READOUT_CLEARANCE_DP.dp.toPx() }
-                    ).toeYPx
+                    )
                 } else null
                 SceneGroundRenderer.draw(
                     drawScope = drawScope,
                     composition = composition,
                     theme = theme,
                     lighting = lightingState,
-                    persepolisToeYPx = persepolisToeY
+                    persepolis = persepolis
                 )
             }
             target.drawsLandscape -> LandscapeRenderer.drawHorizonLandscape(

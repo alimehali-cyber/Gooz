@@ -7,10 +7,11 @@ render is the ~140k-triangle GL model on device. What this draws is the
 model's *massing* — every frame, jamb and column from Persepolis.kt's
 element tables as a flat-shaded block — projected through the model's own
 fixed camera (verify_framing.projector) with PersepolisFraming's numbers,
-over the Home scene's ground stack (ridges, mist, ground, grounding bands)
-replicated from SceneGroundRenderer. It exists so the composition can be
-eyeballed — skyline against the sky, platform in the ground band, readout
-clear of stone — without a device.
+over the Home scene's ground stack (ridges, mist, ground, and the localized
+earthwork around the platform footprint) replicated from
+SceneGroundRenderer. It exists so the composition can be eyeballed — the
+ruin at half size in the left distance, skyline against the sky, platform
+in the ground band, readout clear of stone — without a device.
 
 Requires Pillow. Run from the repo root:
     python3 tools/persepolis/render_framing_preview.py
@@ -28,7 +29,10 @@ from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 W, H, DENSITY = 1080, 1260, 3.0  # phone 360x420dp
 FRAMING = vf.for_scene(W, H, DENSITY)
-PROJECT, _ = vf.projector(W, H, FRAMING["visible_width_m"], FRAMING["base_fraction_from_top"])
+PROJECT, _ = vf.projector(
+    W, H, FRAMING["visible_width_m"], FRAMING["base_fraction_from_top"],
+    FRAMING["center_fraction_from_left"],
+)
 HORIZON_Y = H * vf.HORIZON_FRACTION
 GROUND_TOP = HORIZON_Y + H * 0.052
 TOE_Y = FRAMING["toe_y"]
@@ -130,14 +134,85 @@ def main():
         t = (y - GROUND_TOP) / (H - GROUND_TOP)
         d.line([(0, y), (W, y)], fill=lerp((62, 72, 52), (12, 18, 14), t))
 
-    # Grounding bands at the toe (SceneGroundRenderer.drawPersepolisGrounding).
-    for y in range(int(TOE_Y - H * 0.012), int(min(TOE_Y + H * 0.060, H))):
-        t = (y - (TOE_Y - H * 0.012)) / (H * 0.072)
-        a = int(110 * math.sin(math.pi * min(t / 0.85, 1.0))) if t < 0.85 else 0
-        d.line([(0, y), (W, y)], fill=(190, 160, 110, a))
-    for y in range(int(TOE_Y), int(min(TOE_Y + H * 0.028, H))):
-        a = int(70 * (1 - (y - TOE_Y) / (H * 0.028)))
-        d.line([(0, y), (W, y)], fill=(0, 0, 0, a))
+    # Localized earthwork around the footprint (SceneGroundRenderer.drawPersepolisGrounding):
+    # an irregular worn-earth apron tailing past the platform's right end, a bank, a broken
+    # contact shadow under the stone only, drift hummocks and debris flecks.
+    def rnd(seed):
+        v = math.sin(seed * 12.9898) * 43758.5453
+        return v - math.floor(v)
+
+    def soft_drift(cx, cy, width, height, peak_alpha, layers, rgb=(190, 160, 110)):
+        shell_alpha = int(round(255 * (1 - (1 - peak_alpha) ** (1 / layers))))
+        for layer in range(layers):
+            scale = 1 - 0.92 * (layer / (layers - 1))
+            w, h = width * scale, height * scale
+            d.ellipse(
+                [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
+                fill=(*rgb, shell_alpha),
+            )
+
+    plat_l, plat_r = FRAMING["platform_left_x"], FRAMING["platform_right_x"]
+    apron_l = max(plat_l - W * 0.030, -W * 0.02)
+    apron_r = min(plat_r + W * 0.175, W * 1.02)
+    segs = 36
+
+    def tail_taper(p):
+        t = min(max((p - 0.76) / 0.24, 0.0), 1.0)
+        return t * t * (3 - 2 * t)
+
+    apron_pts = []
+    for i in range(segs + 1):
+        p = i / segs
+        taper = tail_taper(p)
+        top_depth = 0.020 + 0.004 * math.sin(p * math.pi * 4 + 0.7) + 0.002 * math.sin(p * math.pi * 9 + 2.0)
+        apron_pts.append((
+            apron_l + (apron_r - apron_l) * p,
+            TOE_Y - H * top_depth * (1 - taper) + H * 0.012 * taper,
+        ))
+    for i in range(segs, -1, -1):
+        p = i / segs
+        taper = tail_taper(p)
+        bottom_depth = 0.064 + 0.010 * math.sin(p * math.pi * 4 + 1.3) + 0.005 * math.sin(p * math.pi * 7 + 0.4)
+        depth = bottom_depth * (1 - taper) + 0.020 * taper
+        apron_pts.append((
+            apron_l + (apron_r - apron_l) * p,
+            min(TOE_Y + H * depth, H),
+        ))
+    d.polygon(apron_pts, fill=(190, 160, 110, 64))
+
+    bank_l = plat_r - (plat_r - plat_l) * 0.16
+    bank_r = plat_r + W * 0.155
+    soft_drift(
+        (bank_l + bank_r) / 2,
+        min(TOE_Y + H * 0.028, H),
+        bank_r - bank_l,
+        H * 0.068,
+        peak_alpha=0.30,
+        layers=16,
+        rgb=(183, 154, 108),
+    )
+
+    shadow_pts = [(max(plat_l, -W * 0.01), TOE_Y - H * 0.003), (min(plat_r + W * 0.018, W), TOE_Y - H * 0.002)]
+    for i in range(32, -1, -1):
+        p = i / 32
+        depth = 0.018 + 0.005 * math.sin(p * math.pi * 6 + 0.8) + 0.002 * math.sin(p * math.pi * 11 + 2.2)
+        shadow_pts.append((
+            max(plat_l, -W * 0.01) + (min(plat_r + W * 0.018, W) - max(plat_l, -W * 0.01)) * p,
+            min(TOE_Y + H * depth, H),
+        ))
+    d.polygon(shadow_pts, fill=(0, 0, 0, 58))
+    for i in range(7):
+        rw_ = (plat_r - plat_l) * (0.13 + rnd(i * 23.7 + 5.7) * 0.16)
+        rh_ = H * (0.010 + rnd(i * 31.3 + 0.5) * 0.018)
+        cx = apron_l + (apron_r - apron_l) * (0.08 + 0.84 * ((i + rnd(i * 17.1 + 10.1) * 0.8) / 7))
+        cy = TOE_Y + H * (0.012 + rnd(i * 23.7 + 5.7) * 0.055)
+        soft_drift(cx, cy, rw_, rh_, peak_alpha=0.10, layers=10, rgb=(196, 168, 118))
+    for i in range(44):
+        x = apron_l + (apron_r - apron_l) * ((i + rnd(i * 41.0 + 21.1) * 0.9) / 44)
+        y = min(TOE_Y - H * 0.004 + H * 0.082 * rnd(i * 13.9 + 3.7) ** 2, H)
+        ln = (2 + rnd(i * 29.3 + 8.3) * 7) * 1.4
+        d.line([(x, y), (x + ln, y + (rnd(i * 41.0 + 21.1) - 0.5) * ln * 0.35)],
+               fill=(205, 178, 126, 90), width=2)
 
     # Platform fronts + floor.
     rect_xz(d, -62, 62, 0.5, 2.6, 7.25, lerp(PLATFORM_TONE, (90, 76, 58), 0.25))       # lower front wall
@@ -195,10 +270,10 @@ def main():
     dashed_h(HORIZON_Y)
     label((W - 330, HORIZON_Y - 34), "horizon 0.70")
     dashed_h(TOE_Y, (255, 214, 150, 190))
-    label((W - 330, TOE_Y + 8), "platform toe 0.84")
+    label((W - 330, TOE_Y + 8), f"platform toe {FRAMING['base_fraction_from_top']:.2f}")
 
     readout_bottom = FRAMING["readout_bottom"]
-    rx, ry, rw, rh = 60, readout_bottom - 45 * DENSITY, 560, 45 * DENSITY
+    rx, ry, rw, rh = 60, readout_bottom - 45 * DENSITY, 690, 45 * DENSITY
     for x in range(int(rx), int(rx + rw), 22):
         d.line([(x, ry), (min(x + 13, rx + rw), ry)], fill=(255, 255, 255, 210), width=2)
         d.line([(x, ry + rh), (min(x + 13, rx + rw), ry + rh)], fill=(255, 255, 255, 210), width=2)
@@ -209,9 +284,9 @@ def main():
     label((rx + 12, ry + 44), "22:41 | Astronomical night", font)
 
     col_x, col_y = px(vf.TALLEST_COLUMN_TOP)
-    label((col_x - 168, col_y - 46), "19.2 m column", small)
+    label((col_x + 18, col_y + 6), "19.2 m column", small)
 
-    label((36, H - 74), "Framing diagram: model massing projected with PersepolisScene's camera.", small)
+    label((36, H - 74), "Framing diagram: half scale, left distance; massing via PersepolisScene's camera.", small)
     label((36, H - 44), "On device, the GL layer renders the full procedural relief.", small)
 
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "docs", "persepolis-framing.png")

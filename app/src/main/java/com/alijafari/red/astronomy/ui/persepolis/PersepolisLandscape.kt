@@ -94,7 +94,11 @@ fun PersepolisLandscape(
         view?.setMoon(moonAzimuthDeg, moonAltitudeDeg, moonIntensity)
     }
     LaunchedEffect(view, framing) {
-        view?.setFraming(framing.visibleWidthMeters, framing.baseFractionFromTop)
+        view?.setFraming(
+            framing.visibleWidthMeters,
+            framing.baseFractionFromTop,
+            framing.centerFractionFromLeft
+        )
     }
 
     // GLSurfaceView lifecycle: pause the GL thread with the host, resume with it. Adding the observer
@@ -118,7 +122,11 @@ fun PersepolisLandscape(
             PersepolisView(context).apply {
                 // Framing and lights are set before the surface exists, so the first drawn frame is
                 // already the composed one; the effects above keep them current afterwards.
-                setFraming(framing.visibleWidthMeters, framing.baseFractionFromTop)
+                setFraming(
+                    framing.visibleWidthMeters,
+                    framing.baseFractionFromTop,
+                    framing.centerFractionFromLeft
+                )
                 setSun(sunAzimuthDeg, sunAltitudeDeg)
                 setMoon(moonAzimuthDeg, moonAltitudeDeg, moonIntensity)
                 view = this
