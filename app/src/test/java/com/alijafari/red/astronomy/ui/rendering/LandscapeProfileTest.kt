@@ -268,6 +268,45 @@ class LandscapeProfileTest {
     }
 
     @Test
+    fun bladeWidthIsFullAtRootNeedleAtTipAndMonotonic() {
+        assertEquals(1f, LandscapeProfile.bladeWidthProfile(0f), 1e-6f)
+        assertEquals(0f, LandscapeProfile.bladeWidthProfile(1f), 1e-6f)
+        var prev = 1f
+        var t = 0.05f
+        while (t <= 1.001f) {
+            val v = LandscapeProfile.bladeWidthProfile(t.coerceAtMost(1f))
+            assertTrue("width bounded (t=$t)", v in 0f..1f)
+            assertTrue("width narrows monotonically (t=$t)", v <= prev + 1e-6f)
+            prev = v
+            t += 0.05f
+        }
+        // Convex taper: most of the width is gone well before the tip (needle, not ribbon).
+        assertTrue(LandscapeProfile.bladeWidthProfile(0.75f) < 0.35f)
+        // Out-of-range heights clamp to the ends instead of going negative/NaN.
+        assertEquals(1f, LandscapeProfile.bladeWidthProfile(-0.5f), 1e-6f)
+        assertEquals(0f, LandscapeProfile.bladeWidthProfile(1.5f), 1e-6f)
+    }
+
+    @Test
+    fun sunGlitterIsAUnitGaussianInSlopeSpace() {
+        assertEquals(1f, LandscapeProfile.sunGlitter(0f, 0f), 1e-6f)
+        assertEquals(0.3679f, LandscapeProfile.sunGlitter(1f, 0f), 1e-3f)
+        assertEquals(0.3679f, LandscapeProfile.sunGlitter(0f, -1f), 1e-3f)
+        // Symmetric in both axes, bounded, and effectively gone at 3 sigma.
+        for (dx in listOf(-2f, -0.4f, 0.3f, 1.5f)) {
+            for (dy in listOf(-1.2f, 0f, 0.8f)) {
+                val g = LandscapeProfile.sunGlitter(dx, dy)
+                assertTrue("glitter bounded ($dx,$dy)", g in 0f..1f)
+                assertEquals(g, LandscapeProfile.sunGlitter(-dx, -dy), 1e-6f)
+            }
+        }
+        assertTrue(LandscapeProfile.sunGlitter(3f, 0f) < 0.001f)
+        assertTrue(
+            LandscapeProfile.sunGlitter(0.5f, 0f) > LandscapeProfile.sunGlitter(1.5f, 0f)
+        )
+    }
+
+    @Test
     fun foothillHeightsAreSmoothComparedToTheMassif() {
         val envelope = floatArrayOf(0f, 0.7f, 0.5f, 1f, 1f, 0.5f)
         val foothills = LandscapeProfile.foothillHeights(80, 26f, envelope, seed = 77)

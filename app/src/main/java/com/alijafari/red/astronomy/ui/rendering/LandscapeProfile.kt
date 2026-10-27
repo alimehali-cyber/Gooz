@@ -497,4 +497,27 @@ internal object LandscapeProfile {
         val u = 1f - tt
         return 3f * u * u * tt * c1 + 3f * u * tt * tt * c2 + tt * tt * tt
     }
+
+    /**
+     * Width profile of one grass blade at height fraction [t]: full width at the
+     * rooted base, tapering convexly to a needle point at the tip ((1−t)^0.8).
+     * Real blades are widest where they leave the sheath and spend most of their
+     * length narrowing — a linear taper reads as a ribbon, this reads as a blade.
+     * 1 at the root, 0 at the tip, monotonic in between.
+     */
+    fun bladeWidthProfile(t: Float): Float {
+        val tt = t.coerceIn(0f, 1f)
+        return (1f - tt).pow(0.8f)
+    }
+
+    /**
+     * Sun-glitter falloff in slope space (Cox & Munk 1954): the probability that a
+     * water facet is tilted so it mirrors the Sun to the viewer falls as a Gaussian
+     * in its slope offset from the specular facet. [dxSigma]/[dySigma] are the
+     * offsets along/across the glitter column, in units of the surface's slope
+     * sigma (which grows with wind and ripple). 1 at the specular point,
+     * exp(−1) one sigma out, →0 far out; symmetric and bounded.
+     */
+    fun sunGlitter(dxSigma: Float, dySigma: Float): Float =
+        exp(-(dxSigma * dxSigma + dySigma * dySigma))
 }

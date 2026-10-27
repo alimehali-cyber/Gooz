@@ -657,7 +657,20 @@ def main():
 
     d.polygon(ribbon(1.18), fill=(52, 52, 40, 200))               # wet bank band
     d.polygon(ribbon(1.0), fill=(58, 72, 66))                     # shallow edges: bed showing
-    d.polygon(ribbon(0.84), fill=(196, 132, 88, 225))             # sunset sky reflection
+    # Fresnel-graded reflection (v4 mirror): three strips across the ribbon —
+    # the far strip mirrors the sunset sky almost fully (grazing view), the
+    # near strip is seen steeply so the deep water takes over.
+    def edge_pts(scale):
+        return [(-20 + (W + 40) * i / 28.0,
+                 river_at(-20 + (W + 40) * i / 28.0)
+                 + river_halfw(-20 + (W + 40) * i / 28.0, river_at(-20 + (W + 40) * i / 28.0)) * scale)
+                for i in range(29)]
+    for s0, s1, fill in [(-0.84, -0.28, (196, 132, 88, 238)),
+                         (-0.28, 0.28, (178, 122, 86, 205)),
+                         (0.28, 0.84, (96, 82, 76, 165))]:
+        d.polygon(edge_pts(s0) + edge_pts(s1)[::-1], fill=fill)
+    # Far-bank waterline: hairline of grazing sky light inside the far edge.
+    d.line(edge_pts(-0.93), fill=(220, 170, 120, 90), width=1)
     d.polygon(ribbon(0.22, offset=0.45), fill=(30, 44, 52, 140))  # deep thalweg, outer bank
     for i in range(8):  # dark slow water breaking the reflection
         x = W * _hash01(i * 9.7 + 4.4)
@@ -691,33 +704,51 @@ def main():
                peak_alpha=0.10, layers=10, rgb=(255, 210, 150))
     soft_drift(SUN_X, river_at(SUN_X), W * 0.30, river_halfw(SUN_X, river_at(SUN_X)) * 1.5,
                peak_alpha=0.20, layers=10, rgb=(255, 218, 154))
-    for i in range(64):
+    for i in range(72):
+        # Cox-Munk glitter (v4 mirror): 2D Gaussian in slope space around the
+        # specular point — density, brightness and size all follow the falloff.
         x = W * _hash01(i * 13.7 + 2.2)
+        dxs = (x - SUN_X) / (W * 0.17)
+        if abs(dxs) > 2.6:
+            continue
         yc = river_at(x)
         hw = river_halfw(x, yc)
-        g = math.exp(-(((x - SUN_X) / (W * 0.17)) ** 2))
-        if _hash01(i * 19.3 + 8.8) > 0.25 + 0.75 * g:  # Poisson-ish thinning
+        yoff = (_hash01(i * 7.9) - 0.5) * 1.7
+        g = math.exp(-(dxs ** 2 + (yoff / 0.55) ** 2))
+        if _hash01(i * 19.3 + 8.8) > 0.10 + 0.90 * g:  # facet-probability thinning
             continue
-        y = yc + (_hash01(i * 7.9) - 0.5) * 1.5 * hw
-        a = int(235 * g * (0.35 + 0.65 * _hash01(i * 3.1)))
-        ln = 8 + 30 * _hash01(i * 5.7) * (0.4 + g)
-        d.line([(x, y), (x + ln, y)], fill=(255, 220, 160, a), width=3)
-        if g > 0.78 and _hash01(i * 29.7) > 0.6:  # star sparkle
+        y = yc + yoff * hw * 0.82
+        a = int(235 * g * (0.30 + 0.70 * _hash01(i * 3.1)))
+        if a < 5:
+            continue
+        ln = (8 + 30 * _hash01(i * 5.7)) * (0.35 + 0.85 * g)
+        d.line([(x, y), (x + ln, y)], fill=(255, 220, 160, a), width=3 if g > 0.5 else 2)
+        if g > 0.72 and _hash01(i * 29.7) > 0.62:  # star sparkle at the specular heart
             r = 3 + 3 * _hash01(i * 4.1)
             d.line([(x + ln / 2, y - r), (x + ln / 2, y + r)],
                    fill=(255, 230, 180, int(a * 0.5)), width=2)
-    # Broken reflections of the two foreground trees (drawn below).
+    # Broken reflections of the two foreground trees (drawn below): ripple-torn
+    # slices — deeper slices wobble more, split, and drop out entirely (v4 mirror).
     for tx, th in [(W * 0.115, H * 0.068), (W * 0.875, H * 0.058)]:
         yc = river_at(tx)
         bot = yc + river_halfw(tx, yc)
-        for j in range(6):
-            y = bot - (j + 0.5) * (th * 0.55 / 6)
+        seed_base = int(tx * 1000)
+        for j in range(7):
+            y = bot - (j + 0.5) * (th * 0.55 / 7)
             if y < yc - river_halfw(tx, yc):
                 break
-            wdt = th * 1.1 * (0.55 - 0.06 * j)
-            xo = (_hash01(j * 7.7 + tx) - 0.5) * 8
+            if j > 0 and _hash01(seed_base + j * 7 + 2.77) < 0.10 + 0.05 * j:
+                continue  # ripple gap
+            wdt = th * 1.1 * (0.55 - 0.045 * j)
+            xo = (_hash01(j * 7.7 + tx) - 0.5) * 8 * (0.6 + 0.35 * j)
+            a = int(80 * (1 - j / 7))
             d.line([(tx + xo - wdt / 2, y), (tx + xo + wdt / 2, y)],
-                   fill=(30, 40, 30, int(80 * (1 - j / 6))), width=3)
+                   fill=(30, 40, 30, a), width=3)
+            if j >= 2 and _hash01(seed_base + j * 11 + 2.81) > 0.45:  # torn fragment
+                fw = wdt * 0.4
+                fx = tx + xo * 1.7 + (_hash01(seed_base + j * 17 + 2.93) - 0.5) * wdt * 0.5
+                d.line([(fx - fw / 2, y + th * 0.028), (fx + fw / 2, y + th * 0.028)],
+                       fill=(30, 40, 30, int(a * 0.7)), width=3)
     # Reed clumps (Phragmites) at the banks: curved stems, feathery plumes.
     for ci in range(7):
         p = 0.08 + 0.84 * (ci + _hash01(ci * 9.3)) / 7
@@ -815,30 +846,60 @@ def main():
             cr = hgt * (0.045 + 0.040 * _hash01(seed * 3.7 + ci * 5.1)) * cr_mul
             tone = 0.85 + 0.3 * _hash01(seed * 5.3 + ci * 7.7)
             light = (0.50 + 0.42 * facing) * (0.42 + 0.58 * r01) * tone
+            # Cluster-of-clusters (v4 mirror): dark core, satellites orbited at
+            # ~0.4*cr for a scalloped silhouette, one edge dab out along the crown
+            # normal — rim on the sun shell, warm translucency glow on the
+            # anti-sun shell (sun at left in this schematic).
+            back_shell = facing < -0.25 and r01 > 0.55
             for dab in range(dabs):
-                ox = (_hash01(seed * 9.7 + ci * 3.1 + dab * 0.7) - 0.5) * cr * 1.15
-                oy = (_hash01(seed * 8.9 + ci * 3.7 + dab * 1.1) - 0.5) * cr * 0.75
-                r = cr * ((0.30 + 0.26 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
-                          if kind == "cherry" else
-                          (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3)))
-                rim_dab = dab == dabs - 1 and facing > 0.15
+                base_r = cr * ((0.30 + 0.26 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
+                               if kind == "cherry" else
+                               (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3)))
+                is_core = dab == 0
+                is_edge = dab == dabs - 1 and dabs > 1
+                rim_dab = is_edge and facing > 0.15
+                glow_dab = is_edge and back_shell and kind != "cherry"
+                if is_core:
+                    ox = (_hash01(seed * 9.7 + ci * 3.1) - 0.5) * cr * 0.35 + cr * 0.20
+                    oy = (_hash01(seed * 8.9 + ci * 3.7) - 0.5) * cr * 0.25 + cr * 0.14
+                    r = base_r
+                elif is_edge:
+                    ox, oy, r = ex * cr * 0.52 - cr * 0.10, -ey * cr * 0.40, base_r * 0.52
+                else:
+                    ang = _hash01(seed * 10.1 + ci * 4.3 + dab * 1.7) * 2 * math.pi
+                    dist = cr * (0.30 + 0.24 * _hash01(seed * 10.3 + ci * 4.7 + dab * 1.9))
+                    ox, oy = math.cos(ang) * dist, -math.sin(ang) * dist * 0.72
+                    r = base_r * 0.62
                 if kind == "cherry":
                     col = base_dark if light < 0.42 else (base_dim if light < 0.72 else base_bright)
                     if rim_dab:
                         col = base_rim
-                    alpha, sx_ = 245, 0.0
-                elif dab == 0:
-                    col, sx_ = tuple(int(c * tone * 0.72) for c in base_dark), cr * 0.2
+                    alpha = 245
+                elif is_core:
+                    col = tuple(int(c * tone * 0.72) for c in base_dark)
                     alpha = 235
                 elif rim_dab:
-                    col, sx_ = base_rim, -cr * 0.15  # sun at left in this schematic
-                    alpha = 140
+                    col, alpha = base_rim, 140
+                elif glow_dab:
+                    col = lerp(base_bright, (255, 230, 170), 0.45)  # transmitted low sun
+                    alpha = 225
                 else:
                     src = base_dim if light < 0.55 else base_bright
-                    col, sx_ = tuple(int(c * tone) for c in src), 0.0
+                    col = tuple(int(c * tone) for c in src)
                     alpha = 240
-                d.ellipse([px + ox + sx_ - r, py + oy - r * 0.62,
-                           px + ox + sx_ + r, py + oy + r * 0.62], fill=(*col, alpha))
+                d.ellipse([px + ox - r, py + oy - r * 0.62,
+                           px + ox + r, py + oy + r * 0.62], fill=(*col, alpha))
+            # Twig tips fraying the lit crown edge (v4 mirror).
+            if term and r01 > 0.70 and _hash01(seed * 16.3 + ci * 0.7) < 0.45:
+                tl = cr * (0.35 + 0.30 * _hash01(seed * 16.7 + ci * 1.1))
+                d.line([(px, py), (px + ex * tl, py - ey * tl - cr * 0.08)],
+                       fill=(58, 44, 32, 150), width=1)
+            # Oak acorn-cup specks in the lit shell (v4 mirror).
+            if kind == "oak" and light > 0.55 and _hash01(seed * 17.3 + ci * 1.3) < 0.55:
+                fr = hgt * 0.0055
+                fx = px + (_hash01(seed * 17.9 + ci * 1.7) - 0.5) * cr * 0.8
+                d.ellipse([fx - fr, py + cr * 0.25 - fr * 0.7, fx + fr, py + cr * 0.25 + fr * 0.7],
+                          fill=(200, 164, 104, 200))
             if kind == "cherry" and _hash01(seed * 13.1 + ci * 0.3) < 0.22:
                 d.ellipse([px - cr * 0.42, py - cr * 0.12, px + cr * 0.42, py + cr * 0.42],
                           fill=(52, 64, 42, 230))  # emerging leaf among blossom
@@ -908,8 +969,9 @@ def main():
         x = W * (xf + (_hash01(j * 3.3 + 6.53) - 0.5) * 0.03)
         plant(x, near_bank_y(x), H * (0.054 + 0.012 * _hash01(j * 5.5 + 6.57)), 180 + j,
               "cherry" if j == 0 else "oak")
-    # Grass v3 mirror (simplified): carpet colour field + true Voronoi clumps +
-    # cubic-Bezier blades in three bands + Stipa/Bromus/riparian hero species.
+    # Grass v4 mirror (simplified): carpet colour field + true Voronoi clumps +
+    # cubic-Bezier blades in three bands, three-tone shading, true blade width
+    # profile + Stipa/Bromus/riparian hero species.
     def blade_bend(t, stiff):
         c1 = 0.08 + 0.30 * stiff
         c2 = 0.45 + 0.35 * stiff
@@ -954,6 +1016,7 @@ def main():
 
     ROOT_DRY, TIP_DRY = (74, 58, 30), (196, 164, 104)
     ROOT_GRN, TIP_GRN = (38, 52, 26), (126, 148, 85)
+    MID_DRY, MID_GRN = lerp(ROOT_DRY, TIP_DRY, 0.52), lerp(ROOT_GRN, TIP_GRN, 0.52)
     for i in range(70):  # carpet colour field
         x = W * _hash01(i * 13.3 + 8.11)
         depth = _hash01(i * 17.5 + 8.09) ** 1.25
@@ -965,10 +1028,12 @@ def main():
                    peak_alpha=0.15, layers=6, rgb=TIP_GRN if moist > 0.52 else TIP_DRY)
 
     def stroke_blade(bx, by, bh, lean, stiff, dry):
-        root, tip = (ROOT_DRY, TIP_DRY) if dry else (ROOT_GRN, TIP_GRN)
-        pts = [bpt(bx, by, bh, lean, stiff, t) for t in (0, .28, .52, .76, 1.0)]
+        # Three tones root -> mid -> tip (v4 mirror; two tones posterised).
+        root, mid, tip = (ROOT_DRY, MID_DRY, TIP_DRY) if dry else (ROOT_GRN, MID_GRN, TIP_GRN)
+        pts = [bpt(bx, by, bh, lean, stiff, t) for t in (0, .18, .36, .58, .78, .90, 1.0)]
         d.line(pts[:3], fill=(*root, 200), width=2)
-        d.line(pts[2:], fill=(*tip, 190), width=2)
+        d.line(pts[2:5], fill=(*mid, 195), width=2)
+        d.line(pts[4:], fill=(*tip, 190), width=2)
 
     for i in range(900):  # far micro-blades
         x = W * _hash01(i * 13.7 + 8.21)
@@ -1032,8 +1097,9 @@ def main():
             wdt = max(1.6, bh * (0.11 if species == 2 else 0.08))
             ts = (0, .2, .4, .6, .8, 1.0)
             pts = [bpt(bx, y, bh, lean, stiff, t) for t in ts]
-            left = [(px - wdt * (1 - t) / 2, py) for (px, py), t in zip(pts, ts)]
-            right = [(px + wdt * (1 - t) / 2, py) for (px, py), t in zip(reversed(pts), reversed(ts))]
+            # Width profile (1-t)^0.8: full at the base, needle tip (v4 mirror).
+            left = [(px - wdt * (1 - t) ** 0.8 / 2, py) for (px, py), t in zip(pts, ts)]
+            right = [(px + wdt * (1 - t) ** 0.8 / 2, py) for (px, py), t in zip(reversed(pts), reversed(ts))]
             d.polygon(left + right, fill=(*fillc, 215))
             d.line([pts[1], pts[3], pts[5]], fill=(*ribc, 160), width=1)
             tip = pts[5]
