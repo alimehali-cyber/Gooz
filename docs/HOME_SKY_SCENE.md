@@ -169,10 +169,17 @@ and that the ground band sits below the horizon.
   stays visible.
 - Cloud presence per theme: `ScenePalette.cloudStrength`.
 - Motion cost: `SCENE_MOTION_FRAME_MS` in `HeroSkyCanvas` (42 ms ≈ 24 fps).
-- Bottom merge: in scene presentation the canvas's last fifth dissolves through an eased
-  gradient into `RedTheme.colors.background` (the "BOTTOM MERGE" overlay in
-  `HeroSkyCanvas`, over the renderer's own `drawBottomFade`), so the ground never ends on
-  a hard line where the Home feed begins. It starts below the readout and below the GL
-  monuments' feet (the z-order-on-top GL surface composites above the overlay and cannot
-  be faded by it). Static landscape geometry is cached per layout — see
-  `VegetationGeometry` in `SceneGroundRenderer`.
+- Scene tail: the scene does not end at the canvas's bottom edge. The ground's own bottom
+  colour continues *below* the canvas and dissolves in alpha to full transparency over
+  `bottomTailHeight` (Home passes `cardSize + RedSpacing.md`, the card row's height), so
+  the tail passes underneath the Moon and eclipse cards. Fading in alpha rather than to a
+  colour is what makes it backdrop-agnostic: it merges into the theme background, the
+  live-sky backdrop render (`LiveSkyBackdrop`), or any other app backdrop unchanged. The
+  canvas itself stays crisp to its edge — nothing fades upward into it. (See "SCENE TAIL"
+  in `HeroSkyCanvas`; the scene root is deliberately unclipped so the tail can paint
+  there.) Static landscape geometry is cached per layout — see `VegetationGeometry` in
+  `SceneGroundRenderer`.
+- Horizon bands are banned: any full-width pale rect with a straight edge at the horizon
+  (the old mist shelf, then the "horizon catch-light" wash in both ground paths) reads as
+  a white band across the scene at the readout's day/date line, flaring while scrubbing
+  sweeps through daytime. Only the ridges' own silhouettes may cross the horizon.

@@ -229,18 +229,12 @@ object SceneGroundRenderer {
             size = androidx.compose.ui.geometry.Size(width, (height - composition.groundTopY).coerceAtLeast(1f))
         )
 
-        // 5. A thin lit edge where the ground meets the mist: the horizon catch-light.
-        val edgeAlpha = 0.10f + 0.18f * lighting.ambientBrightness.coerceIn(0f, 1f)
-        drawScope.drawRect(
-            brush = Brush.verticalGradient(
-                0.0f to palette.haze.copy(alpha = edgeAlpha),
-                1.0f to Color.Transparent,
-                startY = composition.groundTopY,
-                endY = composition.groundTopY + height * 0.06f
-            ),
-            topLeft = Offset(0f, composition.groundTopY),
-            size = androidx.compose.ui.geometry.Size(width, height * 0.06f)
-        )
+        // 5. (No horizon catch-light either: the old full-width pale wash with a hard
+        //    straight top edge at groundTopY read as a white band across the scene at
+        //    the readout's day/date line, flaring as scrubbing swept through daytime
+        //    because its alpha scaled with ambient brightness. Any straight-edged pale
+        //    rect at the horizon does this — the ridges' own silhouettes are the only
+        //    horizon feature allowed.)
 
         // 5b. Combined-landscape earthwork: the worn ground the platform and tower slope stand in.
         if (persepolis != null) {
@@ -500,8 +494,7 @@ object SceneGroundRenderer {
         // shelf stacked into a white band across the canvas at the readout's day/date line.
         // The range's own haze dissolve supplies the aerial perspective by itself.)
 
-        // 3. The Marvdasht plain: dry olive-straw steppe, darkening toward the viewer,
-        //    with a horizon catch-light at its top edge.
+        // 3. The Marvdasht plain: dry olive-straw steppe, darkening toward the viewer.
         val steppeTop = lerp(palette.groundTop, Color(0xFF7C7046), 0.55f * day)
         drawScope.drawRect(
             brush = Brush.verticalGradient(
@@ -514,16 +507,9 @@ object SceneGroundRenderer {
             topLeft = Offset(0f, groundTopY),
             size = androidx.compose.ui.geometry.Size(width, (height - groundTopY).coerceAtLeast(1f))
         )
-        drawScope.drawRect(
-            brush = Brush.verticalGradient(
-                0.0f to atmosphere.copy(alpha = 0.10f + 0.18f * day),
-                1.0f to Color.Transparent,
-                startY = groundTopY,
-                endY = groundTopY + height * 0.06f
-            ),
-            topLeft = Offset(0f, groundTopY),
-            size = androidx.compose.ui.geometry.Size(width, height * 0.06f)
-        )
+        // (No horizon catch-light wash on the plain's top edge: its hard straight top
+        // edge at groundTopY was the white band visible across the scene at the
+        // readout's day/date line, strongest while scrubbing through daytime.)
 
         // 4. Kuh-e Rahmat: the great limestone wall at Persepolis' back. Nearer, warmer and
         //    more strongly faceted than the far range, with folded strata and gullies.

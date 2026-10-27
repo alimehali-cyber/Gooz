@@ -1072,14 +1072,21 @@ def main():
                fill=(170, 230, 255, 190), width=2)
     label((slope_l + 8, slope_front + 34), "Mil slope front", small)
 
-    # Bottom merge: the last fifth of the scene dissolves through an eased gradient
-    # into the app backdrop (a dark stand-in colour here), mirroring HeroSkyCanvas.
-    grad = Image.new("L", (1, H), 0)
+    # Scene tail: the ground's own bottom colour continues *below* the canvas and
+    # dissolves (alpha) into the backdrop where the Home cards sit — mirroring
+    # HeroSkyCanvas's SCENE TAIL. The diagram grows a strip under the scene to show
+    # it; the scene itself is untouched (nothing fades upward into it).
+    TAIL = int(H * 0.16)
+    extended = Image.new("RGB", (W, H + TAIL), (13, 15, 20))  # backdrop stand-in
+    bottom_px = [img.getpixel((x, H - 1)) for x in range(0, W, 16)]
+    tail_rgb = tuple(sum(c[i] for c in bottom_px) // len(bottom_px) for i in range(3))
+    grad = Image.new("L", (1, TAIL), 0)
     gpx = grad.load()
-    for yy in range(H):
-        t = (yy / H - 0.80) / 0.20
-        gpx[0, yy] = 0 if t <= 0 else int(255 * min(1.0, t) ** 1.6)
-    img.paste(Image.new("RGB", (W, H), (13, 15, 20)), (0, 0), grad.resize((W, H)))
+    for yy in range(TAIL):
+        gpx[0, yy] = int(255 * (1.0 - yy / TAIL) ** 1.5)
+    extended.paste(Image.new("RGB", (W, TAIL), tail_rgb), (0, H), grad.resize((W, TAIL)))
+    extended.paste(img, (0, 0))
+    img = extended
     d = ImageDraw.Draw(img, "RGBA")
 
     readout_bottom = FRAMING["readout_bottom"]
@@ -1099,8 +1106,8 @@ def main():
     tower_x, tower_y = px(vf.MIL_TOWER_TOP)
     label((tower_x - 202, tower_y + 4), "Mil-e Azhdaha", small)
 
-    label((36, H - 74), "Framing diagram: Persepolis left; open plain; Mil tower/slope cropped at right.", small)
-    label((36, H - 44), "Massing via the combined model's camera; on device, GL renders the full relief.", small)
+    label((36, H + TAIL - 74), "Framing diagram: Persepolis left; open plain; Mil tower/slope cropped at right.", small)
+    label((36, H + TAIL - 44), "Massing via the combined model's camera; on device, GL renders the full relief.", small)
 
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "docs", "persepolis-framing.png")
     img.save(os.path.normpath(out))

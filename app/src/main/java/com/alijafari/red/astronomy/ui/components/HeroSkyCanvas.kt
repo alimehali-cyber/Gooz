@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
@@ -58,7 +60,6 @@ import androidx.compose.ui.graphics.Brush
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
-import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.liquidGlass
 import com.alijafari.red.astronomy.ui.theme.squircleShape
@@ -141,7 +142,12 @@ fun HeroSkyCanvas(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier,
     presentation: SkyCanvasPresentation = SkyCanvasPresentation.VIEWER,
-    onExpand: (() -> Unit)? = null
+    onExpand: (() -> Unit)? = null,
+    // Scene presentation only: how far the ground's dissolved tail reaches *below* the
+    // canvas's own bottom edge (see the SCENE TAIL layer below). Home passes the height
+    // of the card row that follows the canvas, so the tail passes underneath the cards;
+    // every other caller leaves it at zero and the canvas ends at its own edge.
+    bottomTailHeight: Dp = 0.dp
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
     val coroutineScope = rememberCoroutineScope()
@@ -317,7 +323,10 @@ fun HeroSkyCanvas(
 
     BoxWithConstraints(
         modifier = modifier
-            .clip(if (isScene) RectangleShape else squircleShape(RedCornerRadius.window))
+            // The scene is full-bleed and its tail (see SCENE TAIL below) deliberately
+            // paints past the bottom edge, so the scene must not be clipped to its own
+            // bounds. The card and viewer keep their squircle.
+            .then(if (isScene) Modifier else Modifier.clip(squircleShape(RedCornerRadius.window)))
             .testTag("hero_sky_canvas_container")
             .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
@@ -599,29 +608,43 @@ fun HeroSkyCanvas(
             )
         }
 
-        // --- BOTTOM MERGE (scene only) ---
-        // The full-bleed scene must not end on a hard line where the Home feed begins:
-        // its last stretch dissolves through a long eased gradient into the app's own
-        // backdrop colour, so ground, river and grass blur away and the canvas merges
-        // into the screen behind it. The fade starts below everything that has to stay
-        // legible — the readout sits above the horizon line, and the GL monuments (which
-        // composite above this overlay and so cannot be faded by it) end higher still.
-        // The old corner-shade scrub at the viewer's feet is gone for the same reason.
-        if (isScene) {
-            val backdrop = RedTheme.colors.background
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0.80f to Color.Transparent,
-                            0.88f to backdrop.copy(alpha = 0.18f),
-                            0.94f to backdrop.copy(alpha = 0.52f),
-                            0.98f to backdrop.copy(alpha = 0.82f),
-                            1.0f to backdrop
-                        )
-                    )
+        // --- SCENE TAIL (scene presentation, Home only) ---
+        // The scene does not end at its bottom edge: the ground's own bottom colour
+        // continues *downward and outward* below the canvas, dissolving to full
+        // transparency over bottomTailHeight — the height of the Moon/eclipse card row
+        // that follows the canvas on Home, so the tail passes underneath those cards.
+        // Because it fades in alpha rather than toward any colour, it merges into
+        // whatever backdrop is actually behind the screen — the theme background, the
+        // live-sky backdrop render, or any other app backdrop — with nothing per-case
+        // to adapt. The canvas itself stays crisp to its edge; nothing fades upward
+        // into it. The GL monuments composite above this layer, but their stone ends
+        // far above the canvas's bottom, so the tail never has stone to fade.
+        if (isScene && bottomTailHeight > 0.dp) {
+            // The exact colour of the canvas's bottom row: the ground gradient's last
+            // stop, darkened by the ground renderer's foot fade (black at 0.26) — so
+            // the seam at the canvas edge is colour-continuous before the dissolve.
+            val tailColor = lerp(
+                scenePalette(uiState.skyCanvasTheme, skyFrame.lightingState).groundBottom,
+                Color.Black,
+                0.26f
             )
+            Canvas(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(bottomTailHeight)
+                    .offset(y = bottomTailHeight)
+            ) {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0.0f to tailColor,
+                        0.35f to tailColor.copy(alpha = 0.55f),
+                        0.7f to tailColor.copy(alpha = 0.22f),
+                        1.0f to tailColor.copy(alpha = 0f)
+                    ),
+                    size = size
+                )
+            }
         }
 
         // --- SCENE READOUT ---

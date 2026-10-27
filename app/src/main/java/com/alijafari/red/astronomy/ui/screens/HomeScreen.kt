@@ -924,7 +924,11 @@ private fun HomeSkyHero(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(sceneHeight),
-            presentation = SkyCanvasPresentation.SCENE
+            presentation = SkyCanvasPresentation.SCENE,
+            // The ground's dissolved tail reaches exactly to this hero's bottom edge —
+            // the full height of the card row below the canvas — so it passes
+            // underneath the Moon and eclipse cards and into the backdrop behind them.
+            bottomTailHeight = cardSize + RedSpacing.md
         )
 
         // The top scrim. Clouds drift under this band, so the status bar and the header keep their contrast
