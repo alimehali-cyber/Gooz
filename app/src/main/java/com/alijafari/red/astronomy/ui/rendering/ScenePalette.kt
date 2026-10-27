@@ -45,14 +45,18 @@ internal fun scenePalette(theme: SkyCanvasTheme, lighting: LightingState): Scene
 
     return when (theme) {
         SkyCanvasTheme.REAL_SKY -> {
-            // Both ridges stay clearly darker than the noon sky: aerial perspective lightens them, it does
-            // not dissolve them.
+            // Both ridges stay clearly darker than the noon sky, and nearly opaque:
+            // aerial perspective lightens them, it does not dissolve them. (A pale,
+            // semi-transparent far ridge washed toward a near-white haze is what read
+            // as a glowing white band across the scene at the readout's day/date line
+            // in daytime — the sky bled through it and its foot glowed at the horizon.
+            // The haze colour's daylight mix is capped for the same reason.)
             val far = lerp(Color(0xFF1E3348), Color(0xFF7C9BB0), day)
             val mid = lerp(NightMidRidge, Color(0xFF44664F), day)
             ScenePalette(
-                farRidge = far.copy(alpha = 0.50f + 0.22f * day),
+                farRidge = far.copy(alpha = 0.80f + 0.16f * day),
                 midRidge = mid.copy(alpha = 0.72f + 0.18f * day),
-                haze = lerp(Color(0xFF22304A), lighting.horizonTone, day * 0.55f),
+                haze = lerp(Color(0xFF22304A), lighting.horizonTone, day * 0.38f),
                 groundTop = lerp(NightGroundTop, Color(0xFF3E5B3C), day),
                 groundBottom = lerp(NightGroundBottom, Color(0xFF0C1A13), day),
                 grass = lerp(Color(0xFF1C3326), Color(0xFF8FB86A), day * 0.85f),
@@ -67,9 +71,9 @@ internal fun scenePalette(theme: SkyCanvasTheme, lighting: LightingState): Scene
             val far = lerp(Color(0xFF1B2735), lighting.horizonTone, 0.30f + 0.25f * day)
             val mid = lerp(Color(0xFF0B1424), lighting.horizonTone, 0.14f + 0.18f * day)
             ScenePalette(
-                farRidge = far.copy(alpha = 0.50f + 0.30f * day),
+                farRidge = far.copy(alpha = 0.80f + 0.16f * day),
                 midRidge = mid.copy(alpha = 0.88f),
-                haze = lerp(Color(0xFF1B2A4A), lighting.horizonTone, 0.35f + 0.45f * day),
+                haze = lerp(Color(0xFF1B2A4A), lighting.horizonTone, 0.25f + 0.30f * day),
                 groundTop = lerp(Color(0xFF0E2A2A), Color(0xFF2F6B5A), day),
                 groundBottom = lerp(Color(0xFF050C11), Color(0xFF08171A), day),
                 grass = lerp(Color(0xFF173B36), Color(0xFF63B08A), day * 0.9f),

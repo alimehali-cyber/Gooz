@@ -182,4 +182,9 @@ and that the ground band sits below the horizon.
 - Horizon bands are banned: any full-width pale rect with a straight edge at the horizon
   (the old mist shelf, then the "horizon catch-light" wash in both ground paths) reads as
   a white band across the scene at the readout's day/date line, flaring while scrubbing
-  sweeps through daytime. Only the ridges' own silhouettes may cross the horizon.
+  sweeps through daytime. The same applies to *haze washes*: the far range used to be
+  semi-transparent and lerped 55% toward a near-white `palette.haze` at its foot (plus a
+  "haze pooling" rect at the massif foot), so at midday the range and the sky bleeding
+  through it formed one glowing white slab on the horizon. The ranges are now opaque and
+  only lightly hazed, the palette haze's daylight mix is capped, and no pooling rect
+  remains. Only the ridges' own silhouettes may cross the horizon.

@@ -199,11 +199,18 @@ back to front:
   broad Fresnel sheen plus stochastically thinned glitter (with rare star sparkles)
   concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
   illumination, at night);
-- a **pistachio parkland of 28 trees** (riparian gallery, canal line, foothill woodland,
-  scattered plain trees, near-bank foreground trees, the lone tree between the sites) plus
-  pistachio scrub and silver-grey *Artemisia* sage, grown by 2D space colonization
-  (Runions–Lane–Prusinkiewicz) with da Vinci pipe-model branch radii and leaf-cluster-dab
-  foliage — real emergent branching and hollow-hearted crowns instead of blob canopies —
+- a **mixed parkland of 28 trees** (riparian gallery, canal line, foothill woodland,
+  scattered plain trees, near-bank foreground trees, the lone tree between the sites):
+  wild pistachio, gnarled decurrent **Zagros oaks** (*Quercus brantii* — the lone tree
+  between the sites and the foreground frame) and vase-shaped **flowering cherries** in
+  Somei Yoshino bloom (pale-pink cloud crowns on both riverbanks, petal litter beneath),
+  plus pistachio scrub and silver-grey *Artemisia* sage. All are grown by 2D space
+  colonization upgraded with the self-organizing tree model (Palubicki et al. 2009:
+  bud occupancy zones, shadow self-pruning, apical-control scaffold spread, arching and
+  gnarl per species) with da Vinci pipe-model branch radii. Foliage is leaf-cluster dabs
+  shaded the production-vegetation way — a spherized crown normal dotted with the Sun,
+  darkened by crown-depth ambient occlusion — so crowns shade as volumes with lit shells
+  and hollow hearts instead of blob canopies —
   cached once with height-based LOD, shadowed away from the Sun with a golden-hour backlit
   rim, never in the worn earth at the monuments' feet. Scrub now grows only in the
   foothills — the river's near side is kept clean so the scene's bottom can dissolve

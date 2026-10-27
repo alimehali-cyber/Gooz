@@ -158,6 +158,67 @@ class LandscapeProfileTest {
     }
 
     @Test
+    fun speciesSkeletonsSelfOrganizeDeterministically() {
+        // Defaults are exactly the original pistachio recipe (guards drift).
+        val plain = LandscapeProfile.treeSkeleton(seed = 101, aspect = 1.3f, trunkFraction = 0.36f, attractorCount = 90)
+        val explicit = LandscapeProfile.treeSkeleton(
+            seed = 101, aspect = 1.3f, trunkFraction = 0.36f, attractorCount = 90,
+            tropism = 0.20f, vase = 0f, scaffoldSpread = 1f, arch = 0f, gnarl = 0f,
+            occupancy = 0f, selfPrune = 0f, shellBias = 0.65f, topFlatten = 0.82f
+        )
+        assertEquals("defaults preserve the original growth", plain, explicit)
+
+        // Self-pruning sheds a strict subset of the same grown tree.
+        val unpruned = LandscapeProfile.treeSkeleton(seed = 707, aspect = 1.75f, trunkFraction = 0.30f, attractorCount = 115)
+        val pruned = LandscapeProfile.treeSkeleton(
+            seed = 707, aspect = 1.75f, trunkFraction = 0.30f, attractorCount = 115, selfPrune = 0.6f
+        )
+        assertTrue("pruning sheds wood (${pruned.size} < ${unpruned.size})", pruned.size < unpruned.size)
+        val grown = unpruned.map { listOf(it.x0, it.y0, it.x1, it.y1) }.toSet()
+        assertTrue(
+            "pruned skeleton is a subset of the grown one",
+            pruned.all { listOf(it.x0, it.y0, it.x1, it.y1) in grown }
+        )
+
+        // Oak recipe: broad decurrent spread, still pipe-shaped and bounded.
+        val oak = LandscapeProfile.treeSkeleton(
+            seed = 707, aspect = 1.75f, trunkFraction = 0.30f, attractorCount = 115,
+            scaffoldSpread = 1.30f, arch = 0.5f, gnarl = 0.55f, occupancy = 0.8f,
+            selfPrune = 0.5f, shellBias = 0.80f, topFlatten = 0.78f
+        )
+        assertEquals("oak deterministic", oak, LandscapeProfile.treeSkeleton(
+            seed = 707, aspect = 1.75f, trunkFraction = 0.30f, attractorCount = 115,
+            scaffoldSpread = 1.30f, arch = 0.5f, gnarl = 0.55f, occupancy = 0.8f,
+            selfPrune = 0.5f, shellBias = 0.80f, topFlatten = 0.78f
+        ))
+        assertTrue("oak has substance (${oak.size})", oak.size in 30..440)
+        val oakSpread = oak.maxOf { it.x1 } - oak.minOf { it.x1 }
+        assertTrue("oak spreads wider than it is tall ($oakSpread)", oakSpread > 1.0f)
+        for (s in oak) {
+            assertTrue("oak pipe model holds", s.r1 <= s.r0 * 1.06f + 0.001f)
+            assertTrue("oak y in tree (${s.y1})", s.y1 in -0.02f..1.06f)
+        }
+
+        // Cherry recipe: the vase — crown terminals spread wider near the top of the
+        // crown than near its foot.
+        val cherry = LandscapeProfile.treeSkeleton(
+            seed = 909, aspect = 1.45f, trunkFraction = 0.36f, attractorCount = 125,
+            vase = 0.55f, scaffoldSpread = 0.60f, arch = 0.8f, gnarl = 0.15f,
+            occupancy = 0.6f, selfPrune = 0.25f, shellBias = 0.35f, topFlatten = 0.95f
+        )
+        assertTrue("cherry has substance (${cherry.size})", cherry.size in 30..440)
+        val terminals = cherry.filter { it.terminal }
+        assertTrue("cherry has terminals for blossom (${terminals.size})", terminals.size >= 15)
+        val low = terminals.filter { it.y1 < 0.55f }
+        val high = terminals.filter { it.y1 > 0.75f }
+        if (low.size >= 3 && high.size >= 3) {
+            val lowSpread = low.maxOf { it.x1 } - low.minOf { it.x1 }
+            val highSpread = high.maxOf { it.x1 } - high.minOf { it.x1 }
+            assertTrue("vase flares upward ($highSpread > $lowSpread)", highSpread > lowSpread)
+        }
+    }
+
+    @Test
     fun grassClumpsAreDeterministicSharedAndBounded() {
         val a = LandscapeProfile.grassClump(0.30f, 0.62f, seed = 517)
         assertEquals(a, LandscapeProfile.grassClump(0.30f, 0.62f, seed = 517))

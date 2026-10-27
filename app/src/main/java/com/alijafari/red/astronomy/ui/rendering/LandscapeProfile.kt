@@ -193,22 +193,42 @@ internal object LandscapeProfile {
 
     /**
      * A tree skeleton grown by 2D **space colonization** (Runions, Lane & Prusinkiewicz
-     * 2007): attraction points fill a crown envelope (flattened-top ellipse, hollowed
+     * 2007), upgraded with the **self-organizing tree model** of Palubicki et al.
+     * (SIGGRAPH 2009) — the current standard for realistic procedural trees:
+     * attraction points fill a crown envelope (flattened-top ellipse, hollowed
      * heart — real crowns leaf at their surface), and branch nodes compete for them,
      * growing toward the average of the points they claim, biased by upward tropism.
      * Branching asymmetry, fork angles and the sparse woody interior all *emerge*; nothing
      * is mirrored or hand-placed. Radii then follow da Vinci's pipe model
      * `r_parent^2.05 = Σ r_child^2.05`, so trunks are stout exactly where they carry crown.
      *
-     * Deterministic per [seed] and bounded (≤ [MAX_NODES] nodes), so callers cache a few
-     * skeletons once and redraw them forever at any scale/flip.
+     * Species character comes from the self-organizing parameters, all defaulted to the
+     * original pistachio behaviour: [vase] pinches the crown envelope at its base and
+     * flares it upward (cherry); [scaffoldSpread] scales the first limbs' angles
+     * (ascending for cherry's vase, wide for oak's decurrent spread — the Borchert–Honda
+     * apical-control axis); [arch] lets tropism fade with depth so outer branches arc
+     * and droop; [gnarl] jitters every growth step (oak's twisted limbs); [occupancy]
+     * gives each bud Palubicki's occupancy zone, spacing branches evenly instead of
+     * letting them cross and clump; [selfPrune] sheds shaded interior twigs after
+     * growth (the shadow-propagation self-pruning real crowns do). Deterministic per
+     * [seed] and bounded (≤ [MAX_NODES] nodes), so callers cache a few skeletons once
+     * and redraw them forever at any scale/flip.
      */
     fun treeSkeleton(
         seed: Int,
         aspect: Float = 1.25f,
         trunkFraction: Float = 0.34f,
         attractorCount: Int = 90,
-        lean: Float = 0f
+        lean: Float = 0f,
+        tropism: Float = 0.20f,
+        vase: Float = 0f,
+        scaffoldSpread: Float = 1f,
+        arch: Float = 0f,
+        gnarl: Float = 0f,
+        occupancy: Float = 0f,
+        selfPrune: Float = 0f,
+        shellBias: Float = 0.65f,
+        topFlatten: Float = 0.82f
     ): List<BranchSegment> {
         var counter = 0
         fun rnd(): Float = hash01(seed, counter++ * 31 + 7)
@@ -227,9 +247,15 @@ internal object LandscapeProfile {
             var y = cy + (rnd() * 2f - 1f) * ry
             val e = (x / rx) * (x / rx) + ((y - cy) / ry) * ((y - cy) / ry)
             if (e > 1f) continue
-            if (e < 0.14f && rnd() < 0.65f) continue // hollow heart: leaves live at the surface
-            if (y > cy) y = cy + (y - cy) * 0.82f // flattened umbrella top (pistachio habit)
-            attractors.add(floatArrayOf(x + lean * (y - crownBase), y))
+            if (e < 0.14f && rnd() < shellBias) continue // hollow heart: leaves live at the surface
+            if (y > cy) y = cy + (y - cy) * topFlatten // flattened umbrella top (pistachio habit)
+            // Vase habit (cherry): the envelope is pinched at the crown's foot and
+            // flares as it rises, so limbs ascend close together then open outward.
+            val vx = if (vase > 0f) {
+                val yn = ((y - crownBase) / crownH).coerceIn(0f, 1f)
+                x * (1f - vase * (1f - yn) * (1f - yn))
+            } else x
+            attractors.add(floatArrayOf(vx + lean * (y - crownBase), y))
         }
 
         // Nodes: parallel arrays (x, y, parent, depth). Trunk: two segments with the lean,
@@ -248,7 +274,7 @@ internal object LandscapeProfile {
         val fork = addNode(lean, crownBase, mid)
         val step = crownH / 13f
         for (angleDeg in listOf(-52f, -8f, 44f)) {
-            val a = angleDeg * (Math.PI.toFloat() / 180f)
+            val a = angleDeg * scaffoldSpread * (Math.PI.toFloat() / 180f)
             addNode(
                 nx[fork] + kotlin.math.sin(a) * step * 1.7f,
                 ny[fork] + kotlin.math.cos(a) * step * 1.7f,
@@ -297,18 +323,77 @@ internal object LandscapeProfile {
             for ((node, c) in claims) {
                 if (nx.size >= MAX_NODES) break
                 var dx = c[0] / c[2]
-                var dy = c[1] / c[2] + 0.20f // phototropism
+                // Phototropism, optionally fading with depth (arch): scaffold limbs
+                // climb, outer twigs arc over and droop — cherry and old-oak habit.
+                var dy = c[1] / c[2] + tropism -
+                    if (arch > 0f) arch * 0.055f * (depth[node] - 5).coerceAtLeast(0) else 0f
                 dx += (nx[node] - lean) * 0.10f // gentle outward spread
+                if (gnarl > 0f) { // twisted limbs: every step's heading wanders
+                    dx += (rnd() - 0.5f) * gnarl
+                    dy += (rnd() - 0.5f) * gnarl * 0.6f
+                }
                 val len = sqrt(dx * dx + dy * dy).coerceAtLeast(1e-5f)
                 val s = step * (0.85f + 0.3f * rnd())
-                addNode(nx[node] + dx / len * s, ny[node] + dy / len * s, node)
+                val cxp = nx[node] + dx / len * s
+                val cyp = ny[node] + dy / len * s
+                if (occupancy > 0f) {
+                    // Occupancy zone (Palubicki): a bud may not grow into space another
+                    // branch already holds — this is what spaces real branches evenly
+                    // and stops them crossing through each other.
+                    val zone = occupancy * step
+                    var blocked = false
+                    for (ni in nx.indices) {
+                        if (ni == node || ni == parent[node]) continue
+                        val ddx = cxp - nx[ni]
+                        val ddy = cyp - ny[ni]
+                        if (ddx * ddx + ddy * ddy < zone * zone) {
+                            blocked = true
+                            break
+                        }
+                    }
+                    if (blocked) continue
+                }
+                addNode(cxp, cyp, node)
+            }
+        }
+
+        // Self-pruning (the shadow-propagation idea, simplified): twigs ending deep in
+        // the crown's shaded interior — many nodes above them, low in the crown — are
+        // shed back to the next fork, the way real crowns (oaks above all) clear their
+        // shaded inside and lift. The lit crown shell is never shed.
+        val keep = BooleanArray(nx.size) { true }
+        if (selfPrune > 0f) {
+            val childCount = IntArray(nx.size)
+            for (i in nx.indices) if (parent[i] >= 0) childCount[parent[i]]++
+            fun shadeOf(i: Int): Int {
+                var shade = 0
+                for (j in nx.indices) {
+                    if (j == i) continue
+                    val ddy = ny[j] - ny[i]
+                    if (ddy > 0f && ddy < crownH * 0.55f &&
+                        kotlin.math.abs(nx[j] - nx[i]) < rx * 0.55f
+                    ) shade++
+                }
+                return shade
+            }
+            val shadeThreshold = (nx.size * (0.30f - 0.18f * selfPrune.coerceIn(0f, 1f))).toInt()
+            for (i in nx.indices) {
+                if (childCount[i] > 0) continue // terminals only
+                if (ny[i] > cy + ry * 0.25f) continue // never shed the lit crown top
+                if (shadeOf(i) < shadeThreshold) continue
+                var cur = i
+                while (cur > fork && childCount[parent[cur]] <= 1) {
+                    keep[cur] = false
+                    cur = parent[cur]
+                }
+                if (cur > fork) keep[cur] = false
             }
         }
 
         // Pipe-model radii (da Vinci exponent 2.05), normalised so the trunk base reads
         // stout at landscape scale; a floor keeps twigs drawable.
         val children = Array(nx.size) { ArrayList<Int>() }
-        for (i in nx.indices) if (parent[i] >= 0) children[parent[i]].add(i)
+        for (i in nx.indices) if (keep[i] && parent[i] >= 0) children[parent[i]].add(i)
         val radius = FloatArray(nx.size)
         fun computeRadius(i: Int): Float {
             val r = if (children[i].isEmpty()) {
@@ -328,7 +413,7 @@ internal object LandscapeProfile {
         val out = ArrayList<BranchSegment>(nx.size - 1)
         for (i in nx.indices) {
             val p = parent[i]
-            if (p < 0) continue
+            if (p < 0 || !keep[i]) continue
             out.add(
                 BranchSegment(
                     x0 = nx[p], y0 = ny[p], x1 = nx[i], y1 = ny[i],

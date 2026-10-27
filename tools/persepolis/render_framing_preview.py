@@ -255,10 +255,15 @@ def draw_mountain(d, samples, base_y, lit, shade, haze, haze_amt, sun_sign,
         d.line(crest, fill=(*lerp(lit, (255, 240, 220), 0.45), 70), width=2)
 
 
-def tree_skeleton(seed, aspect=1.25, trunk_fraction=0.34, attractor_count=90, lean=0.0):
-    """2D space colonization (Runions et al.) + da Vinci pipe radii.
-    Unit space: base (0,0), crown top y=1, x in +-aspect/2. Returns segments
-    (x0,y0,x1,y1,r0,r1,depth,terminal). Mirror of LandscapeProfile.treeSkeleton."""
+def tree_skeleton(seed, aspect=1.25, trunk_fraction=0.34, attractor_count=90, lean=0.0,
+                  tropism=0.20, vase=0.0, scaffold_spread=1.0, arch=0.0, gnarl=0.0,
+                  shell_bias=0.65, top_flatten=0.82):
+    """2D space colonization (Runions et al.) + self-organizing species parameters
+    (Palubicki et al.: vase envelope, scaffold spread = apical control, arching,
+    gnarl; occupancy zones and self-pruning exist only in the Kotlin original)
+    + da Vinci pipe radii. Unit space: base (0,0), crown top y=1, x in +-aspect/2.
+    Returns segments (x0,y0,x1,y1,r0,r1,depth,terminal).
+    Mirror of LandscapeProfile.treeSkeleton."""
     counter = [0]
 
     def rnd():
@@ -276,10 +281,13 @@ def tree_skeleton(seed, aspect=1.25, trunk_fraction=0.34, attractor_count=90, le
         x = (rnd() * 2 - 1) * rx
         y = cy + (rnd() * 2 - 1) * ry
         e = (x / rx) ** 2 + ((y - cy) / ry) ** 2
-        if e > 1 or (e < 0.14 and rnd() < 0.65):
+        if e > 1 or (e < 0.14 and rnd() < shell_bias):
             continue
         if y > cy:
-            y = cy + (y - cy) * 0.82
+            y = cy + (y - cy) * top_flatten
+        if vase > 0:
+            yn = min(max((y - crown_base) / crown_h, 0.0), 1.0)
+            x *= 1.0 - vase * (1.0 - yn) ** 2
         attractors.append([x + lean * (y - crown_base), y, True])
 
     nx, ny, parent, depth = [], [], [], []
@@ -294,7 +302,7 @@ def tree_skeleton(seed, aspect=1.25, trunk_fraction=0.34, attractor_count=90, le
     fork = add_node(lean, crown_base, mid)
     step = crown_h / 13.0
     for ang in (-52.0, -8.0, 44.0):
-        a = math.radians(ang)
+        a = math.radians(ang * scaffold_spread)
         add_node(nx[fork] + math.sin(a) * step * 1.7, ny[fork] + math.cos(a) * step * 1.7, fork)
 
     influence, kill = step * 4.4, step * 1.15
@@ -331,7 +339,10 @@ def tree_skeleton(seed, aspect=1.25, trunk_fraction=0.34, attractor_count=90, le
             if len(nx) >= 420:
                 break
             dx = c[0] / c[2] + (nx[node] - lean) * 0.10
-            dy = c[1] / c[2] + 0.20
+            dy = c[1] / c[2] + tropism - (arch * 0.055 * max(depth[node] - 5, 0) if arch > 0 else 0.0)
+            if gnarl > 0:
+                dx += (rnd() - 0.5) * gnarl
+                dy += (rnd() - 0.5) * gnarl * 0.6
             ln = max(math.hypot(dx, dy), 1e-5)
             s = step * (0.85 + 0.3 * rnd())
             add_node(nx[node] + dx / ln * s, ny[node] + dy / ln * s, node)
@@ -384,7 +395,7 @@ def main():
         seed=11, sharpness=1.15, bench_amp=0.12, bench_step=0.16,
     )
     draw_mountain(d, far_samples, far_base, lit=(126, 108, 140), shade=(94, 84, 116),
-                  haze=(240, 170, 118), haze_amt=0.50, sun_sign=SUN_SIGN, facet=0.32,
+                  haze=(240, 170, 118), haze_amt=0.25, sun_sign=SUN_SIGN, facet=0.32,
                   seed=3, cap=0.25)
     # (No horizon mist shelf — removed in the renderer: it read as a white band
     # across the canvas at the readout's day/date line.)
@@ -404,7 +415,7 @@ def main():
         seed=29, bench_amp=0.22, bench_step=0.13, notches=[(0.63, 0.030, 0.38)],
     )
     draw_mountain(d, massif, massif_base, lit=(150, 108, 82), shade=(86, 64, 60),
-                  haze=(226, 158, 110), haze_amt=0.30, sun_sign=SUN_SIGN, facet=0.65,
+                  haze=(226, 158, 110), haze_amt=0.15, sun_sign=SUN_SIGN, facet=0.65,
                   seed=5, strata_amp=0.045, dip=0.9, hinge_x=W * 0.76, cap=0.38)
     # Erosion gullies: dark seams running crest -> fan apex, light lip beside.
     def sample_at(samples, x):
@@ -446,11 +457,8 @@ def main():
                    fill=(220, 190, 148, 24), width=1)
         if len(talus_x) >= 5:
             break
-    # Haze pooling at the massif foot.
-    for i in range(26):
-        y = massif_base - H * 0.028 + i * (H * 0.038 / 26)
-        a = int(38 * math.sin(math.pi * i / 26))
-        d.line([(0, y), (W, y)], fill=(232, 168, 118, a))
+    # (No haze pooling wash at the massif foot — full-width pale rects at the
+    # horizon are the white band; banned in app and mirror alike.)
     # Piedmont foothills: one low, smooth undulation in front of the massif.
     foot_base = TOE_Y + H * 0.008
     foot = []
@@ -739,8 +747,24 @@ def main():
         tree_skeleton(404 + k * 77, aspect=1.5, trunk_fraction=0.12, attractor_count=46)
         for k in range(3)
     ]
+    # Zagros oak: decurrent, wide gnarled limbs, flattened crown.
+    OAK_SKELS = [
+        tree_skeleton(707, aspect=1.75, trunk_fraction=0.30, attractor_count=115, lean=0.02,
+                      scaffold_spread=1.30, arch=0.5, gnarl=0.55, shell_bias=0.80, top_flatten=0.78),
+        tree_skeleton(808, aspect=1.60, trunk_fraction=0.26, attractor_count=105, lean=-0.04,
+                      scaffold_spread=1.20, arch=0.6, gnarl=0.65, shell_bias=0.80, top_flatten=0.76),
+    ]
+    # Flowering cherry (Somei Yoshino vase): ascending limbs opening to a round vase.
+    CHERRY_SKELS = [
+        tree_skeleton(909, aspect=1.45, trunk_fraction=0.36, attractor_count=125, lean=0.02,
+                      vase=0.55, scaffold_spread=0.60, arch=0.8, gnarl=0.15,
+                      shell_bias=0.35, top_flatten=0.95),
+        tree_skeleton(1010, aspect=1.30, trunk_fraction=0.40, attractor_count=115, lean=-0.03,
+                      vase=0.65, scaffold_spread=0.50, arch=0.9, gnarl=0.20,
+                      shell_bias=0.35, top_flatten=0.96),
+    ]
 
-    def draw_skeleton(cx, by, hgt, skel, flip, foliage, seed, silvery=False):
+    def draw_skeleton(cx, by, hgt, skel, flip, foliage, seed, kind="pistachio"):
         sx = -1.0 if flip else 1.0
 
         def P(x, y):
@@ -756,85 +780,134 @@ def main():
             d.line([(p0[0] + wdt * 0.22, p0[1]), (p1[0] + wdt * 0.22, p1[1])],
                    fill=(34, 26, 20), width=wdt)
             d.line([p0, p1], fill=(58, 44, 32), width=wdt)
-        # Leaf-cluster dabs at the terminals: shadow core, body tones, sun rim.
-        # Silvery = Artemisia sage scrub (grey-green); else pistachio olive.
-        base_dark, base_body, base_rim = ((86, 96, 78), (118, 130, 106), (168, 180, 156)) if silvery \
-            else ((44, 56, 36), (52, 64, 42), (104, 116, 74))
+        # Crown envelope (flipped unit space) for volume shading: spherized-normal
+        # light x crown-depth AO, as in the app.
+        uxs = [sx * s[2] for s in skel]
+        top_uy = max(s[3] for s in skel)
+        low_uy = min([s[3] for s in skel if s[6] >= 3] or [top_uy * 0.4])
+        ccx, ccy = (min(uxs) + max(uxs)) / 2, (top_uy + low_uy) / 2
+        crx = max((max(uxs) - min(uxs)) / 2, 0.05)
+        cry = max((top_uy - low_uy) / 2, 0.05)
+        # Species cluster palettes at this schematic's sunset.
+        PALS = {
+            "pistachio": ((44, 56, 36), (52, 64, 42), (66, 80, 52), (104, 116, 74)),
+            "sage": ((86, 96, 78), (118, 130, 106), (118, 130, 106), (168, 180, 156)),
+            "oak": ((34, 46, 26), (46, 62, 34), (84, 106, 58), (140, 158, 102)),
+            "cherry": ((146, 96, 116), (206, 138, 162), (242, 184, 200), (255, 222, 230)),
+        }
+        base_dark, base_dim, base_bright, base_rim = PALS[kind]
+        dabs = 4 if kind in ("oak", "cherry") else 3
+        min_dep = 6 if kind == "cherry" else 7
         ci = 0
         for x0, y0, x1, y1, r0, r1, dep, term in skel:
-            if not term and dep < 7:
+            if not term and dep < min_dep:
                 continue
             ci += 1
-            if _hash01(seed * 7.1 + ci * 3.3) > foliage:
+            ex = max(-1.0, min(1.0, (sx * x1 - ccx) / crx))
+            ey = max(-1.0, min(1.0, (y1 - ccy) / cry))
+            r01 = min(math.hypot(ex, ey), 1.0)
+            facing = ex * -0.85 + ey * 0.55  # sun at left: sunSign = -1 in the app
+            accept = foliage * (0.55 + 0.45 * r01) if kind == "oak" else foliage
+            if _hash01(seed * 7.1 + ci * 3.3) > accept:
                 continue
             px, py = P(x1, y1)
-            cr = hgt * (0.045 + 0.040 * _hash01(seed * 3.7 + ci * 5.1))
+            cr_mul = 1.25 if kind == "oak" else (0.80 if kind == "cherry" else 1.0)
+            cr = hgt * (0.045 + 0.040 * _hash01(seed * 3.7 + ci * 5.1)) * cr_mul
             tone = 0.85 + 0.3 * _hash01(seed * 5.3 + ci * 7.7)
-            for dab in range(3):
+            light = (0.50 + 0.42 * facing) * (0.42 + 0.58 * r01) * tone
+            for dab in range(dabs):
                 ox = (_hash01(seed * 9.7 + ci * 3.1 + dab * 0.7) - 0.5) * cr * 1.15
                 oy = (_hash01(seed * 8.9 + ci * 3.7 + dab * 1.1) - 0.5) * cr * 0.75
-                r = cr * (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
-                if dab == 0:
+                r = cr * ((0.30 + 0.26 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
+                          if kind == "cherry" else
+                          (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3)))
+                rim_dab = dab == dabs - 1 and facing > 0.15
+                if kind == "cherry":
+                    col = base_dark if light < 0.42 else (base_dim if light < 0.72 else base_bright)
+                    if rim_dab:
+                        col = base_rim
+                    alpha, sx_ = 245, 0.0
+                elif dab == 0:
                     col, sx_ = tuple(int(c * tone * 0.72) for c in base_dark), cr * 0.2
                     alpha = 235
-                elif dab == 2:
+                elif rim_dab:
                     col, sx_ = base_rim, -cr * 0.15  # sun at left in this schematic
                     alpha = 140
                 else:
-                    col, sx_ = tuple(int(c * tone) for c in base_body), 0.0
+                    src = base_dim if light < 0.55 else base_bright
+                    col, sx_ = tuple(int(c * tone) for c in src), 0.0
                     alpha = 240
                 d.ellipse([px + ox + sx_ - r, py + oy - r * 0.62,
                            px + ox + sx_ + r, py + oy + r * 0.62], fill=(*col, alpha))
+            if kind == "cherry" and _hash01(seed * 13.1 + ci * 0.3) < 0.22:
+                d.ellipse([px - cr * 0.42, py - cr * 0.12, px + cr * 0.42, py + cr * 0.42],
+                          fill=(52, 64, 42, 230))  # emerging leaf among blossom
+        if kind == "cherry":  # petal litter + drift
+            for p in range(12):
+                gx = cx + sx * ccx * hgt + (_hash01(seed * 13.9 + p * 0.7) - 0.5) * crx * hgt * 2.1
+                gy = by + hgt * 0.014 * _hash01(seed * 14.9 + p * 1.1)
+                d.ellipse([gx - hgt * 0.010, gy - hgt * 0.003, gx + hgt * 0.010, gy + hgt * 0.003],
+                          fill=(232, 168, 186, 200))
+            for p in range(5):
+                ax = cx + sx * ccx * hgt + (_hash01(seed * 15.1 + p * 1.3) - 0.5) * crx * hgt * 2.3
+                ay = by - hgt * (0.22 + 0.38 * _hash01(seed * 15.7 + p * 1.7))
+                d.ellipse([ax - hgt * 0.006, ay - hgt * 0.004, ax + hgt * 0.006, ay + hgt * 0.004],
+                          fill=(242, 184, 200, 210))
 
     def bush(cx, by, s, idx):
         draw_skeleton(cx, by, s * 2.1, BUSH_SKELS[idx % 3], idx % 2 == 0, 0.62,
-                      seed=idx * 3 + 1, silvery=(idx % 3 == 1))
+                      seed=idx * 3 + 1, kind=("sage" if idx % 3 == 1 else "pistachio"))
 
     for i in range(7):  # foothill scrub only — the river's near side stays clean
         x = W * _hash01(i * 19.7 + 3.3)
         y, s = TOE_Y - H * 0.004 + H * 0.010 * _hash01(i * 3.9), 6 + 5 * _hash01(i * 7.1)
         bush(x, y, s, i)
-    # Lone pistachio in the gap; foreground trees on the near bank (bases from the
-    # widened river's actual edge).
+    # Lone Zagros oak in the gap; near-bank foreground frame = oak (left) and
+    # flowering cherry (right), bases from the widened river's actual edge.
     def near_bank_y(x):
         return river_at(x) + river_halfw(x, river_at(x)) * 1.35 + H * 0.006
 
-    draw_skeleton((plat_r + slope_l) / 2, TOE_Y + H * 0.020, H * 0.040, TREE_SKELS[2], False, 0.9, seed=7)
-    draw_skeleton(W * 0.115, near_bank_y(W * 0.115), H * 0.068, TREE_SKELS[0], False, 0.95, seed=11)
-    draw_skeleton(W * 0.875, near_bank_y(W * 0.875), H * 0.058, TREE_SKELS[1], True, 0.95, seed=13)
+    draw_skeleton((plat_r + slope_l) / 2, TOE_Y + H * 0.020, H * 0.044, OAK_SKELS[0], False, 0.92, seed=7, kind="oak")
+    draw_skeleton(W * 0.115, near_bank_y(W * 0.115), H * 0.072, OAK_SKELS[1], False, 0.95, seed=11, kind="oak")
+    draw_skeleton(W * 0.875, near_bank_y(W * 0.875), H * 0.066, CHERRY_SKELS[0], True, 0.97, seed=13, kind="cherry")
     # 25 more trees: riparian gallery, canal line, foothill woodland, plain, near bank.
     def in_apron(x, y):
         return ((plat_l - W * 0.030 <= x <= plat_r + W * 0.105 and y < TOE_Y + H * 0.095) or
                 (x > slope_l - W * 0.065 and y < FRAMING["mil_slope_front_y"] + H * 0.095))
 
-    def plant(x, y, hgt, idx):
+    def plant(x, y, hgt, idx, kind="pistachio"):
         if in_apron(x, y) and y < TOE_Y + H * 0.038:
             return
         yc = river_at(x)
         if abs(y - yc) < river_halfw(x, yc) * 1.22:
             return
-        draw_skeleton(x, y, hgt, TREE_SKELS[idx % len(TREE_SKELS)], idx % 2 == 1,
-                      0.82 + 0.15 * _hash01(idx * 7.01), seed=idx * 7 + 3)
+        skels = {"oak": OAK_SKELS, "cherry": CHERRY_SKELS}.get(kind, TREE_SKELS)
+        draw_skeleton(x, y, hgt, skels[idx % len(skels)], idx % 2 == 1,
+                      0.82 + 0.15 * _hash01(idx * 7.01), seed=idx * 7 + 3, kind=kind)
 
-    for i in range(9):
+    for i in range(9):  # far-bank gallery: cherries + oaks among pistachios
         x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
         y = river_at(x) - river_halfw(x, river_at(x)) * (1.45 + 0.30 * _hash01(i * 5.2 + 6.03))
-        plant(x, y, H * (0.030 + 0.018 * _hash01(i * 7.3 + 6.07)), 100 + i)
+        kind = "cherry" if i in (1, 4, 6) else ("oak" if i in (3, 7) else "pistachio")
+        plant(x, y, H * (0.030 + 0.018 * _hash01(i * 7.3 + 6.07)), 100 + i, kind)
     for i in range(6):
         x = W * (0.08 + 0.84 * (i + _hash01(i * 3.3 + 6.13)) / 6)
         y = canal_y - H * 0.004 + (x / W) * H * 0.010
-        plant(x, y, H * (0.020 + 0.012 * _hash01(i * 5.7 + 6.17)), 120 + i)
+        plant(x, y, H * (0.020 + 0.012 * _hash01(i * 5.7 + 6.17)), 120 + i,
+              "cherry" if i == 2 else "pistachio")
     for i in range(6):
         x = W * _hash01(i * 11.5 + 6.19)
         y = TOE_Y + H * (0.006 + 0.024 * _hash01(i * 7.2 + 6.31))
-        plant(x, y, H * (0.022 + 0.012 * _hash01(i * 3.3 + 6.33)), 140 + i)
+        plant(x, y, H * (0.022 + 0.012 * _hash01(i * 3.3 + 6.33)), 140 + i,
+              "oak" if i == 2 else "pistachio")
     for i in range(4):
         x = W * (0.10 + 0.80 * _hash01(i * 13.7 + 6.41))
         y = H * (0.855 + 0.045 * _hash01(i * 5.3 + 6.43))
         plant(x, y, H * (0.026 + 0.014 * _hash01(i * 7.7 + 6.47)), 160 + i)
-    for j, xf in enumerate((0.34, 0.63)):
+    for j, xf in enumerate((0.34, 0.63)):  # near bank: cherry + oak
         x = W * (xf + (_hash01(j * 3.3 + 6.53) - 0.5) * 0.03)
-        plant(x, near_bank_y(x), H * (0.050 + 0.012 * _hash01(j * 5.5 + 6.57)), 180 + j)
+        plant(x, near_bank_y(x), H * (0.054 + 0.012 * _hash01(j * 5.5 + 6.57)), 180 + j,
+              "cherry" if j == 0 else "oak")
     # Grass v3 mirror (simplified): carpet colour field + true Voronoi clumps +
     # cubic-Bezier blades in three bands + Stipa/Bromus/riparian hero species.
     def blade_bend(t, stiff):

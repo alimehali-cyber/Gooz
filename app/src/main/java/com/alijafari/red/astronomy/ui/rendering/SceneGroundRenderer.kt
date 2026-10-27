@@ -14,6 +14,7 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * The ground half of the full-bleed Home scene.
@@ -87,6 +88,46 @@ object SceneGroundRenderer {
         }
     }
 
+    /** The woody species of the valley floor, each with its own growth + foliage recipe. */
+    private enum class TreeKind { PISTACHIO, OAK, CHERRY, SAGE }
+
+    // Zagros oak (Quercus brantii): strongly decurrent — a short gnarled trunk losing
+    // itself into wide, twisted, self-pruned limbs under a broad flattened crown.
+    private val OAK_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
+        listOf(
+            LandscapeProfile.treeSkeleton(
+                seed = 707, aspect = 1.75f, trunkFraction = 0.30f, attractorCount = 115,
+                lean = 0.02f, scaffoldSpread = 1.30f, arch = 0.5f, gnarl = 0.55f,
+                occupancy = 0.8f, selfPrune = 0.5f, shellBias = 0.80f, topFlatten = 0.78f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 808, aspect = 1.60f, trunkFraction = 0.26f, attractorCount = 105,
+                lean = -0.04f, scaffoldSpread = 1.20f, arch = 0.6f, gnarl = 0.65f,
+                occupancy = 0.8f, selfPrune = 0.6f, shellBias = 0.80f, topFlatten = 0.76f
+            ).sortedByDescending { it.r0 }
+        )
+    }
+
+    // Flowering cherry (Somei Yoshino habit): ascending limbs opening into a rounded
+    // vase, outer branches arching — in bloom the canopy is a pale-pink cloud on dark
+    // wood, flowers before leaves.
+    private val CHERRY_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
+        listOf(
+            LandscapeProfile.treeSkeleton(
+                seed = 909, aspect = 1.45f, trunkFraction = 0.36f, attractorCount = 125,
+                lean = 0.02f, vase = 0.55f, scaffoldSpread = 0.60f, arch = 0.8f,
+                gnarl = 0.15f, occupancy = 0.6f, selfPrune = 0.25f,
+                shellBias = 0.35f, topFlatten = 0.95f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 1010, aspect = 1.30f, trunkFraction = 0.40f, attractorCount = 115,
+                lean = -0.03f, vase = 0.65f, scaffoldSpread = 0.50f, arch = 0.9f,
+                gnarl = 0.20f, occupancy = 0.6f, selfPrune = 0.3f,
+                shellBias = 0.35f, topFlatten = 0.96f
+            ).sortedByDescending { it.r0 }
+        )
+    }
+
     /**
      * Static vegetation geometry for one landscape layout, cached across draws.
      *
@@ -137,6 +178,14 @@ object SceneGroundRenderer {
         val silverDarkP: Path,
         val silverBodyP: Path,
         val silverRimP: Path,
+        val oakDarkP: Path,
+        val oakDimP: Path,
+        val oakBrightP: Path,
+        val oakRimP: Path,
+        val blossomShadowP: Path,
+        val blossomMidP: Path,
+        val blossomLitP: Path,
+        val petalP: Path,
         val dryRootP: Path,
         val dryTipP: Path,
         val greenRootP: Path,
@@ -483,9 +532,12 @@ object SceneGroundRenderer {
                 120, height * 0.130f, FAR_ZAGROS_ENVELOPE, seed = 11,
                 benchAmp = 0.12f, benchStep = 0.16f
             ),
-            lit = lerp(palette.farRidge, rockLit, 0.35f),
-            shade = lerp(palette.farRidge, rockShade, 0.35f),
-            haze = atmosphere, hazeTop = 0.28f, hazeBase = 0.55f,
+            // Opaque and only lightly hazed: at 0.72 alpha washed 55% toward a
+            // near-white haze, this range plus the sky bleeding through it was the
+            // glowing white band across the daytime scene at the readout's date line.
+            lit = lerp(palette.farRidge, rockLit, 0.35f).copy(alpha = 1f),
+            shade = lerp(palette.farRidge, rockShade, 0.35f).copy(alpha = 1f),
+            haze = atmosphere, hazeTop = 0.12f, hazeBase = 0.25f,
             sunSign = sunSign, facetStrength = 0.32f, strataAmp = 0f,
             microSeed = 3, crestAlpha = 0.05f + 0.10f * lightLevel, capAmount = 0.25f
         )
@@ -523,7 +575,7 @@ object SceneGroundRenderer {
             drawScope = drawScope, width = width, sceneHeight = height, baseY = massifBase,
             heights = massifHeights,
             lit = rockLit, shade = rockShade,
-            haze = atmosphere, hazeTop = 0.10f, hazeBase = 0.30f,
+            haze = atmosphere, hazeTop = 0.05f, hazeBase = 0.14f,
             sunSign = sunSign, facetStrength = 0.65f, strataAmp = 0.045f,
             microSeed = 5, crestAlpha = 0.08f + 0.16f * lightLevel,
             strataDip = 0.9f, hingeX = width * 0.76f, capAmount = 0.38f
@@ -620,18 +672,8 @@ object SceneGroundRenderer {
                 if (++drawn >= 14) break
             }
         }
-        // Haze pooling where the massif meets the piedmont.
-        drawScope.drawRect(
-            brush = Brush.verticalGradient(
-                0.0f to Color.Transparent,
-                0.6f to atmosphere.copy(alpha = 0.16f),
-                1.0f to Color.Transparent,
-                startY = massifBase - height * 0.028f,
-                endY = massifBase + height * 0.010f
-            ),
-            topLeft = Offset(0f, massifBase - height * 0.028f),
-            size = androidx.compose.ui.geometry.Size(width, height * 0.038f)
-        )
+        // (No haze-pooling wash at the massif foot: another full-width pale rect, and
+        // one more contributor to the horizontal white band. Banned like the rest.)
 
         // 5. Piedmont foothills: one low eroded undulation in front of the massif foot.
         val footBase = toeY + height * 0.028f
@@ -968,6 +1010,8 @@ object SceneGroundRenderer {
                 .map { BranchBucket(it, Path(), Path()) }
             val leafDarkP = Path(); val leafBodyDimP = Path(); val leafBodyBrightP = Path(); val leafRimP = Path()
             val silverDarkP = Path(); val silverBodyP = Path(); val silverRimP = Path()
+            val oakDarkP = Path(); val oakDimP = Path(); val oakBrightP = Path(); val oakRimP = Path()
+            val blossomShadowP = Path(); val blossomMidP = Path(); val blossomLitP = Path(); val petalP = Path()
             val dryRootP = Path(); val dryTipP = Path(); val greenRootP = Path(); val greenTipP = Path()
             val awnP = Path(); val panicleP = Path(); val litterP = Path()
             val fillDryP = Path(); val fillGreenP = Path(); val forbP = Path()
@@ -977,13 +1021,21 @@ object SceneGroundRenderer {
                     androidx.compose.ui.geometry.Rect(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
                 )
             }
-            // One space-colonization skeleton planted at (cx, by) with total height [hgt]:
-            // pipe-model woody structure bucketed by width class (shadow pass offset
-            // anti-sun for roundness on near trees), then foliage as *leaf-cluster dabs*
-            // at the branch terminals bucketed by tone role — the 2D analogue of the
-            // leaf-cluster cards real-time vegetation is built from. [silvery] swaps to
-            // grey-green Artemisia sage scrub. Small/distant instances drop the second
-            // bark pass and use fewer dabs (LOD by height).
+            // One skeleton planted at (cx, by) with total height [hgt]: pipe-model woody
+            // structure bucketed by width class (shadow pass offset anti-sun for
+            // roundness on near trees), then foliage as *leaf-cluster dabs* at the
+            // branch terminals bucketed by tone role — the 2D analogue of the
+            // leaf-cluster cards real-time vegetation (SpeedTree & co.) is built from.
+            // Two of that world's shading rules do the realism work here: each cluster
+            // is lit by a *spherized crown normal* (the direction from crown centre to
+            // cluster dotted with the Sun — crowns shade as volumes, not as noise), and
+            // darkened by *crown-depth ambient occlusion* (interior clusters sit in the
+            // crown's own shade; the shell carries the light). Species ([kind]) change
+            // cluster size/density/placement and the colour buckets: pistachio scrub,
+            // silver Artemisia sage, dense terminal-tufted oak, and cherry in blossom
+            // (flowers smothering the outer branches before the leaves, Somei Yoshino
+            // fashion, with petal litter under the crown). Small/distant instances drop
+            // the second bark pass and use fewer dabs (LOD by height).
             fun buildSkeletonTree(
                 cx: Float,
                 by: Float,
@@ -992,7 +1044,7 @@ object SceneGroundRenderer {
                 flip: Boolean,
                 foliage: Float,
                 seed: Int,
-                silvery: Boolean = false
+                kind: TreeKind = TreeKind.PISTACHIO
             ) {
                 val sx = if (flip) -1f else 1f
                 val detail = hgt > height * 0.034f
@@ -1011,26 +1063,83 @@ object SceneGroundRenderer {
                     bucket.litP.moveTo(x0, y0)
                     bucket.litP.lineTo(x1, y1)
                 }
-                val dabs = if (detail) 4 else 2
+                // Crown envelope in flipped unit space, for the volume shading below.
+                var minUx = Float.MAX_VALUE; var maxUx = -Float.MAX_VALUE
+                var topUy = 0f; var lowUy = Float.MAX_VALUE
+                for (seg in skeleton) {
+                    val ux = sx * seg.x1
+                    if (ux < minUx) minUx = ux
+                    if (ux > maxUx) maxUx = ux
+                    if (seg.y1 > topUy) topUy = seg.y1
+                    if (seg.depth >= 3 && seg.y1 < lowUy) lowUy = seg.y1
+                }
+                if (lowUy == Float.MAX_VALUE) lowUy = topUy * 0.4f
+                val ccx = (minUx + maxUx) / 2f
+                val ccy = (topUy + lowUy) / 2f
+                val crx = ((maxUx - minUx) / 2f).coerceAtLeast(0.05f)
+                val cry = ((topUy - lowUy) / 2f).coerceAtLeast(0.05f)
+
+                val dabs = when (kind) {
+                    TreeKind.OAK, TreeKind.CHERRY -> if (detail) 5 else 3
+                    else -> if (detail) 4 else 2
+                }
+                val minDepth = if (kind == TreeKind.CHERRY) 6 else 7
                 var ci = 0
                 for (seg in skeleton) {
-                    if (!seg.terminal && seg.depth < 7) continue
+                    if (!seg.terminal && seg.depth < minDepth) continue
                     ci++
-                    if (LandscapeProfile.hash01(seed * 71 + 13, ci * 3 + 1) > foliage) continue
+                    val ux = sx * seg.x1
+                    val ex = ((ux - ccx) / crx).coerceIn(-1f, 1f)
+                    val ey = ((seg.y1 - ccy) / cry).coerceIn(-1f, 1f)
+                    val r01 = sqrt(ex * ex + ey * ey).coerceIn(0f, 1f) // 1 = crown shell
+                    val facing = ex * sunSign * 0.85f + ey * 0.55f
+                    // Oak leafs in tufts at the shell; its shaded interior stays woody.
+                    val accept = if (kind == TreeKind.OAK) foliage * (0.55f + 0.45f * r01) else foliage
+                    if (LandscapeProfile.hash01(seed * 71 + 13, ci * 3 + 1) > accept) continue
                     val px = cx + sx * seg.x1 * hgt
                     val py = by - seg.y1 * hgt
-                    val cr = hgt * (0.045f + 0.040f * LandscapeProfile.hash01(seed * 37 + 7, ci * 5 + 2))
+                    val crMul = when (kind) {
+                        TreeKind.OAK -> 1.25f
+                        TreeKind.CHERRY -> 0.80f
+                        else -> 1f
+                    }
+                    val cr = hgt * (0.045f + 0.040f * LandscapeProfile.hash01(seed * 37 + 7, ci * 5 + 2)) * crMul
                     val tone = 0.85f + 0.3f * LandscapeProfile.hash01(seed * 53 + 3, ci * 7 + 4)
+                    // Spherized-normal light × crown-depth AO × per-cluster variation.
+                    val light = (0.50f + 0.42f * facing) * (0.42f + 0.58f * r01) * tone
                     for (d in 0 until dabs) {
                         val ox = (LandscapeProfile.hash01(seed * 97 + 3, ci * 31 + d * 7) - 0.5f) * cr * 1.15f
-                        val oy = (LandscapeProfile.hash01(seed * 89 + 5, ci * 37 + d * 11) - 0.5f) * cr * 0.75f
-                        val r = cr * (0.42f + 0.30f * LandscapeProfile.hash01(seed * 83 + 9, ci * 41 + d * 13))
-                        val target = when {
-                            d == 0 -> if (silvery) silverDarkP else leafDarkP
-                            d == dabs - 1 && detail -> if (silvery) silverRimP else leafRimP
-                            silvery -> silverBodyP
-                            tone * (0.9f + 0.2f * d / dabs) < 1f -> leafBodyDimP
-                            else -> leafBodyBrightP
+                        val oy = (LandscapeProfile.hash01(seed * 89 + 5, ci * 37 + d * 11) - 0.5f) * cr * 0.75f +
+                            if (kind == TreeKind.OAK) cr * 0.08f else 0f // oak tufts settle downward
+                        val r = if (kind == TreeKind.CHERRY) {
+                            cr * (0.30f + 0.26f * LandscapeProfile.hash01(seed * 83 + 9, ci * 41 + d * 13))
+                        } else {
+                            cr * (0.42f + 0.30f * LandscapeProfile.hash01(seed * 83 + 9, ci * 41 + d * 13))
+                        }
+                        val rimDab = d == dabs - 1 && detail && facing > 0.15f
+                        val target = when (kind) {
+                            TreeKind.SAGE -> when {
+                                d == 0 -> silverDarkP
+                                rimDab -> silverRimP
+                                else -> silverBodyP
+                            }
+                            TreeKind.OAK -> when {
+                                d == 0 -> oakDarkP
+                                rimDab -> oakRimP
+                                light < 0.55f -> oakDimP
+                                else -> oakBrightP
+                            }
+                            TreeKind.CHERRY -> when {
+                                light < 0.42f -> blossomShadowP
+                                light < 0.72f -> blossomMidP
+                                else -> blossomLitP
+                            }
+                            else -> when {
+                                d == 0 -> leafDarkP
+                                rimDab -> leafRimP
+                                light < 0.55f -> leafBodyDimP
+                                else -> leafBodyBrightP
+                            }
                         }
                         val shiftX = when {
                             d == 0 -> -sunSign * cr * 0.20f
@@ -1042,6 +1151,29 @@ object SceneGroundRenderer {
                             r * 2f, r * 1.25f
                         )
                     }
+                    // Cherry leafs only as the bloom fades: a whisper of emerging leaves
+                    // among the blossom (drawn in the shared leaf buckets).
+                    if (kind == TreeKind.CHERRY &&
+                        LandscapeProfile.hash01(seed * 131 + 7, ci * 3 + 2) < 0.22f
+                    ) {
+                        addOvalTo(leafBodyDimP, px, py + cr * 0.15f, cr * 0.85f, cr * 0.55f)
+                    }
+                }
+                if (kind == TreeKind.CHERRY) {
+                    // Fallen petals: a pale litter under the crown and a few still
+                    // drifting beside it — hanami trees snow their own ground pink.
+                    for (p in 0 until 12) {
+                        val gx = cx + sx * ccx * hgt +
+                            (LandscapeProfile.hash01(seed * 139 + 3, p * 7 + 1) - 0.5f) * crx * hgt * 2.1f
+                        val gy = by + hgt * 0.014f * LandscapeProfile.hash01(seed * 149 + 5, p * 11 + 2)
+                        addOvalTo(petalP, gx, gy, hgt * 0.020f, hgt * 0.006f)
+                    }
+                    for (p in 0 until 5) {
+                        val ax = cx + sx * ccx * hgt +
+                            (LandscapeProfile.hash01(seed * 151 + 7, p * 13 + 3) - 0.5f) * crx * hgt * 2.3f
+                        val ay = by - hgt * (0.22f + 0.38f * LandscapeProfile.hash01(seed * 157 + 9, p * 17 + 4))
+                        addOvalTo(petalP, ax, ay, hgt * 0.011f, hgt * 0.007f)
+                    }
                 }
             }
             fun bush(cx: Float, by: Float, s: Float, idx: Int) {
@@ -1049,7 +1181,7 @@ object SceneGroundRenderer {
                 // silver-grey Artemisia sage (every third bush).
                 buildSkeletonTree(
                     cx, by, s * 2.1f, BUSH_SKELETONS[idx % 3], idx % 2 == 0, 0.62f,
-                    seed = idx * 3 + 1, silvery = idx % 3 == 1
+                    seed = idx * 3 + 1, kind = if (idx % 3 == 1) TreeKind.SAGE else TreeKind.PISTACHIO
                 )
             }
             val persepolisApronL = framing.platformLeftXPx - width * 0.030f
@@ -1066,66 +1198,92 @@ object SceneGroundRenderer {
                     bush(x, y, height * (0.005f + 0.004f * LandscapeProfile.hash01(71, i * 5 + 2)), i)
                 }
             }
-            // Lone pistachio between the sites; two foreground trees on the near bank
-            // (bases set from the widened river's actual edge, not a fixed offset).
+            // Lone Zagros oak between the sites; the near-bank foreground frame is an
+            // oak at the left and a flowering cherry at the right (bases set from the
+            // widened river's actual edge, not a fixed offset) — real trees doing the
+            // foreground's work, where a fringe of generic grass spikes used to.
             fun nearBankY(x: Float): Float {
                 val yc = riverCenterY(x)
                 return yc + riverHalfW(x, yc) * 1.35f + height * 0.006f
             }
             buildSkeletonTree(
                 (framing.platformRightXPx + framing.milSlopeLeftXPx) / 2f, toeY + height * 0.020f,
-                height * 0.040f, TREE_SKELETONS[2], flip = false, foliage = 0.9f, seed = 7
+                height * 0.044f, OAK_SKELETONS[0], flip = false, foliage = 0.92f, seed = 7,
+                kind = TreeKind.OAK
             )
             buildSkeletonTree(
                 width * 0.115f, nearBankY(width * 0.115f),
-                height * 0.068f, TREE_SKELETONS[0], flip = false, foliage = 0.95f, seed = 11
+                height * 0.072f, OAK_SKELETONS[1], flip = false, foliage = 0.95f, seed = 11,
+                kind = TreeKind.OAK
             )
             buildSkeletonTree(
                 width * 0.875f, nearBankY(width * 0.875f),
-                height * 0.058f, TREE_SKELETONS[1], flip = true, foliage = 0.95f, seed = 13
+                height * 0.066f, CHERRY_SKELETONS[0], flip = true, foliage = 0.97f, seed = 13,
+                kind = TreeKind.CHERRY
             )
             // 27 deterministic plantings (clearings and open water refuse a couple,
             // which reads as natural gaps): a riparian gallery on the far bank, an open
             // woodland along the canal and foothills, scattered plain pistachios and two
             // more near-bank trees — the Zagros oak/pistachio parkland this plain has.
-            fun plantTree(x: Float, y: Float, hgt: Float, idx: Int) {
+            fun plantTree(x: Float, y: Float, hgt: Float, idx: Int, kind: TreeKind = TreeKind.PISTACHIO) {
                 // Trees are refused only in the worn earth right at the stone's feet; the
                 // aprons' faint forward tails are ordinary foreground field where the
                 // riparian and canal trees belong.
                 if (inApron(x, y) && y < toeY + height * 0.038f) return
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.22f) return
+                val skeleton = when (kind) {
+                    TreeKind.OAK -> OAK_SKELETONS[idx % OAK_SKELETONS.size]
+                    TreeKind.CHERRY -> CHERRY_SKELETONS[idx % CHERRY_SKELETONS.size]
+                    else -> TREE_SKELETONS[idx % TREE_SKELETONS.size]
+                }
                 buildSkeletonTree(
-                    x, y, hgt, TREE_SKELETONS[idx % TREE_SKELETONS.size],
+                    x, y, hgt, skeleton,
                     flip = idx % 2 == 1,
                     foliage = 0.82f + 0.15f * LandscapeProfile.hash01(701, idx * 3 + 1),
-                    seed = idx * 7 + 3
+                    seed = idx * 7 + 3,
+                    kind = kind
                 )
             }
-            for (i in 0 until 9) { // riparian gallery, far bank
+            for (i in 0 until 9) { // riparian gallery, far bank — cherries among the pistachios
                 val x = width * (0.05f + 0.90f * (i + LandscapeProfile.hash01(601, i * 3 + 1)) / 9f)
                 val yc = riverCenterY(x)
                 val y = yc - riverHalfW(x, yc) * (1.45f + 0.30f * LandscapeProfile.hash01(603, i * 5 + 2))
-                plantTree(x, y, height * (0.030f + 0.018f * LandscapeProfile.hash01(607, i * 7 + 3)), 100 + i)
+                val kind = when (i) {
+                    1, 4, 6 -> TreeKind.CHERRY
+                    3, 7 -> TreeKind.OAK
+                    else -> TreeKind.PISTACHIO
+                }
+                plantTree(x, y, height * (0.030f + 0.018f * LandscapeProfile.hash01(607, i * 7 + 3)), 100 + i, kind)
             }
             for (i in 0 until 6) { // canal tree line, among the canopy dots
                 val x = width * (0.08f + 0.84f * (i + LandscapeProfile.hash01(613, i * 3 + 1)) / 6f)
                 val y = canalY - height * 0.004f + (x / width) * height * 0.010f
-                plantTree(x, y, height * (0.020f + 0.012f * LandscapeProfile.hash01(617, i * 5 + 2)), 120 + i)
+                plantTree(
+                    x, y, height * (0.020f + 0.012f * LandscapeProfile.hash01(617, i * 5 + 2)), 120 + i,
+                    kind = if (i == 2) TreeKind.CHERRY else TreeKind.PISTACHIO
+                )
             }
             for (i in 0 until 6) { // foothill open woodland
                 val x = width * LandscapeProfile.hash01(619, i * 11 + 5)
                 val y = toeY + height * (0.006f + 0.024f * LandscapeProfile.hash01(631, i * 7 + 2))
-                plantTree(x, y, height * (0.022f + 0.012f * LandscapeProfile.hash01(633, i * 3 + 1)), 140 + i)
+                plantTree(
+                    x, y, height * (0.022f + 0.012f * LandscapeProfile.hash01(633, i * 3 + 1)), 140 + i,
+                    kind = if (i == 2) TreeKind.OAK else TreeKind.PISTACHIO
+                )
             }
             for (i in 0 until 4) { // scattered plain pistachios
                 val x = width * (0.10f + 0.80f * LandscapeProfile.hash01(641, i * 13 + 7))
                 val y = height * (0.855f + 0.045f * LandscapeProfile.hash01(643, i * 5 + 3))
                 plantTree(x, y, height * (0.026f + 0.014f * LandscapeProfile.hash01(647, i * 7 + 2)), 160 + i)
             }
-            for ((j, xf) in listOf(0.34f, 0.63f).withIndex()) { // two more near-bank trees
+            for ((j, xf) in listOf(0.34f, 0.63f).withIndex()) { // near bank: cherry + oak
                 val x = width * (xf + (LandscapeProfile.hash01(653, j * 3 + 1) - 0.5f) * 0.03f)
-                plantTree(x, nearBankY(x), height * (0.050f + 0.012f * LandscapeProfile.hash01(657, j * 5 + 2)), 180 + j)
+                plantTree(
+                    x, nearBankY(x),
+                    height * (0.054f + 0.012f * LandscapeProfile.hash01(657, j * 5 + 2)), 180 + j,
+                    kind = if (j == 0) TreeKind.CHERRY else TreeKind.OAK
+                )
             }
 
             // Steppe grass v3 — the researched recipe from production grass systems
@@ -1228,7 +1386,7 @@ object SceneGroundRenderer {
             }
             // (d) Hero tufts on the near strip: filled tapered blades with a centre rib
             //     (the rounded-normal trick), an AO contact patch, and species seed heads.
-            val heroTufts = (130 * densityScale).toInt()
+            val heroTufts = (100 * densityScale).toInt()
             for (i in 0 until heroTufts) {
                 val x = width * LandscapeProfile.hash01(877, i * 13 + 3)
                 val depth = 0.84f + 0.16f * LandscapeProfile.hash01(881, i * 17 + 5)
@@ -1260,7 +1418,7 @@ object SceneGroundRenderer {
                         if (species == 0 && b < 2) 1.3f else 1f // Stipa culms rise above the fountain
                     val lean = clump.lean * soft + (LandscapeProfile.hash01(901, i * 67 + b * 23) - 0.5f) * 0.6f +
                         if (species == 0) (b - blades / 2f) * 0.07f else 0f // Stipa fans outward
-                    val wdt = maxOf(1.3f, bh * if (species == 2) 0.11f else 0.08f)
+                    val wdt = maxOf(1.3f, bh * if (species == 2) 0.10f else 0.07f)
                     val ts = floatArrayOf(0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f)
                     val tip = bladePt(bx, y, bh, lean, stiff, 1f)
                     for ((k, t) in ts.withIndex()) {
@@ -1331,6 +1489,14 @@ object SceneGroundRenderer {
                 silverDarkP = silverDarkP,
                 silverBodyP = silverBodyP,
                 silverRimP = silverRimP,
+                oakDarkP = oakDarkP,
+                oakDimP = oakDimP,
+                oakBrightP = oakBrightP,
+                oakRimP = oakRimP,
+                blossomShadowP = blossomShadowP,
+                blossomMidP = blossomMidP,
+                blossomLitP = blossomLitP,
+                petalP = petalP,
                 dryRootP = dryRootP,
                 dryTipP = dryTipP,
                 greenRootP = greenRootP,
@@ -1377,12 +1543,39 @@ object SceneGroundRenderer {
         drawScope.drawPath(veg.silverDarkP, silverDark)
         drawScope.drawPath(veg.silverBodyP, silverLeaf)
         drawScope.drawPath(veg.silverRimP, silverRimCol.copy(alpha = 0.55f))
+        // Oak: deep olive, darker-hearted than pistachio, sun-warmed shell.
+        val oakBody = lerp(Color(0xFF0B120A), Color(0xFF3A5228), lightLevel)
+        val oakRimBase = lerp(oakBody, Color(0xFFB9CD8E), 0.45f * lightLevel)
+        val oakRimCol = if (backlit) lerp(oakRimBase, lighting.horizonTone, 0.45f) else oakRimBase
+        drawScope.drawPath(veg.oakDarkP, oakBody.scaled(0.55f))
+        drawScope.drawPath(veg.oakDimP, oakBody.scaled(0.85f))
+        drawScope.drawPath(veg.oakBrightP, lerp(oakBody, Color(0xFF7FA05A), 0.38f * lightLevel))
+        drawScope.drawPath(veg.oakRimP, oakRimCol.copy(alpha = 0.55f))
+        // Cherry blossom: mauve shadow -> pale pink -> near-white lit shell (Somei
+        // Yoshino fades pink to white as it opens); petals are translucent, so at
+        // golden hour the lit shell takes the sky's warmth like thin paper held to it.
+        val blossomShadow = lerp(Color(0xFF171014), Color(0xFFBE8CA6), lightLevel)
+        var blossomMid = lerp(Color(0xFF201318), Color(0xFFF2C4D6), lightLevel)
+        var blossomLit = lerp(Color(0xFF2A1A20), Color(0xFFFFEFF5), lightLevel)
+        if (backlit) {
+            blossomMid = lerp(blossomMid, lighting.horizonTone, 0.18f)
+            blossomLit = lerp(blossomLit, lighting.horizonTone, 0.35f)
+        }
+        drawScope.drawPath(veg.blossomShadowP, blossomShadow)
+        drawScope.drawPath(veg.blossomMidP, blossomMid)
+        drawScope.drawPath(veg.blossomLitP, blossomLit)
+        drawScope.drawPath(veg.petalP, blossomMid.copy(alpha = 0.80f))
 
         val backlight = if (sunAlt in -2f..14f && day > 0.04f) 0.40f else 0.10f
         val gRootDry = lerp(lerp(Color(0xFF171307), Color(0xFF4A3A1E), day), steppeTop, 0.30f)
         val gTipDry = lerp(lerp(Color(0xFF2A2416), Color(0xFFC4A468), day), lighting.horizonTone, backlight * 0.35f)
         val gRootGreen = lerp(lerp(Color(0xFF0A1206), Color(0xFF26341A), day), steppeTop, 0.30f)
-        val gTipGreen = lerp(lerp(Color(0xFF16200F), Color(0xFF7E9455), day), lighting.horizonTone, backlight * 0.30f)
+        // Desaturated a touch toward the steppe so foreground tufts read as dry
+        // Zagros grass, not lawn-green spikes.
+        val gTipGreen = lerp(
+            lerp(lerp(Color(0xFF16200F), Color(0xFF7E9455), day), lighting.horizonTone, backlight * 0.30f),
+            steppeTop, 0.16f
+        )
         val awnCol = lerp(Color(0xFF241E12), Color(0xFFD8C096), day)
         val panicleCol = lerp(Color(0xFF1C1410), Color(0xFFA8845E), day)
         val forbCol = lerp(Color(0xFF201A10), Color(0xFFD9C98A), day)
@@ -1402,8 +1595,8 @@ object SceneGroundRenderer {
             )
         }
         val strokeW = (height * 0.0013f).coerceIn(0.9f, 2.0f)
-        drawScope.drawPath(veg.fillDryP, lerp(gRootDry, gTipDry, 0.45f).copy(alpha = 0.55f + 0.35f * day))
-        drawScope.drawPath(veg.fillGreenP, lerp(gRootGreen, gTipGreen, 0.45f).copy(alpha = 0.55f + 0.35f * day))
+        drawScope.drawPath(veg.fillDryP, lerp(gRootDry, gTipDry, 0.45f).copy(alpha = 0.50f + 0.30f * day))
+        drawScope.drawPath(veg.fillGreenP, lerp(gRootGreen, gTipGreen, 0.45f).copy(alpha = 0.50f + 0.30f * day))
         drawScope.drawPath(veg.dryRootP, gRootDry.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.greenRootP, gRootGreen.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.dryTipP, gTipDry.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
