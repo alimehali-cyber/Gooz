@@ -109,13 +109,22 @@ object CloudVeilRenderer {
         }
     }
 
-    /** Deterministic 0..1 value for a seed. No allocation, no shared mutable state. */
-    private fun pseudoRandom(seed: Int): Float {
+    /**
+     * Deterministic 0..1 value for a seed. No allocation, no shared mutable state.
+     *
+     * The mask keeps 31 bits, so the divisor must be 2^31 − 1. It was 16_777_215
+     * (2^24 − 1), which made this return 0..128 instead of 0..1: the Y jitter threw
+     * most veils far below the canvas, the alpha factor ran up to ~32×, and one
+     * cirrus streak landed just above the horizon — sliced flat by the scene-motion
+     * clip at the horizon line, it read as a glowing white band across the scene.
+     * [LandscapeProfile.hash01] is the same mixing family with the correct divisor.
+     */
+    internal fun pseudoRandom(seed: Int): Float {
         var x = seed * 1_103_515_245 + 12_345
         x = x xor (x ushr 13)
         x *= 0x5bd1e995
         x = x xor (x ushr 15)
-        return (x and 0x7FFFFFFF) / 16_777_215f
+        return (x and 0x7FFFFFFF) / 2_147_483_647f
     }
 }
 
