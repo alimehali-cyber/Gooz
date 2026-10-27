@@ -205,7 +205,16 @@ back to front:
   (Runions–Lane–Prusinkiewicz) with da Vinci pipe-model branch radii and leaf-cluster-dab
   foliage — real emergent branching and hollow-hearted crowns instead of blob canopies —
   cached once with height-based LOD, shadowed away from the Sun with a golden-hour backlit
-  rim, never in the worn earth at the monuments' feet.
+  rim, never in the worn earth at the monuments' feet. Scrub now grows only in the
+  foothills — the river's near side is kept clean so the scene's bottom can dissolve
+  into the app backdrop (see `HOME_SKY_SCENE.md`).
+
+All of this vegetation is *static geometry cached per layout* (`VegetationGeometry` in
+`SceneGroundRenderer`): branches bucketed by width class, foliage dabs by tone role and
+grass by colour bucket are baked into `Path`s once per canvas size/framing/Sun-side, and
+each draw replays ~30 path draws with live lighting colours. Rebuilding the same ~13k
+draw calls on every 1 Hz tick — and on every frame while scrubbing — is what previously
+made the sky canvas and Home scrolling hitch.
 
 The composition was tuned visually in `tools/persepolis/render_framing_preview.py`, which mirrors
 the same profile algorithms over the exact framing (the diagram at the top of this file). The

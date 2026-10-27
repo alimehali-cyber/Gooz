@@ -54,9 +54,11 @@ import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaStatus
+import androidx.compose.ui.graphics.Brush
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.liquidGlass
 import com.alijafari.red.astronomy.ui.theme.squircleShape
@@ -594,6 +596,31 @@ fun HeroSkyCanvas(
             ParticleRenderer.drawStardust(
                 drawScope = this,
                 particles = stardustParticles
+            )
+        }
+
+        // --- BOTTOM MERGE (scene only) ---
+        // The full-bleed scene must not end on a hard line where the Home feed begins:
+        // its last stretch dissolves through a long eased gradient into the app's own
+        // backdrop colour, so ground, river and grass blur away and the canvas merges
+        // into the screen behind it. The fade starts below everything that has to stay
+        // legible — the readout sits above the horizon line, and the GL monuments (which
+        // composite above this overlay and so cannot be faded by it) end higher still.
+        // The old corner-shade scrub at the viewer's feet is gone for the same reason.
+        if (isScene) {
+            val backdrop = RedTheme.colors.background
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.80f to Color.Transparent,
+                            0.88f to backdrop.copy(alpha = 0.18f),
+                            0.94f to backdrop.copy(alpha = 0.52f),
+                            0.98f to backdrop.copy(alpha = 0.82f),
+                            1.0f to backdrop
+                        )
+                    )
             )
         }
 

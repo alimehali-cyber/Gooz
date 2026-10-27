@@ -790,16 +790,9 @@ def main():
         draw_skeleton(cx, by, s * 2.1, BUSH_SKELS[idx % 3], idx % 2 == 0, 0.62,
                       seed=idx * 3 + 1, silvery=(idx % 3 == 1))
 
-    for i in range(16):  # scrub: foothills + plain, depth-scaled
+    for i in range(7):  # foothill scrub only — the river's near side stays clean
         x = W * _hash01(i * 19.7 + 3.3)
-        if i < 7:
-            y, s = TOE_Y - H * 0.004 + H * 0.010 * _hash01(i * 3.9), 6 + 5 * _hash01(i * 7.1)
-        else:
-            y = H * (0.90 + 0.075 * _hash01(i * 5.3))
-            yc = river_at(x)
-            if abs(y - yc) < river_halfw(x, yc) * 1.30:
-                continue
-            s = 10 + 12 * _hash01(i * 7.1)
+        y, s = TOE_Y - H * 0.004 + H * 0.010 * _hash01(i * 3.9), 6 + 5 * _hash01(i * 7.1)
         bush(x, y, s, i)
     # Lone pistachio in the gap; foreground trees on the near bank (bases from the
     # widened river's actual edge).
@@ -993,8 +986,8 @@ def main():
             continue
         ln = H * (0.004 + 0.008 * depth)
         d.line([(x, y), (x + ln, y - ln * 0.08)], fill=(*TIP_DRY, 110), width=2)
-    soft_drift(W * 0.02, H * 1.0, W * 0.5, H * 0.07, peak_alpha=0.14, layers=10, rgb=(8, 10, 6))
-    soft_drift(W * 0.98, H * 1.0, W * 0.5, H * 0.07, peak_alpha=0.14, layers=10, rgb=(8, 10, 6))
+    # (No corner-shade scrub at the viewer's feet any more: the scene's bottom
+    # dissolves into the app backdrop instead — see the merge below.)
 
     # Cut-back platform fronts + floor (world x includes the -9.7 m bake).
     rect_xz(d, -56.17, 39.50, 0.5, 2.6, 7.25, lerp(PLATFORM_TONE, (90, 76, 58), 0.25))
@@ -1078,6 +1071,16 @@ def main():
         d.line([(x, slope_front), (min(x + 20, slope_r), slope_front)],
                fill=(170, 230, 255, 190), width=2)
     label((slope_l + 8, slope_front + 34), "Mil slope front", small)
+
+    # Bottom merge: the last fifth of the scene dissolves through an eased gradient
+    # into the app backdrop (a dark stand-in colour here), mirroring HeroSkyCanvas.
+    grad = Image.new("L", (1, H), 0)
+    gpx = grad.load()
+    for yy in range(H):
+        t = (yy / H - 0.80) / 0.20
+        gpx[0, yy] = 0 if t <= 0 else int(255 * min(1.0, t) ** 1.6)
+    img.paste(Image.new("RGB", (W, H), (13, 15, 20)), (0, 0), grad.resize((W, H)))
+    d = ImageDraw.Draw(img, "RGBA")
 
     readout_bottom = FRAMING["readout_bottom"]
     rx, ry, rw, rh = 60, readout_bottom - 45 * DENSITY, 690, 45 * DENSITY
