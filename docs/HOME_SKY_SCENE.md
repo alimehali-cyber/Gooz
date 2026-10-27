@@ -97,18 +97,21 @@ photographic themes, the Persepolis GL layer between the first two:
 
 ### Ground — `SceneGroundRenderer`
 
-Far ridge → mist shelf → mid ridge → solid ground gradient → horizon catch-light → grass tufts →
-bottom fade into the app background. Ridges are summed sines sampled with quadratics, so no polyline
-shows. Grass positions are deterministic (no shimmer between ticks). Papercraft keeps hard cardstock
-edges and skips the strokes; everything else gets the soft version.
+Two art paths. The **stylised themes** keep the original band — far ridge → mist shelf → mid ridge →
+solid ground gradient → horizon catch-light → grass tufts → bottom fade — with summed-sine ridges
+sampled through quadratics and deterministic grass (Papercraft keeps hard cardstock edges and skips
+the strokes).
 
-When the combined relief is active, this band is its environment and is painted underneath it —
-ridges and mist as its distance, the deeper field below the platform toe and nearer slope front as
-foreground — plus two separate footprint-local earthworks from `PersepolisFraming`: an irregular
-worn-earth apron at Persepolis and a limestone-dust/talus clearing beneath the far-right tower
-slope, each with its own contact shadow, drift hummocks and debris flecks. Ordinary field remains
-between them. Both patches feather into the ground and follow the Sun-altitude brightness, so
-neither monument ends on a full-width grounding stripe.
+When the combined relief is active (the photographic themes), the band becomes the full **Marvdasht
+landscape** and is painted underneath the GL stone: a far Zagros range and the Kuh-e Rahmat wall
+built from domain-warped ridged-multifractal profiles (`LandscapeProfile`) with Sun-facing facet
+shading, folded strata, erosion gullies and aerial perspective; piedmont foothills and alluvial
+fans; a semi-arid steppe/cultivation plain with an irrigation canal; two separate footprint-local
+earthworks from `PersepolisFraming` (worn apron, talus, contact shadows, debris — ordinary field
+between the sites, feathered and Sun-following, so neither monument ends on a full-width stripe);
+a foreground Pulvar stream whose glitter tracks the real Sun/Moon; and sparse pistachio scrub,
+three trees and steppe grass speckle. All placement is deterministic. See
+[`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 
 ### Clouds — `CloudVeilRenderer`
 

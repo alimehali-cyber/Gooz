@@ -76,6 +76,11 @@ object SkySceneRenderer {
             projection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
         } else null
 
+        // Raw Moon position, shared by the Moon pass and the ground's night glitter.
+        val moonPosPx = if (moonData.altitudeDeg > -12.0) {
+            projection.objectPosition(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
+        } else null
+
         // 1. Atmosphere Renderer. While the panorama is on screen it supplies the sky gradient and night
         // sky itself; this pass then draws only the Sun glow and Belt of Venus, faded by night weight.
         AtmosphereRenderer.drawAtmosphere(
@@ -129,7 +134,8 @@ object SkySceneRenderer {
 
         // 5. Moon Renderer
         if (moonData.altitudeDeg > -12.0) {
-            val moonCenter = projection.objectPosition(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
+            val moonCenter = moonPosPx
+                ?: projection.objectPosition(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
             val baseMoonRadius = with(drawScope) { 26.dp.toPx() }
             val moonPulseScale = AstronomyAnimator.computePulse(frameTimeMs, 4000f, 0.88f, 1.12f)
 
@@ -201,15 +207,16 @@ object SkySceneRenderer {
             projection = projection
         )
 
-        // 7. Ground. The full-bleed scene gets the layered ground band (ridges, mist shelf, grass); the card
-        //    and the fullscreen viewer keep the older single-silhouette landscape; the backdrop has neither.
-        //    On the photographic themes the combined Persepolis + Mil-e Azhdaha relief (a GL layer
-        //    the caller composites above this canvas) sits in this ground band: the band is painted
-        //    as usual — ridges and mist are its backdrop, the field below its feet is the
-        //    foreground — plus a localized earthwork around the platform and tower-slope
-        //    footprints (sand drifts, banked slope side, contact shadows, debris). The framing is
-        //    recomputed here from the same inputs the GL host uses, so the painted earth and the
-        //    stone always meet at the same toe, platform edges and slope front.
+        // 7. Ground. The full-bleed scene gets the layered ground band; the card and the fullscreen
+        //    viewer keep the older single-silhouette landscape; the backdrop has neither. On the
+        //    photographic themes the combined Persepolis + Mil-e Azhdaha relief (a GL layer the
+        //    caller composites above this canvas) sits in this band, so the band becomes the full
+        //    Marvdasht landscape — Zagros ranges and the Kuh-e Rahmat wall as its backdrop,
+        //    foothills, steppe plain and foreground stream — with localized earthworks around the
+        //    platform and tower-slope footprints. The framing is recomputed here from the same
+        //    inputs the GL host uses, so the painted earth and the stone always meet at the same
+        //    toe, platform edges and slope front; the Sun/Moon screen positions aim the mountain
+        //    facet light and the stream's glitter.
         when {
             target.drawsScene -> {
                 val composition = SkySceneLayout.composition(
@@ -233,7 +240,9 @@ object SkySceneRenderer {
                     composition = composition,
                     theme = theme,
                     lighting = lightingState,
-                    persepolis = persepolis
+                    persepolis = persepolis,
+                    sunPosPx = sunPosPx,
+                    moonPosPx = moonPosPx
                 )
             }
             target.drawsLandscape -> LandscapeRenderer.drawHorizonLandscape(

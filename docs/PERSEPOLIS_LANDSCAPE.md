@@ -11,7 +11,7 @@ earthworks in the painted ground seat its cut-back platform and the nearer tower
 inventing a continuous archaeological patch across the plain between them.
 
 ```bash
-./gradlew :app:testDebugUnitTest --tests '*PersepolisFramingTest*'
+./gradlew :app:testDebugUnitTest --tests '*PersepolisFramingTest*' --tests '*LandscapeProfileTest*'
 python3 tools/persepolis/verify_framing.py
 ```
 
@@ -46,7 +46,7 @@ requested Home placement and material harmonization:
 | 5 | GL calls via the ES 3.0 API on an ES 3.0 context (was ES 2.0) | The app declares ES 3.0 in its manifest and keeps every renderer on it, guarded by `AnimationRecordPrecisionTest.legacyRenderersStayOnGles3…`. ES 3.0 compiles the supplied GLSL ES 1.00 shaders unchanged; this is an Android API/context change, not a shader rewrite |
 | 6 | Optional `centerFractionFromLeft` framing input | Places the unchanged fixed-camera combined group left of centre by shifting only the orthographic window. The default remains 0.5 (the supplied centred framing); ZIG passes 0.30 for the Home landscape |
 | 7 | `MIL_HOME_RIGHT_SHIFT_M = 66 m`, applied only to the cached Mil mesh | Moves the complete tower/foot/slope group to the far right without touching any Persepolis transform. On the retained 178 m phone window the tower centre lands at 90.8 % of width and its slope spans 76.3–109.8 %, so the upslope is cropped by the edge rather than terminating inside the field |
-| 8 | Persepolis palette warmed toward the Mil limestone family; restrained distance-scaled grain, tooling relief, sparse iron/dry bio-staining and aerial softening in `FRAGMENT_SHADER_P` | The supplied Persepolis program was deliberately cooler and comparatively flat, which made the two ruins look as if they came from different material worlds. Its indices now retain their value hierarchy but share Mil-e Azhdaha's warm limestone response; the Mil program and palette remain exactly as supplied |
+| 8 | Persepolis palette unified as **one** warm limestone hue at ten values, matching the Mil family; restrained distance-scaled grain, tooling relief, sparse scalar staining, aerial softening and a final hue-lock blend in `FRAGMENT_SHADER_P` | The supplied Persepolis program was deliberately cooler and comparatively flat, which made the two ruins look as if they came from different material worlds; and its frame stone was a neutral grey, which against warm limestone reads as a *second* stone colour. Every index now shares one hue (frames/recesses differ only in value), all shader variation is scalar, and settled dust is the same stone powdered — so the monument can never split into two colours. The value hierarchy is retained; the Mil program and palette remain exactly as supplied |
 
 Persepolis' placement is preserved exactly: it is baked at `PERSEPOLIS_X = -9.7 m`, and its empty
 platform wings remain cut back. The Mil group retains its supplied 2.04× scale, −0.20 rad yaw and
@@ -90,11 +90,15 @@ No new astronomy. `SkySceneFrame` already computes, for the exact instant the sk
 `PersepolisLandscape` forwards both, with the Moon's intensity scaled by the illuminated fraction
 as the file prescribes (`0.22 × fraction`, `persepolisMoonIntensity`). One shared light state feeds
 both monument programs. Mil-e Azhdaha keeps its supplied warm close-range stone shader with
-noise-gradient bump, tooling, desert varnish, salt, calcite and lichen detail. Persepolis now uses
-a closely related warm limestone palette and a quieter, distance-scaled version of the same material
-language — fine grain, shallow tooling relief, sparse iron and dry biological staining — with less
-specular/rim response and a little more aerial softening, so it reads as the same stone farther
-away rather than as a different grey material. Colour, intensity, twilight fade and hemisphere
+noise-gradient bump, tooling, desert varnish, salt, calcite and lichen detail. Persepolis is
+deliberately **one stone colour**: every palette entry is the same warm limestone hue at a
+different value (bright relief and columns, mid platform, deep-brown frame stone, warm
+near-black recesses), every procedural variation in its shader is scalar — value may wander,
+hue may not — and a final hue-lock blend pulls each fragment 30 % toward that hue line at its
+own luminance. On top of that single material sit only quiet, distance-scaled effects: fine
+grain, shallow tooling relief, sparse staining, less specular/rim response and a little more
+aerial softening, so it reads as the same stone as the tower, farther away. Colour, intensity,
+twilight fade and hemisphere
 ambient are still derived inside `PersepolisMilAzhdahaScene.setSun` from altitude, exactly as
 supplied — in agreement with the Compose sky's own `LightingState`, because both read the same Sun
 altitude.
@@ -160,11 +164,39 @@ Measured results (exact lookAt/ortho, `verify_framing.py`):
 The framing also guarantees the scene's internal `autoFitHeight` never widens the view past the
 chosen width, so the scale the ground painter assumes is the scale the camera uses.
 
-### Grounding (why it does not look pasted)
+### The Marvdasht landscape and grounding (why it does not look pasted)
 
-A transparent overlay ends on a hard line unless the host paints the contact. `SkySceneRenderer`
-passes the full framing to `SceneGroundRenderer.drawCombinedLandscapeGrounding`, which now paints
-**two separate worn clearings**, after the ground gradient and before the grass:
+On the photographic themes the painted ground is no longer a generic ridge-and-grass band: it is
+the monuments' own geography, art-directed to the framing (`SceneGroundRenderer`'s photographic
+path, profiles in `LandscapeProfile`). Persepolis really stands where the Marvdasht plain meets
+Kuh-e Rahmat, near the Pulvar River, encircled by southern Zagros ranges — so the scene paints,
+back to front:
+
+- a **far Zagros range** and the **Kuh-e Rahmat wall** as domain-warped ridged-multifractal
+  skylines (Musgrave `(1−|noise|)²` with ridge-weighted detail), shaped by envelopes that keep a
+  low shoulder behind the ruins/readout and swell to the great crest backing the tower. Each
+  range is facet-shaded from its profile slope against the *actual* Sun's screen side, with a
+  whisper of folded-strata banding, erosion gullies, a crest catch-light, and depth-graded
+  aerial perspective into the scene's haze colour — at night the same shapes collapse to a
+  moonlit silhouette;
+- **piedmont foothills and alluvial fans** where the massif's gullies debouch, then the
+  semi-arid **steppe plain**: dry olive-straw field mosaic (irrigated green against fallow),
+  an irrigation canal with its tree line, and noise-masked steppe grass speckle;
+- a **Pulvar foreground stream** the viewer stands across from: meandering ribbon with bend
+  pools, sky reflection broken by dark slow water, gravel/vegetated banks, reeds — and broken
+  glitter concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
+  illumination, at night);
+- sparse **pistachio scrub and three trees** (one lone tree in the open gap between the sites,
+  two on the near bank), shadowed away from the Sun, never inside the monuments' clearings.
+
+The composition was tuned visually in `tools/persepolis/render_framing_preview.py`, which mirrors
+the same profile algorithms over the exact framing (the diagram at the top of this file). The
+stylised themes keep the older flat ground band untouched.
+
+Within that landscape, a transparent overlay would still end on a hard line unless the host paints
+the contact. `SkySceneRenderer` passes the full framing to
+`SceneGroundRenderer.drawCombinedLandscapeGrounding`, which paints **two separate worn
+clearings** in the middle of the stack (after the plain, before the stream):
 
 - an **irregular Persepolis apron** around the cut-back platform, with wavy edges and both vertical
   and horizontal feathering, strongest at the toe and dissolving into the ordinary field;
@@ -183,7 +215,8 @@ were removed. Colours are mixed from the active ground palette toward sand and s
 `LightingState.ambientBrightness`, so the patch follows the terrain's warmth and brightness and
 vanishes into astronomical night with it. Exact projection puts the forecourt front edge 0.6–1.3 dp
 above the toe row and the slope front inside the contact-shadow band on every tested size. The
-grass then paints over the foreground part of the patch, tying the site back into the field.
+stream, scrub and steppe speckle then paint over the foreground tails of the clearings, tying
+both sites back into the living plain.
 
 ## 4. Lifecycle, cost, interaction
 

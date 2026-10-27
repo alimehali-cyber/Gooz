@@ -33,10 +33,15 @@ package com.alijafari.red.astronomy.ui.persepolis
 //     scenes this puts the tower at the far right and lets its upslope run
 //     modestly beyond the right edge, as a naturally cropped hillside.
 //  8. Persepolis' palette and fragment response are harmonized toward
-//     Mil-e Azhdaha's warm limestone (see PAL_P and FRAGMENT_SHADER_P).
-//     The value hierarchy of frames, columns, relief and platform is kept,
-//     and the added surface detail is scaled for Persepolis' greater
-//     viewing distance. Mil-e Azhdaha's palette and shader are unchanged.
+//     Mil-e Azhdaha's warm limestone as ONE stone colour (see PAL_P and
+//     FRAGMENT_SHADER_P): every palette entry is the same warm hue at a
+//     different value — including the dark frame stone, which as a neutral
+//     grey read as a second, unrelated material — all shader variation is
+//     scalar (value may wander, hue may not), and a final hue-lock blend
+//     guarantees the unity. The value hierarchy of frames, columns, relief
+//     and platform is kept, and the added surface detail is scaled for
+//     Persepolis' greater viewing distance. Mil-e Azhdaha's palette and
+//     shader are unchanged.
 //
 // Hosting, framing and the Sun/Moon feed live outside this file: see
 // PersepolisLandscape (Compose host) and
@@ -251,22 +256,27 @@ private const val FRONT_Z = 7.25f      // east face of lower platform / stair ch
 
 /** Persepolis stone palette (indices used by [buildPersepolisScene]).
  *
- *  ZIG change 8: each warmable entry is moved roughly 80–85% from the
- *  supplied cool-grey Persepolis colour toward the corresponding warm
- *  Mil-e Azhdaha limestone in [PAL_M], while keeping Persepolis' relative
- *  values (relief and columns brightest, platform/rubble lower). Indices
- *  2, 3 and 8 were already shared or nearly shared by the two palettes. */
+ *  ZIG change 8: ONE warm limestone, read at ten depths of shade. Every entry
+ *  is the same hue as index 0 (green ≈ 0.72 × red, blue ≈ 0.42 × red — the
+ *  Mil-e Azhdaha limestone family of [PAL_M]) scaled to its value, so frames,
+ *  recesses, columns, relief, platform and rubble can never split into two
+ *  different stone colours; only brightness separates them. Index 2 keeps
+ *  the *value* of the supplied dark Majdabad frame stone but in the same
+ *  warm hue, index 3 is a warm near-black for voids, and index 8 (settled
+ *  dust of the same crushed stone) is the base hue lightened and only
+ *  slightly desaturated. Do not reintroduce neutral greys here: against the
+ *  warm stone they read as a second, unrelated material. */
 private val PAL_P: Array<FloatArray> = arrayOf(
-    floatArrayOf(0.64f, 0.46f, 0.27f), // 0 warm limestone light
-    floatArrayOf(0.53f, 0.37f, 0.20f), // 1 warm limestone mid
-    floatArrayOf(0.38f, 0.38f, 0.37f), // 2 dark grey frame stone (Majdabad limestone)
-    floatArrayOf(0.20f, 0.19f, 0.18f), // 3 recess / shadow gap
-    floatArrayOf(0.70f, 0.52f, 0.31f), // 4 pale warm relief stone
-    floatArrayOf(0.46f, 0.33f, 0.18f), // 5 warm rubble
-    floatArrayOf(0.58f, 0.43f, 0.26f), // 6 warm platform stone
-    floatArrayOf(0.65f, 0.46f, 0.25f), // 7 warm column stone
-    floatArrayOf(0.72f, 0.63f, 0.44f), // 8 wind-blown sand / settled dust
-    floatArrayOf(0.32f, 0.26f, 0.20f), // 9 weather stain / spall scar
+    floatArrayOf(0.64f, 0.46f, 0.27f), // 0 warm limestone light (the hue anchor)
+    floatArrayOf(0.52f, 0.38f, 0.22f), // 1 limestone mid
+    floatArrayOf(0.38f, 0.28f, 0.17f), // 2 dark frame stone — same hue, deep shade
+    floatArrayOf(0.20f, 0.15f, 0.09f), // 3 recess / shadow gap — warm near-black
+    floatArrayOf(0.70f, 0.50f, 0.29f), // 4 pale relief stone
+    floatArrayOf(0.46f, 0.33f, 0.19f), // 5 rubble
+    floatArrayOf(0.58f, 0.42f, 0.24f), // 6 platform stone
+    floatArrayOf(0.65f, 0.47f, 0.27f), // 7 column stone
+    floatArrayOf(0.70f, 0.53f, 0.35f), // 8 settled dust of the same stone
+    floatArrayOf(0.34f, 0.24f, 0.14f), // 9 weather stain / spall scar
 )
 
 // ============================================================================
@@ -1979,24 +1989,30 @@ void main(){
   float grain = fbm(vW*3.6);
   float streak = vnoise(vec3(vW.x*6.0, vW.y*0.32, vW.z*6.0));
   float tone = vnoise(vW*0.16+4.7);
-  albedo *= vec3(0.94+0.11*tone, 0.98+0.04*tone, 1.04-0.08*tone);  // slow warm/cool mineral drift
+  albedo *= 0.96 + 0.08*tone;  // slow tonal drift — SCALAR only: value may wander, hue may not
   albedo *= 0.78 + 0.34*patch + 0.14*grain;
   albedo *= 0.90 + 0.14*streak;
   albedo *= 0.94 + 0.10*hash13(floor(vW*7.0));
   albedo *= 1.0 - 0.18*smoothstep(2.4,0.0,vW.y);
   float iron = smoothstep(0.68,0.84,vnoise(vW*0.85+19.1)) *
       (0.25+0.75*smoothstep(10.0,4.35,vW.y));
-  albedo = mix(albedo, vec3(0.45,0.26,0.13), iron*0.13);          // sparse iron-oxide staining
+  albedo = mix(albedo, albedo*vec3(0.96,0.74,0.52), iron*0.22);   // iron stain: the stone's own hue, deepened
   float bio = smoothstep(0.72,0.95,vnoise(vW*1.25+7.3)) * smoothstep(7.0,2.5,vW.y);
-  albedo = mix(albedo, vec3(0.23,0.24,0.13), bio*0.10);            // dry olive-brown staining, not lawn moss
+  albedo *= 1.0 - 0.16*bio;                                       // dry staining low down: shade only, no green
   float strata = vnoise(vec3(vW.x*0.22, vW.y*1.35, vW.z*0.22));   // limestone bedding planes
   albedo *= 0.96 + 0.08*strata;
   float pit = step(0.965, hash13(floor(vW*18.0)));                 // sparse weather pits
   albedo *= 1.0 - 0.14*pit;
   float dust = smoothstep(0.55,0.92,N.y) * (0.5+0.5*vnoise(vW*1.7+3.1));  // settled dust on up-faces
-  albedo = mix(albedo, vec3(0.72,0.63,0.44), dust*0.38);
+  albedo = mix(albedo, vec3(0.70,0.53,0.35), dust*0.30);  // dust = palette index 8: same stone, powdered
   float splash = exp(-max(vW.y-4.35,0.0)*1.9) * step(4.34,vW.y);  // rain-splash grime above the platform
   albedo *= 1.0 - 0.10*splash*(0.6+0.4*grain);
+  // Hue lock (ZIG colour unification): whatever the stains above did, pull
+  // every fragment back toward the ONE limestone hue line at its own
+  // luminance. Value contrast (frames vs fields, relief vs ground) is
+  // preserved exactly; hue divergence is not allowed to survive.
+  float _lum = dot(albedo, vec3(0.299,0.587,0.114));
+  albedo = mix(albedo, vec3(0.64,0.46,0.27)*(_lum/0.492), 0.30);
   vec3 amb = mix(uGroundAmb, uSkyAmb, N.y*0.5+0.5);
   vec3 col = albedo * amb;
   float ds = max(dot(N, normalize(uSunDir)), 0.0);
