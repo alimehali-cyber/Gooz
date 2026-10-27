@@ -29,7 +29,7 @@ Sun altitude drives the light.*
 │  22:41 │ Astronomical night              │  readout (canvas)
 │  2 Aban · Moon 64% up                    │
 ├──────────────────────────────────────────┤ ← horizon  (0.70 × scene)
-│  distant ridge · mist shelf · ridge      │
+│  distant ridge · ridge                   │
 │  grass line + tufts            ⤢         │ ← expand affordance
 └──────────────────────────────────────────┘ scene height = 52 % of viewport
   ╭────────────────────╮ ╭────────────────────╮
@@ -97,10 +97,11 @@ photographic themes, the Persepolis GL layer between the first two:
 
 ### Ground — `SceneGroundRenderer`
 
-Two art paths. The **stylised themes** keep the original band — far ridge → mist shelf → mid ridge →
+Two art paths. The **stylised themes** keep the original band — far ridge → mid ridge →
 solid ground gradient → horizon catch-light → grass tufts → bottom fade — with summed-sine ridges
 sampled through quadratics and deterministic grass (Papercraft keeps hard cardstock edges and skips
-the strokes).
+the strokes). (The old full-width horizon "mist shelf" was removed from both paths: it read as a
+white band across the canvas at the readout's day/date line.)
 
 When the combined relief is active (the photographic themes), the band becomes the full **Marvdasht
 landscape** and is painted underneath the GL stone: a far Zagros range and the folded Kuh-e Rahmat
@@ -110,10 +111,12 @@ cones, cliff streaks, erosion gullies and aerial perspective; piedmont foothills
 fans; a semi-arid steppe/cultivation plain with an irrigation canal; two separate footprint-local
 earthworks from `PersepolisFraming` (worn apron, talus, contact shadows, debris — ordinary field
 between the sites, feathered and Sun-following, so neither monument ends on a full-width stripe);
-a widened layered Pulvar river (wet banks, shallows, thalweg, point bars, tree reflections, reed
-clumps) whose sheen and thinned glitter track the real Sun/Moon; space-colonization pistachio
-trees/scrub with pipe-model branching; and clumped moisture-driven tuft grass. All placement is
-deterministic. See [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
+a broad layered Pulvar river (wet banks, shallows, thalweg, point bars, tree reflections, reed
+clumps) whose sheen and thinned glitter track the real Sun/Moon; a 28-tree space-colonization
+pistachio parkland plus *Artemisia* sage scrub with pipe-model branching and leaf-cluster
+foliage; and a three-band batched grass system (Voronoi clumps, Bézier blades, tri-tone AO
+roots, *Stipa*/*Bromus*/riparian species). All placement is deterministic. See
+[`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 
 ### Clouds — `CloudVeilRenderer`
 

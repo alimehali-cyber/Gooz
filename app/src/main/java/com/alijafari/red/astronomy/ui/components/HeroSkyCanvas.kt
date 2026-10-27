@@ -509,13 +509,15 @@ fun HeroSkyCanvas(
 
         // --- COMBINED LANDSCAPE: THE GROUND'S SUBJECTS ---
         // Persepolis in the left distance and Mil-e Azhdaha on its limestone hillside, as one
-        // transparent GL relief set into layer 1's ground band: the ridges and mist shelf behind
+        // transparent GL relief set into layer 1's ground band: the ranges behind
         // them are their backdrop, the deeper field below their feet is the foreground, and the
         // localized earthwork the sky pass paints around both footprints seats them in the
         // terrain. They are lit by
         // this frame's real Sun and Moon and render on demand (per sky-model change), never on the
-        // motion clock. Photographic themes only — PersepolisFeature is the gate.
-        if (persepolisFraming != null) {
+        // motion clock. Photographic themes only — PersepolisFeature is the gate. It also stays
+        // uncomposed while the splash is up: the relief's z-order-on-top GL surface composites
+        // above the whole window and would show through the Compose splash overlay.
+        if (persepolisFraming != null && !LocalSplashActive.current) {
             PersepolisLandscape(
                 frame = skyFrame,
                 framing = persepolisFraming,

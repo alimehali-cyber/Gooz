@@ -61,7 +61,7 @@ data class SceneComposition(
     val heightPx: Float,
     /** Where altitude 0° sits, and where the distant ridge line is anchored. */
     val horizonY: Float,
-    /** Where the solid ground band starts. Between [horizonY] and here is the ridge/mist shelf. */
+    /** Where the solid ground band starts. Between [horizonY] and here is the ridge band. */
     val groundTopY: Float,
     val farRidgeAmplitude: Float,
     val midRidgeAmplitude: Float

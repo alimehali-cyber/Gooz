@@ -28,7 +28,7 @@ interface SkyProjection {
 
     /**
      * Pixel row where altitude 0° sits. Layers that need to agree with the horizon — the atmosphere
-     * gradients, the ground band, the mist shelf — read it from here instead of assuming a fraction, so a
+     * gradients, the ground band, the ridge lines — read it from here instead of assuming a fraction, so a
      * surface can move its horizon without leaving a stale line behind.
      */
     fun horizonY(width: Float, height: Float): Float = height * HeroSkyProjection.HORIZON_FRACTION

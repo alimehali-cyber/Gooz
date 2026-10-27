@@ -63,8 +63,8 @@ renderer) was not used: the Home sky is a Compose `Canvas`, not a GL renderer, a
 integration the file designs for exactly this situation.
 
 **What did not change:** the Compose ground band ([`SceneGroundRenderer`](HOME_SKY_SCENE.md)) is
-painted underneath the GL stone — far ridge, mist shelf, mid ridge, ground, grass — because it is
-the monuments' environment: the ridges and mist are their distance backdrop, and the field below
+painted underneath the GL stone — far ridge, mid ridge, ground, grass — because it is
+the monuments' environment: the ridges are their distance backdrop, and the field below
 their feet is the foreground. The fullscreen viewer (`HOME_HERO`/`LandscapeRenderer`), the Live Sky
 backdrop, and the four stylised themes are untouched.
 
@@ -184,20 +184,28 @@ back to front:
   haze colour — at night the same shapes collapse to a moonlit silhouette;
 - **piedmont foothills and alluvial fans** where the massif's gullies debouch, then the
   semi-arid **steppe plain**: dry olive-straw field mosaic (irrigated green against fallow),
-  an irrigation canal with its tree line, and clumped tuft grass — cells sharing lean/height
-  like wind-combed patches, moisture (noise + river distance) driving density and
-  green-vs-straw, filled tapered blades with feathery seed heads in the foreground;
-- a **widened Pulvar river** the viewer stands across from: layered water (damp wet-bank
-  fringe, shallow edges with the bed and pebbles showing, sky reflection, a deep thalweg
-  hugging each outer bank, gravel point bars inside the bends, flow ripples), reed clumps
-  with plumes, broken reflections of the foreground trees — and a broad Fresnel sheen plus
-  stochastically thinned glitter (with rare star sparkles) concentrated in the real Sun's
-  reflection column by day (the Moon's, scaled by its illumination, at night);
-- sparse **pistachio/almond scrub and three trees** (one lone tree in the open gap between
-  the sites, two on the near bank) grown by 2D space colonization (Runions–Lane–Prusinkiewicz)
-  with da Vinci pipe-model branch radii — real emergent branching and hollow-hearted crowns
-  instead of blob canopies — cached once, shadowed away from the Sun with a golden-hour
-  backlit rim, never inside the monuments' clearings.
+  an irrigation canal with its tree line, and a three-band **batched grass system** built on
+  the production recipe (Ghost-of-Tsushima/GodotGrass class): true Voronoi clumps sharing
+  height/lean/dryness/density softened at their borders, tapered blades along a cubic-Bézier
+  bend profile with ground-tinted AO roots and backlit tips, a ground-cover carpet plus
+  thousands of micro-blades at range, and real steppe species in the foreground — *Stipa*
+  feather grass with fans of silky awns, nodding *Bromus* panicles, broad riparian tufts,
+  dry litter and sparse forbs — all batched into ~10 draw calls, moisture-driven
+  (noise + river + canal), never in the water or the clearings;
+- a **broad Pulvar river** (≈3.8× the first stream) the viewer stands across from: layered
+  water (damp wet-bank fringe, shallow edges with the bed and pebbles showing, sky
+  reflection, a deep thalweg hugging each outer bank, gravel point bars inside the bends,
+  flow ripples), reed clumps with plumes, broken reflections of the foreground trees — and a
+  broad Fresnel sheen plus stochastically thinned glitter (with rare star sparkles)
+  concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
+  illumination, at night);
+- a **pistachio parkland of 28 trees** (riparian gallery, canal line, foothill woodland,
+  scattered plain trees, near-bank foreground trees, the lone tree between the sites) plus
+  pistachio scrub and silver-grey *Artemisia* sage, grown by 2D space colonization
+  (Runions–Lane–Prusinkiewicz) with da Vinci pipe-model branch radii and leaf-cluster-dab
+  foliage — real emergent branching and hollow-hearted crowns instead of blob canopies —
+  cached once with height-based LOD, shadowed away from the Sun with a golden-hour backlit
+  rim, never in the worn earth at the monuments' feet.
 
 The composition was tuned visually in `tools/persepolis/render_framing_preview.py`, which mirrors
 the same profile algorithms over the exact framing (the diagram at the top of this file). The
@@ -240,6 +248,10 @@ both sites back into the living plain.
 - Per-repaint cost is the file's own: two shader programs drawing their static ≤60 k-vertex VBO
   chunks, on demand. At idle that is one frame per 15 s model bucket; the surface does no work
   between light changes.
+- **Splash gate.** The one-shot splash is only a Compose overlay over the already-composed
+  Home scene, and a z-order-on-top surface composites above the entire window — the relief
+  used to show through the splash. `MainActivity` now provides `LocalSplashActive`, and
+  `HeroSkyCanvas` does not compose `PersepolisLandscape` until the splash completes.
 
 ### Known trade-offs (honest list)
 

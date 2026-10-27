@@ -341,4 +341,75 @@ internal object LandscapeProfile {
     }
 
     private const val MAX_NODES = 420
+
+    /**
+     * Shared traits of one Voronoi grass clump (the Ghost-of-Tsushima lesson: fields are
+     * not random blade-by-blade, they are *clumpy* — soil and moisture make whole patches
+     * share height, lean, dryness and density). [edge01] is 0 at a clump border and 1 deep
+     * inside, so callers can soften traits toward neutral at borders instead of showing
+     * hard Voronoi seams.
+     */
+    data class GrassClump(
+        val heightMul: Float,
+        val lean: Float,
+        val dryness01: Float,
+        val density01: Float,
+        val edge01: Float
+    )
+
+    /**
+     * The clump at horizontal fraction [xFrac] (0..1 across the scene) and ground [depth]
+     * (0 at the horizon line, 1 at the viewer's feet): nearest centre of a jittered-grid
+     * Voronoi (3×3 search), traits hashed from that centre, edge factor from F2 − F1.
+     * Deterministic per [seed]; nearby points in the same cell get identical traits.
+     */
+    fun grassClump(xFrac: Float, depth: Float, seed: Int): GrassClump {
+        val cellW = 0.055f
+        val cellD = 0.085f
+        val gx = (xFrac / cellW).toInt()
+        val gy = (depth / cellD).toInt()
+        var f1 = Float.MAX_VALUE
+        var f2 = Float.MAX_VALUE
+        var bestIndex = 0
+        for (cy in gy - 1..gy + 1) {
+            for (cx in gx - 1..gx + 1) {
+                val index = cx + cy * 64
+                val jx = (cx + 0.5f + (hash01(seed, index * 3 + 1) - 0.5f) * 0.84f) * cellW
+                val jy = (cy + 0.5f + (hash01(seed, index * 5 + 2) - 0.5f) * 0.84f) * cellD
+                val dx = xFrac - jx
+                val dy = depth - jy
+                val d = dx * dx + dy * dy
+                if (d < f1) {
+                    f2 = f1
+                    f1 = d
+                    bestIndex = index
+                } else if (d < f2) {
+                    f2 = d
+                }
+            }
+        }
+        val edge = ((sqrt(f2) - sqrt(f1)) / (cellW * 0.9f)).coerceIn(0f, 1f)
+        return GrassClump(
+            heightMul = 0.70f + 0.65f * hash01(seed + 7, bestIndex * 11 + 3),
+            lean = (hash01(seed + 13, bestIndex * 17 + 5) - 0.5f) * 1.1f,
+            dryness01 = hash01(seed + 19, bestIndex * 23 + 7),
+            density01 = hash01(seed + 29, bestIndex * 31 + 9),
+            edge01 = edge
+        )
+    }
+
+    /**
+     * Lateral bend profile of one grass blade: fraction of the tip's total lean reached at
+     * height fraction [t], as a cubic Bézier blend. [stiffness] 0 = supple (bend comes
+     * late, mostly near the tip — dry wiry blades), 1 = stiff (bend distributed from the
+     * base — lush blades). Monotonic in [t], 0 at the root, 1 at the tip.
+     */
+    fun bladeBendX(t: Float, stiffness: Float): Float {
+        val tt = t.coerceIn(0f, 1f)
+        val s = stiffness.coerceIn(0f, 1f)
+        val c1 = 0.08f + 0.30f * s
+        val c2 = 0.45f + 0.35f * s
+        val u = 1f - tt
+        return 3f * u * u * tt * c1 + 3f * u * tt * tt * c2 + tt * tt * tt
+    }
 }

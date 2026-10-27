@@ -158,6 +158,53 @@ class LandscapeProfileTest {
     }
 
     @Test
+    fun grassClumpsAreDeterministicSharedAndBounded() {
+        val a = LandscapeProfile.grassClump(0.30f, 0.62f, seed = 517)
+        assertEquals(a, LandscapeProfile.grassClump(0.30f, 0.62f, seed = 517))
+        // Two blades a hair apart almost always share their clump's traits exactly —
+        // that patchiness is the entire point (measured over many sample pairs).
+        var shared = 0
+        val pairs = 120
+        for (i in 0 until pairs) {
+            val x = (i * 37 % 97) / 97f + 0.01f
+            val d = (i * 53 % 89) / 89f + 0.01f
+            val p = LandscapeProfile.grassClump(x, d, seed = 517)
+            val q = LandscapeProfile.grassClump(x + 0.004f, d + 0.004f, seed = 517)
+            if (p.heightMul == q.heightMul && p.lean == q.lean) shared++
+            assertTrue("heightMul bounded", p.heightMul in 0.7f..1.35f)
+            assertTrue("lean bounded", p.lean in -0.55f..0.55f)
+            assertTrue("dryness bounded", p.dryness01 in 0f..1f)
+            assertTrue("density bounded", p.density01 in 0f..1f)
+            assertTrue("edge bounded", p.edge01 in 0f..1f)
+        }
+        assertTrue("neighbours usually share a clump ($shared/$pairs)", shared > pairs * 2 / 3)
+        // And distant patches genuinely differ somewhere.
+        val far = LandscapeProfile.grassClump(0.85f, 0.20f, seed = 517)
+        assertTrue("clumps vary across the plain", far != a)
+    }
+
+    @Test
+    fun bladeBendIsMonotonicRootedAndTipExact() {
+        for (stiffness in listOf(0f, 0.35f, 0.7f, 1f)) {
+            assertEquals(0f, LandscapeProfile.bladeBendX(0f, stiffness), 1e-6f)
+            assertEquals(1f, LandscapeProfile.bladeBendX(1f, stiffness), 1e-6f)
+            var prev = 0f
+            var t = 0.05f
+            while (t <= 1.001f) {
+                val v = LandscapeProfile.bladeBendX(t.coerceAtMost(1f), stiffness)
+                assertTrue("bend monotonic (s=$stiffness t=$t)", v >= prev - 1e-6f)
+                assertTrue("bend bounded (s=$stiffness t=$t)", v in 0f..1f)
+                prev = v
+                t += 0.05f
+            }
+        }
+        // A stiff blade has bent further by mid-height than a supple one.
+        assertTrue(
+            LandscapeProfile.bladeBendX(0.5f, 1f) > LandscapeProfile.bladeBendX(0.5f, 0f)
+        )
+    }
+
+    @Test
     fun foothillHeightsAreSmoothComparedToTheMassif() {
         val envelope = floatArrayOf(0f, 0.7f, 0.5f, 1f, 1f, 0.5f)
         val foothills = LandscapeProfile.foothillHeights(80, 26f, envelope, seed = 77)

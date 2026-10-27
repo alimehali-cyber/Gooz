@@ -166,6 +166,12 @@ class MainActivity : ComponentActivity() {
                         com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassConfig provides uiState.liquidGlassConfig,
                         com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides backdrop
                     ) {
+                      // Z-order-on-top SurfaceViews (the Persepolis GL relief) composite above
+                      // the whole window and would punch through the Compose splash overlay
+                      // below; LocalSplashActive keeps them uncomposed until it completes.
+                      CompositionLocalProvider(
+                        com.alijafari.red.astronomy.ui.components.LocalSplashActive provides showSplashScreen
+                      ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -392,6 +398,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                      }
                 }
             }
         }

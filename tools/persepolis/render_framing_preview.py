@@ -9,9 +9,10 @@ file's element tables, plus the Mil-e Azhdaha tower and the nine fixed
 sheets of its limestone slope, as flat-shaded blocks — projected through
 the model's own fixed camera (verify_framing.projector) with
 PersepolisFraming's numbers, over the Home scene's Marvdasht ground stack
-(far Zagros range, mist, folded Kuh-e Rahmat massif with benches/water-gap/
+(far Zagros range, folded Kuh-e Rahmat massif with benches/water-gap/
 talus, steppe plain, the localized earthwork around both footprints,
-widened layered Pulvar river, space-colonization trees, clumped tuft grass)
+broad layered Pulvar river, space-colonization tree parkland, three-band
+batched grass with Voronoi clumps and steppe species)
 replicated from SceneGroundRenderer — the python profile functions below
 mirror LandscapeProfile.kt and are where the composition was tuned.
 It exists so the composition can be eyeballed — Persepolis at half size in
@@ -372,7 +373,7 @@ def main():
         d.line([(0, y), (W, y)], fill=c)
 
     # Marvdasht photographic ground prototype (SceneGroundRenderer's
-    # photographic path): far Zagros range -> mist -> steppe plain ->
+    # photographic path): far Zagros range -> steppe plain ->
     # Kuh-e Rahmat massif -> piedmont foothills + alluvial fans -> field
     # mosaic. Sunset schematic: sun low at the left.
     SUN_SIGN, SUN_X = -1.0, 0.22 * W
@@ -385,13 +386,9 @@ def main():
     draw_mountain(d, far_samples, far_base, lit=(126, 108, 140), shade=(94, 84, 116),
                   haze=(240, 170, 118), haze_amt=0.50, sun_sign=SUN_SIGN, facet=0.32,
                   seed=3, cap=0.25)
-    mist = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    md = ImageDraw.Draw(mist)
-    top, bot = HORIZON_Y - H * 0.055, HORIZON_Y + H * 0.045
-    for y in range(int(top), int(bot)):
-        a = int(80 * math.sin(math.pi * (y - top) / (bot - top)))
-        md.line([(0, y), (W, y)], fill=(244, 196, 150, a))
-    img = Image.alpha_composite(img.convert("RGBA"), mist).convert("RGB")
+    # (No horizon mist shelf — removed in the renderer: it read as a white band
+    # across the canvas at the readout's day/date line.)
+    img = img.convert("RGB")
     d = ImageDraw.Draw(img, "RGBA")
     # Semi-arid steppe plain (dry olive-straw, darkening to the viewer).
     for y in range(int(GROUND_TOP), H):
@@ -618,7 +615,7 @@ def main():
             )
 
     # --- Pulvar foreground stream + vegetation (prototype) -------------------
-    river_y = min(max(FRAMING["mil_slope_front_y"] + H * 0.055, H * 0.885), H * 0.94)
+    river_y = min(max(FRAMING["mil_slope_front_y"] + H * 0.062, H * 0.895), H * 0.945)
     def river_p(x):
         return min(max((x + 20) / (W + 40), 0.0), 1.0)
 
@@ -631,7 +628,7 @@ def main():
         p = river_p(x)
         depth = min(max((y / H - 0.86) / 0.12, 0.0), 1.0)
         pool = 1.0 + 0.45 * max(0.0, math.sin(p * 4.6 + 2.0))  # wider pools at bends
-        return H * (0.0105 + 0.0125 * depth) * pool  # ~1.9x the old stream
+        return H * (0.021 + 0.025 * depth) * pool  # ~3.8x the original stream (doubled twice)
 
     def bend(x):  # +1 bulging toward viewer (drives thalweg / point bars)
         return math.sin(river_p(x) * 4.6 + 0.7)
@@ -653,7 +650,7 @@ def main():
     d.polygon(ribbon(1.18), fill=(52, 52, 40, 200))               # wet bank band
     d.polygon(ribbon(1.0), fill=(58, 72, 66))                     # shallow edges: bed showing
     d.polygon(ribbon(0.84), fill=(196, 132, 88, 225))             # sunset sky reflection
-    d.polygon(ribbon(0.30, offset=0.40), fill=(30, 44, 52, 175))  # deep thalweg, outer bank
+    d.polygon(ribbon(0.22, offset=0.45), fill=(30, 44, 52, 140))  # deep thalweg, outer bank
     for i in range(8):  # dark slow water breaking the reflection
         x = W * _hash01(i * 9.7 + 4.4)
         soft_drift(x, river_at(x), W * 0.07, river_halfw(x, river_at(x)) * 1.0,
@@ -735,13 +732,15 @@ def main():
         tree_skeleton(101, aspect=1.30, trunk_fraction=0.36, attractor_count=110, lean=0.03),
         tree_skeleton(202, aspect=1.15, trunk_fraction=0.40, attractor_count=100, lean=-0.02),
         tree_skeleton(303, aspect=1.45, trunk_fraction=0.30, attractor_count=85, lean=0.05),
+        tree_skeleton(505, aspect=1.05, trunk_fraction=0.44, attractor_count=90, lean=0.08),
+        tree_skeleton(606, aspect=1.55, trunk_fraction=0.26, attractor_count=95, lean=-0.06),
     ]
     BUSH_SKELS = [
         tree_skeleton(404 + k * 77, aspect=1.5, trunk_fraction=0.12, attractor_count=46)
         for k in range(3)
     ]
 
-    def draw_skeleton(cx, by, hgt, skel, flip, foliage, seed):
+    def draw_skeleton(cx, by, hgt, skel, flip, foliage, seed, silvery=False):
         sx = -1.0 if flip else 1.0
 
         def P(x, y):
@@ -757,7 +756,10 @@ def main():
             d.line([(p0[0] + wdt * 0.22, p0[1]), (p1[0] + wdt * 0.22, p1[1])],
                    fill=(34, 26, 20), width=wdt)
             d.line([p0, p1], fill=(58, 44, 32), width=wdt)
-        # Foliage clusters at the terminals: shadow core, body, sunlit rim.
+        # Leaf-cluster dabs at the terminals: shadow core, body tones, sun rim.
+        # Silvery = Artemisia sage scrub (grey-green); else pistachio olive.
+        base_dark, base_body, base_rim = ((86, 96, 78), (118, 130, 106), (168, 180, 156)) if silvery \
+            else ((44, 56, 36), (52, 64, 42), (104, 116, 74))
         ci = 0
         for x0, y0, x1, y1, r0, r1, dep, term in skel:
             if not term and dep < 7:
@@ -768,16 +770,25 @@ def main():
             px, py = P(x1, y1)
             cr = hgt * (0.045 + 0.040 * _hash01(seed * 3.7 + ci * 5.1))
             tone = 0.85 + 0.3 * _hash01(seed * 5.3 + ci * 7.7)
-            dark = tuple(int(c * tone * 0.72) for c in (44, 56, 36))
-            body = tuple(int(c * tone) for c in (52, 64, 42))
-            d.ellipse([px - cr + cr * 0.25, py - cr * 0.62 + cr * 0.2,
-                       px + cr + cr * 0.25, py + cr * 0.62 + cr * 0.2], fill=(*dark, 235))
-            d.ellipse([px - cr, py - cr * 0.62, px + cr, py + cr * 0.62], fill=(*body, 240))
-            d.ellipse([px - cr * 0.62 - cr * 0.15, py - cr * 0.72,
-                       px + cr * 0.28 - cr * 0.15, py - cr * 0.18], fill=(104, 116, 74, 130))
+            for dab in range(3):
+                ox = (_hash01(seed * 9.7 + ci * 3.1 + dab * 0.7) - 0.5) * cr * 1.15
+                oy = (_hash01(seed * 8.9 + ci * 3.7 + dab * 1.1) - 0.5) * cr * 0.75
+                r = cr * (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
+                if dab == 0:
+                    col, sx_ = tuple(int(c * tone * 0.72) for c in base_dark), cr * 0.2
+                    alpha = 235
+                elif dab == 2:
+                    col, sx_ = base_rim, -cr * 0.15  # sun at left in this schematic
+                    alpha = 140
+                else:
+                    col, sx_ = tuple(int(c * tone) for c in base_body), 0.0
+                    alpha = 240
+                d.ellipse([px + ox + sx_ - r, py + oy - r * 0.62,
+                           px + ox + sx_ + r, py + oy + r * 0.62], fill=(*col, alpha))
 
     def bush(cx, by, s, idx):
-        draw_skeleton(cx, by, s * 2.1, BUSH_SKELS[idx % 3], idx % 2 == 0, 0.62, seed=idx * 3 + 1)
+        draw_skeleton(cx, by, s * 2.1, BUSH_SKELS[idx % 3], idx % 2 == 0, 0.62,
+                      seed=idx * 3 + 1, silvery=(idx % 3 == 1))
 
     for i in range(16):  # scrub: foothills + plain, depth-scaled
         x = W * _hash01(i * 19.7 + 3.3)
@@ -785,58 +796,203 @@ def main():
             y, s = TOE_Y - H * 0.004 + H * 0.010 * _hash01(i * 3.9), 6 + 5 * _hash01(i * 7.1)
         else:
             y = H * (0.90 + 0.075 * _hash01(i * 5.3))
-            if abs(y - river_at(x)) < H * 0.02:
+            yc = river_at(x)
+            if abs(y - yc) < river_halfw(x, yc) * 1.30:
                 continue
             s = 10 + 12 * _hash01(i * 7.1)
         bush(x, y, s, i)
-    # Lone pistachio in the gap; two foreground trees on the near bank.
-    draw_skeleton((plat_r + slope_l) / 2, TOE_Y + H * 0.020, H * 0.040, TREE_SKELS[2], False, 0.9, seed=7)
-    draw_skeleton(W * 0.115, river_at(W * 0.115) + H * 0.034, H * 0.068, TREE_SKELS[0], False, 0.95, seed=11)
-    draw_skeleton(W * 0.875, river_at(W * 0.875) + H * 0.036, H * 0.058, TREE_SKELS[1], True, 0.95, seed=13)
-    # Steppe grass in clumped tufts: shared lean/colour per cell (Ghost-of-Tsushima
-    # clumping), curved blades, moisture from noise + river distance driving density
-    # and green-vs-straw, filled tapered blades with seed heads in the foreground.
-    def blade_pts(bx, by, bh, lean):
-        return [(bx + lean * bh * (t ** 1.7), by - bh * t) for t in (0, .3, .55, .8, 1.0)]
+    # Lone pistachio in the gap; foreground trees on the near bank (bases from the
+    # widened river's actual edge).
+    def near_bank_y(x):
+        return river_at(x) + river_halfw(x, river_at(x)) * 1.35 + H * 0.006
 
-    for i in range(190):
-        x = W * _hash01(i * 23.9 + 1.7)
-        depth = _hash01(i * 17.3 + 8.8) ** 1.35
+    draw_skeleton((plat_r + slope_l) / 2, TOE_Y + H * 0.020, H * 0.040, TREE_SKELS[2], False, 0.9, seed=7)
+    draw_skeleton(W * 0.115, near_bank_y(W * 0.115), H * 0.068, TREE_SKELS[0], False, 0.95, seed=11)
+    draw_skeleton(W * 0.875, near_bank_y(W * 0.875), H * 0.058, TREE_SKELS[1], True, 0.95, seed=13)
+    # 25 more trees: riparian gallery, canal line, foothill woodland, plain, near bank.
+    def in_apron(x, y):
+        return ((plat_l - W * 0.030 <= x <= plat_r + W * 0.105 and y < TOE_Y + H * 0.095) or
+                (x > slope_l - W * 0.065 and y < FRAMING["mil_slope_front_y"] + H * 0.095))
+
+    def plant(x, y, hgt, idx):
+        if in_apron(x, y) and y < TOE_Y + H * 0.038:
+            return
+        yc = river_at(x)
+        if abs(y - yc) < river_halfw(x, yc) * 1.22:
+            return
+        draw_skeleton(x, y, hgt, TREE_SKELS[idx % len(TREE_SKELS)], idx % 2 == 1,
+                      0.82 + 0.15 * _hash01(idx * 7.01), seed=idx * 7 + 3)
+
+    for i in range(9):
+        x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
+        y = river_at(x) - river_halfw(x, river_at(x)) * (1.45 + 0.30 * _hash01(i * 5.2 + 6.03))
+        plant(x, y, H * (0.030 + 0.018 * _hash01(i * 7.3 + 6.07)), 100 + i)
+    for i in range(6):
+        x = W * (0.08 + 0.84 * (i + _hash01(i * 3.3 + 6.13)) / 6)
+        y = canal_y - H * 0.004 + (x / W) * H * 0.010
+        plant(x, y, H * (0.020 + 0.012 * _hash01(i * 5.7 + 6.17)), 120 + i)
+    for i in range(6):
+        x = W * _hash01(i * 11.5 + 6.19)
+        y = TOE_Y + H * (0.006 + 0.024 * _hash01(i * 7.2 + 6.31))
+        plant(x, y, H * (0.022 + 0.012 * _hash01(i * 3.3 + 6.33)), 140 + i)
+    for i in range(4):
+        x = W * (0.10 + 0.80 * _hash01(i * 13.7 + 6.41))
+        y = H * (0.855 + 0.045 * _hash01(i * 5.3 + 6.43))
+        plant(x, y, H * (0.026 + 0.014 * _hash01(i * 7.7 + 6.47)), 160 + i)
+    for j, xf in enumerate((0.34, 0.63)):
+        x = W * (xf + (_hash01(j * 3.3 + 6.53) - 0.5) * 0.03)
+        plant(x, near_bank_y(x), H * (0.050 + 0.012 * _hash01(j * 5.5 + 6.57)), 180 + j)
+    # Grass v3 mirror (simplified): carpet colour field + true Voronoi clumps +
+    # cubic-Bezier blades in three bands + Stipa/Bromus/riparian hero species.
+    def blade_bend(t, stiff):
+        c1 = 0.08 + 0.30 * stiff
+        c2 = 0.45 + 0.35 * stiff
+        u = 1 - t
+        return 3 * u * u * t * c1 + 3 * u * t * t * c2 + t ** 3
+
+    def grass_clump(xf, depth):
+        cw, cd_ = 0.055, 0.085
+        gx, gy = int(xf / cw), int(depth / cd_)
+        f1 = f2 = 1e9
+        best = 0
+        for cy in range(gy - 1, gy + 2):
+            for cx in range(gx - 1, gx + 2):
+                idx = cx + cy * 64
+                jx = (cx + 0.5 + (_hash01(idx * 3.17 + 5.17) - 0.5) * 0.84) * cw
+                jy = (cy + 0.5 + (_hash01(idx * 5.23 + 5.23) - 0.5) * 0.84) * cd_
+                dd = (xf - jx) ** 2 + (depth - jy) ** 2
+                if dd < f1:
+                    f2, f1, best = f1, dd, idx
+                elif dd < f2:
+                    f2 = dd
+        edge = min(max((math.sqrt(f2) - math.sqrt(f1)) / (cw * 0.9), 0.0), 1.0)
+        return (0.70 + 0.65 * _hash01(best * 11.3 + 7.3), (_hash01(best * 17.7 + 13.5) - .5) * 1.1,
+                _hash01(best * 23.9 + 19.7), _hash01(best * 31.3 + 29.9), edge)
+
+    def g_allowed(x, y):
+        if in_apron(x, y):
+            return False
+        yc = river_at(x)
+        return abs(y - yc) >= river_halfw(x, yc) * 1.26
+
+    def g_moist(x, y, depth):
+        yc = river_at(x)
+        m = 0.5 + 0.5 * fbm1(x / W * 4.2 + depth * 1.7, 91, 3)
+        m += max(0.0, 1.0 - abs(y - yc) / (river_halfw(x, yc) * 2.6 + H * 0.008)) * 0.5
+        cy = canal_y - H * 0.004 + (x / W) * H * 0.010
+        m += max(0.0, 1.0 - abs(y - cy) / (H * 0.018)) * 0.35
+        return min(m, 1.0)
+
+    def bpt(bx, by, bh, lean, stiff, t):
+        return (bx + lean * bh * blade_bend(t, stiff), by - bh * t * (1 - 0.10 * t * abs(lean)))
+
+    ROOT_DRY, TIP_DRY = (74, 58, 30), (196, 164, 104)
+    ROOT_GRN, TIP_GRN = (38, 52, 26), (126, 148, 85)
+    for i in range(70):  # carpet colour field
+        x = W * _hash01(i * 13.3 + 8.11)
+        depth = _hash01(i * 17.5 + 8.09) ** 1.25
         y = GROUND_TOP + (H - GROUND_TOP) * depth
-        if abs(y - river_at(x)) < river_halfw(x, y) * 1.3:
+        if not g_allowed(x, y):
             continue
-        moist = 0.5 + 0.5 * fbm1(x / W * 5.0 + depth * 2.0, 91, 3)
-        moist += max(0.0, 1.0 - abs(y - river_at(x)) / (H * 0.055)) * 0.45
-        moist = min(moist, 1.0)
-        if _hash01(i * 41.7) > 0.20 + 0.80 * moist:
+        moist = g_moist(x, y, depth)
+        soft_drift(x, y, W * (0.10 + 0.10 * _hash01(i * 7.3 + 8.13)), H * (0.010 + 0.016 * depth),
+                   peak_alpha=0.15, layers=6, rgb=TIP_GRN if moist > 0.52 else TIP_DRY)
+
+    def stroke_blade(bx, by, bh, lean, stiff, dry):
+        root, tip = (ROOT_DRY, TIP_DRY) if dry else (ROOT_GRN, TIP_GRN)
+        pts = [bpt(bx, by, bh, lean, stiff, t) for t in (0, .28, .52, .76, 1.0)]
+        d.line(pts[:3], fill=(*root, 200), width=2)
+        d.line(pts[2:], fill=(*tip, 190), width=2)
+
+    for i in range(900):  # far micro-blades
+        x = W * _hash01(i * 13.7 + 8.21)
+        depth = 0.46 * _hash01(i * 17.3 + 8.23) ** 1.15
+        y = GROUND_TOP + (H - GROUND_TOP) * depth
+        if not g_allowed(x, y):
             continue
-        cell = int(x / (W * 0.045)) * 7 + int(depth * 9) * 131
-        clump_lean = (_hash01(cell * 1.31) - 0.5) * 0.55
-        clump_h = 0.75 + 0.5 * _hash01(cell * 2.17)
-        blades = 4 + int(5 * _hash01(i * 7.9))
+        moist = g_moist(x, y, depth)
+        hm, cl, dryn, dens, edge = grass_clump(x / W, depth)
+        if _hash01(i * 19.9 + 8.27) > (0.18 + 0.82 * moist) * (0.30 + 0.70 * dens):
+            continue
+        soft = 0.45 + 0.55 * edge
+        bh = H * (0.0035 + 0.010 * depth) * (1 + (hm - 1) * soft) * (0.75 + 0.5 * _hash01(i * 23.7 + 8.29))
+        lean = cl * soft + (_hash01(i * 29.1 + 8.31) - 0.5) * 0.5
+        drymix = 0.5 * (1 - moist) + 0.5 * dryn
+        stroke_blade(x, y, bh, lean, 0.25 + 0.45 * (1 - drymix), drymix > 0.5)
+    for i in range(380):  # mid tufts
+        x = W * _hash01(i * 13.1 + 8.39)
+        depth = 0.30 + 0.62 * _hash01(i * 17.7 + 8.43)
+        y = GROUND_TOP + (H - GROUND_TOP) * depth
+        if not g_allowed(x, y):
+            continue
+        moist = g_moist(x, y, depth)
+        hm, cl, dryn, dens, edge = grass_clump(x / W, depth)
+        if _hash01(i * 19.3 + 8.53) > (0.22 + 0.78 * moist) * (0.35 + 0.65 * dens):
+            continue
+        soft = 0.45 + 0.55 * edge
+        drymix = 0.5 * (1 - moist) + 0.5 * dryn
+        for b in range(5 + int(5 * _hash01(i * 11.1 + 8.57))):
+            bx = x + (_hash01(i * 101 + b * 37 + 8.59) - 0.5) * W * 0.011
+            bh = H * (0.005 + 0.013 * depth) * (1 + (hm - 1) * soft) * (0.7 + 0.6 * _hash01(i * 57 + b * 19 + 8.63))
+            lean = cl * soft + (_hash01(i * 67 + b * 23 + 8.67) - 0.5) * 0.55
+            stroke_blade(bx, y, bh, lean, 0.25 + 0.45 * (1 - drymix), drymix > 0.5)
+    for i in range(110):  # hero tufts on the near strip
+        x = W * _hash01(i * 13.3 + 8.77)
+        depth = 0.84 + 0.16 * _hash01(i * 17.1 + 8.81)
+        y = GROUND_TOP + (H - GROUND_TOP) * depth
+        if not g_allowed(x, y):
+            continue
+        moist = g_moist(x, y, depth)
+        hm, cl, dryn, dens, edge = grass_clump(x / W, depth)
+        if _hash01(i * 19.7 + 8.83) > (0.30 + 0.70 * moist) * (0.40 + 0.60 * dens):
+            continue
+        soft = 0.45 + 0.55 * edge
+        drymix = 0.5 * (1 - moist) + 0.5 * dryn
+        stiff = 0.22 + 0.50 * (1 - drymix)
+        soft_drift(x, y, H * 0.034, H * 0.008, peak_alpha=0.2, layers=5, rgb=(10, 12, 6))
+        pick = _hash01(i * 3.3 + 8.87)
+        species = 2 if moist > 0.62 else (0 if drymix > 0.58 and pick < 0.55 else (1 if pick < 0.82 else 2))
+        fillc = lerp(ROOT_DRY, TIP_DRY, 0.45) if drymix > 0.5 else lerp(ROOT_GRN, TIP_GRN, 0.45)
+        ribc = TIP_DRY if drymix > 0.5 else TIP_GRN
+        blades = 7 + int(5 * _hash01(i * 11.3 + 8.89))
         for b in range(blades):
-            bx = x + (_hash01(i * 101 + b * 37) - 0.5) * W * 0.010
-            bh = H * (0.004 + 0.015 * depth) * clump_h * (0.7 + 0.6 * _hash01(i * 57 + b * 19))
-            lean = clump_lean + (_hash01(i * 67 + b * 23) - 0.5) * 0.5
-            dry = 1.0 - moist
-            base_c = lerp((52, 64, 38), (96, 80, 48), dry)
-            tip_c = lerp((110, 128, 76), (186, 156, 102), dry)
-            if depth < 0.55:
-                d.line(blade_pts(bx, y, bh, lean), fill=(*lerp(base_c, tip_c, 0.5), 120), width=2)
-            else:
-                wdt = max(1.6, bh * 0.07)
-                left = [(px - wdt * (1 - t) / 2, py) for (px, py), t in
-                        zip(blade_pts(bx, y, bh, lean), (0, .3, .55, .8, 1.0))]
-                right = [(px + wdt * (1 - t) / 2, py) for (px, py), t in
-                         zip(reversed(blade_pts(bx, y, bh, lean)), (1.0, .8, .55, .3, 0))]
-                d.polygon(left + right, fill=(*lerp(base_c, tip_c, 0.45), 190))
-                if b == 0 and depth > 0.7:  # feathery seed head (Stipa-like)
-                    tx, ty = blade_pts(bx, y, bh, lean)[-1]
-                    d.ellipse([tx - bh * 0.035, ty - bh * 0.16, tx + bh * 0.035, ty + bh * 0.05],
-                              fill=(204, 176, 128, 170))
-                    for awn in (-0.5, 0.0, 0.5):
-                        d.line([(tx, ty - bh * 0.08), (tx + awn * bh * 0.16, ty - bh * 0.30)],
-                               fill=(214, 188, 142, 120), width=1)
+            bx = x + (_hash01(i * 101 + b * 37 + 8.93) - 0.5) * W * 0.012
+            bh = H * (0.012 + 0.016 * depth) * (1 + (hm - 1) * soft) * (0.72 + 0.55 * _hash01(i * 57 + b * 19 + 8.99))
+            if species == 0 and b < 2:
+                bh *= 1.3
+            lean = cl * soft + (_hash01(i * 67 + b * 23 + 9.01) - 0.5) * 0.6
+            if species == 0:
+                lean += (b - blades / 2) * 0.07
+            wdt = max(1.6, bh * (0.11 if species == 2 else 0.08))
+            ts = (0, .2, .4, .6, .8, 1.0)
+            pts = [bpt(bx, y, bh, lean, stiff, t) for t in ts]
+            left = [(px - wdt * (1 - t) / 2, py) for (px, py), t in zip(pts, ts)]
+            right = [(px + wdt * (1 - t) / 2, py) for (px, py), t in zip(reversed(pts), reversed(ts))]
+            d.polygon(left + right, fill=(*fillc, 215))
+            d.line([pts[1], pts[3], pts[5]], fill=(*ribc, 160), width=1)
+            tip = pts[5]
+            if b < 2 and species == 0:  # Stipa awn fan
+                for a in range(5):
+                    spread = (a - 2) * 0.13
+                    ln = bh * 0.5
+                    d.line([tip, (tip[0] + spread * ln * 0.5, tip[1] - ln * 0.55),
+                            (tip[0] + spread * ln, tip[1] - ln)], fill=(216, 192, 150, 150), width=1)
+            elif b < 2 and species == 1:  # Bromus nodding panicle
+                for a in range(4):
+                    dx = (a - 1.5) * bh * 0.055
+                    top = tip[1] - bh * (0.05 + 0.04 * (3 - a))
+                    d.line([tip, (tip[0] + dx, top), (tip[0] + dx * 1.4, top + bh * 0.07)],
+                           fill=(168, 132, 94, 190), width=2)
+    for i in range(200):  # dry litter
+        x = W * _hash01(i * 13.9 + 9.29)
+        depth = 0.3 + 0.7 * _hash01(i * 17.3 + 9.31)
+        y = GROUND_TOP + (H - GROUND_TOP) * depth
+        if not g_allowed(x, y):
+            continue
+        if grass_clump(x / W, depth)[2] < 0.45:
+            continue
+        ln = H * (0.004 + 0.008 * depth)
+        d.line([(x, y), (x + ln, y - ln * 0.08)], fill=(*TIP_DRY, 110), width=2)
     soft_drift(W * 0.02, H * 1.0, W * 0.5, H * 0.07, peak_alpha=0.14, layers=10, rgb=(8, 10, 6))
     soft_drift(W * 0.98, H * 1.0, W * 0.5, H * 0.07, peak_alpha=0.14, layers=10, rgb=(8, 10, 6))
 
