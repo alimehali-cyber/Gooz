@@ -173,21 +173,31 @@ Kuh-e Rahmat, near the Pulvar River, encircled by southern Zagros ranges — so 
 back to front:
 
 - a **far Zagros range** and the **Kuh-e Rahmat wall** as domain-warped ridged-multifractal
-  skylines (Musgrave `(1−|noise|)²` with ridge-weighted detail), shaped by envelopes that keep a
-  low shoulder behind the ruins/readout and swell to the great crest backing the tower. Each
-  range is facet-shaded from its profile slope against the *actual* Sun's screen side, with a
-  whisper of folded-strata banding, erosion gullies, a crest catch-light, and depth-graded
-  aerial perspective into the scene's haze colour — at night the same shapes collapse to a
-  moonlit silhouette;
+  skylines (Musgrave `(1−|noise|)²` with ridge-weighted detail) given fold-and-thrust geology:
+  soft bedrock benching (hard limestone beds terrace, marl washes smooth), a carved water-gap
+  notch whose alluvial fan spills out below it, strata dipping away from the fold hinge in a
+  chevron, pale hard-limestone caprock on the crests, talus cones at the angle of repose under
+  the steepest faces, desert-varnish streaks on the cliffs, and envelopes that keep a low
+  shoulder behind the ruins/readout while the whaleback crest swells behind the tower. Each
+  range is facet-shaded from its profile slope against the *actual* Sun's screen side, with
+  erosion gullies, a crest catch-light, and depth-graded aerial perspective into the scene's
+  haze colour — at night the same shapes collapse to a moonlit silhouette;
 - **piedmont foothills and alluvial fans** where the massif's gullies debouch, then the
   semi-arid **steppe plain**: dry olive-straw field mosaic (irrigated green against fallow),
-  an irrigation canal with its tree line, and noise-masked steppe grass speckle;
-- a **Pulvar foreground stream** the viewer stands across from: meandering ribbon with bend
-  pools, sky reflection broken by dark slow water, gravel/vegetated banks, reeds — and broken
-  glitter concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
-  illumination, at night);
-- sparse **pistachio scrub and three trees** (one lone tree in the open gap between the sites,
-  two on the near bank), shadowed away from the Sun, never inside the monuments' clearings.
+  an irrigation canal with its tree line, and clumped tuft grass — cells sharing lean/height
+  like wind-combed patches, moisture (noise + river distance) driving density and
+  green-vs-straw, filled tapered blades with feathery seed heads in the foreground;
+- a **widened Pulvar river** the viewer stands across from: layered water (damp wet-bank
+  fringe, shallow edges with the bed and pebbles showing, sky reflection, a deep thalweg
+  hugging each outer bank, gravel point bars inside the bends, flow ripples), reed clumps
+  with plumes, broken reflections of the foreground trees — and a broad Fresnel sheen plus
+  stochastically thinned glitter (with rare star sparkles) concentrated in the real Sun's
+  reflection column by day (the Moon's, scaled by its illumination, at night);
+- sparse **pistachio/almond scrub and three trees** (one lone tree in the open gap between
+  the sites, two on the near bank) grown by 2D space colonization (Runions–Lane–Prusinkiewicz)
+  with da Vinci pipe-model branch radii — real emergent branching and hollow-hearted crowns
+  instead of blob canopies — cached once, shadowed away from the Sun with a golden-hour
+  backlit rim, never inside the monuments' clearings.
 
 The composition was tuned visually in `tools/persepolis/render_framing_preview.py`, which mirrors
 the same profile algorithms over the exact framing (the diagram at the top of this file). The
@@ -196,7 +206,7 @@ stylised themes keep the older flat ground band untouched.
 Within that landscape, a transparent overlay would still end on a hard line unless the host paints
 the contact. `SkySceneRenderer` passes the full framing to
 `SceneGroundRenderer.drawCombinedLandscapeGrounding`, which paints **two separate worn
-clearings** in the middle of the stack (after the plain, before the stream):
+clearings** in the middle of the stack (after the plain, before the river):
 
 - an **irregular Persepolis apron** around the cut-back platform, with wavy edges and both vertical
   and horizontal feathering, strongest at the toe and dissolving into the ordinary field;
@@ -215,7 +225,7 @@ were removed. Colours are mixed from the active ground palette toward sand and s
 `LightingState.ambientBrightness`, so the patch follows the terrain's warmth and brightness and
 vanishes into astronomical night with it. Exact projection puts the forecourt front edge 0.6–1.3 dp
 above the toe row and the slope front inside the contact-shadow band on every tested size. The
-stream, scrub and steppe speckle then paint over the foreground tails of the clearings, tying
+river, scrub and tuft grass then paint over the foreground tails of the clearings, tying
 both sites back into the living plain.
 
 ## 4. Lifecycle, cost, interaction

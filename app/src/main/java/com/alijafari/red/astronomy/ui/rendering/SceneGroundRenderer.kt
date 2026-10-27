@@ -23,13 +23,17 @@ import kotlin.math.sin
  *  - **Stylised themes** keep the original simple band — two sine ridges, a mist shelf, solid
  *    ground and a grass line — because flat illustration is those themes' whole point.
  *  - **Photographic themes with the Persepolis + Mil-e Azhdaha relief** get the full
- *    Marvdasht landscape ([drawMarvdashtLandscape]): a haze-layered far Zagros range and the
- *    Kuh-e Rahmat limestone wall built from ridged-multifractal profiles with sun-facing
- *    facet shading, piedmont foothills and alluvial fans, a semi-arid steppe/cultivation
- *    plain with an irrigation canal, the monuments' own earthworks, and a foreground
- *    Pulvar stream whose glitter tracks the real Sun (or Moon). It is the monuments' actual
- *    geography — Persepolis stands at the foot of Kuh-e Rahmat on the Marvdasht plain near
- *    the Pulvar River, ringed by Zagros ranges — art-directed to the scene's framing.
+ *    Marvdasht landscape ([drawMarvdashtLandscape]): a haze-layered far Zagros range and
+ *    the Kuh-e Rahmat limestone wall built from geology-shaped profiles (soft bedrock
+ *    benching, a carved water-gap, strata dipping off the fold hinge, pale caprock, talus
+ *    cones and cliff streaks) with sun-facing facet shading, piedmont foothills and
+ *    alluvial fans, a semi-arid steppe/cultivation plain with an irrigation canal, the
+ *    monuments' own earthworks, a widened foreground Pulvar river (wet banks, shallow
+ *    bed, deep thalweg, point bars, sheen/stochastic glitter tracking the real Sun or
+ *    Moon, tree reflections, reed clumps), space-colonization pistachio/almond trees and
+ *    clumped moisture-driven tuft grass. It is the monuments' actual geography —
+ *    Persepolis stands at the foot of Kuh-e Rahmat on the Marvdasht plain near the Pulvar
+ *    River, ringed by Zagros ranges — art-directed to the scene's framing.
  *
  * Everything is generated from the scene composition, theme palette and live lighting, and
  * every placement is deterministic, so the landscape never shimmers between clock ticks.
@@ -41,13 +45,40 @@ object SceneGroundRenderer {
     // low shoulder behind the ruins and readout, swelling to the great crest at the right
     // that backs the Mil-e Azhdaha tower, then continuing off-frame.
     private val FAR_ZAGROS_ENVELOPE = floatArrayOf(
-        0f, 0.70f, 0.18f, 0.95f, 0.38f, 0.75f, 0.55f, 1f, 0.72f, 0.88f, 0.88f, 1f, 1f, 0.90f
+        0f, 0.70f, 0.18f, 0.95f, 0.38f, 0.75f, 0.55f, 0.92f, 0.72f, 0.88f, 0.88f, 1f, 1f, 0.90f
     )
+    // Kuh-e Rahmat as a folded whaleback anticline: long gentle back-limb rising from the
+    // left, hinge near x = 0.76, then the crest continuing high off-frame at the right.
     private val KUH_RAHMAT_ENVELOPE = floatArrayOf(
-        0f, 0.30f, 0.14f, 0.38f, 0.30f, 0.48f, 0.45f, 0.60f, 0.58f, 0.78f,
-        0.70f, 0.96f, 0.80f, 1f, 0.90f, 0.86f, 1f, 0.70f
+        0f, 0.32f, 0.14f, 0.40f, 0.30f, 0.50f, 0.45f, 0.58f, 0.58f, 0.62f,
+        0.68f, 0.88f, 0.76f, 1f, 0.86f, 0.88f, 1f, 0.72f
     )
     private val FOOTHILL_ENVELOPE = floatArrayOf(0f, 0.7f, 0.5f, 1f, 1f, 0.5f)
+
+    // Space-colonization tree skeletons (LandscapeProfile.treeSkeleton), grown once on
+    // first use and cached for the process — wild pistachio/almond forms in unit space.
+    // Generation is bounded (<= 420 nodes each) and happens off the draw hot path; the
+    // per-frame cost is only strokes into the cached geometry.
+    private val TREE_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
+        listOf(
+            LandscapeProfile.treeSkeleton(
+                seed = 101, aspect = 1.30f, trunkFraction = 0.36f, attractorCount = 110, lean = 0.03f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 202, aspect = 1.15f, trunkFraction = 0.40f, attractorCount = 100, lean = -0.02f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 303, aspect = 1.45f, trunkFraction = 0.30f, attractorCount = 85, lean = 0.05f
+            ).sortedByDescending { it.r0 }
+        )
+    }
+    private val BUSH_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
+        (0 until 3).map { k ->
+            LandscapeProfile.treeSkeleton(
+                seed = 404 + k * 77, aspect = 1.5f, trunkFraction = 0.12f, attractorCount = 46
+            ).sortedByDescending { it.r0 }
+        }
+    }
 
     /**
      * @param persepolis resolved combined-landscape framing for this exact canvas, or null when
@@ -251,7 +282,10 @@ object SceneGroundRenderer {
         facetStrength: Float,
         strataAmp: Float,
         microSeed: Int,
-        crestAlpha: Float
+        crestAlpha: Float,
+        strataDip: Float = 0f,
+        hingeX: Float = 0f,
+        capAmount: Float = 0f
     ) {
         val n = heights.size - 1
         if (n < 2 || width <= 0f) return
@@ -274,11 +308,20 @@ object SceneGroundRenderer {
             fun colorAt(frac: Float): Color {
                 var c = lerp(facet, facet.scaled(0.80f), frac)
                 c = lerp(c, haze, (hazeTop + (hazeBase - hazeTop) * frac).coerceIn(0f, 1f))
+                if (capAmount > 0f) {
+                    // Pale hard-limestone caprock hugging the crest (Asmari-type beds).
+                    val cap = (1f - frac * 3.3f).coerceIn(0f, 1f)
+                    if (cap > 0f) c = lerp(c, c.scaled(1.28f), cap * capAmount)
+                }
                 if (strataAmp > 0f) {
                     val yTop = (top0 + top1) / 2f
                     val y = yTop + (baseY - yTop) * frac
+                    // Beds dip away from the fold hinge in a chevron (fold-and-thrust Zagros),
+                    // not flat contour lines: the phase field tilts with |x - hinge|.
+                    val xMid = (x0 + x1) / 2f
                     val k = 1f + strataAmp *
-                        sin(((baseY - y) / sceneHeight) * 105f + 1.7f * sin(i * 0.11f))
+                        sin((((baseY - y) + strataDip * abs(xMid - hingeX)) / sceneHeight) * 105f +
+                            1.7f * sin(i * 0.11f))
                     c = c.scaled(k)
                 }
                 return c
@@ -331,10 +374,12 @@ object SceneGroundRenderer {
      * The photographic Marvdasht landscape the two monuments stand in.
      *
      * Back to front: far Zagros range in haze; mist shelf; semi-arid steppe plain; the
-     * Kuh-e Rahmat wall with erosion gullies; piedmont foothills and alluvial fans; a
-     * cultivation mosaic and canal tree-line; the monuments' own earthworks; the Pulvar
-     * foreground stream (sky-reflecting, sun/moon glitter, reed banks); pistachio scrub and
-     * a few trees; dry steppe grass speckle. Composition and parameters were tuned in
+     * folded Kuh-e Rahmat wall (benched profile, water-gap, dipping strata, caprock,
+     * gullies, talus, varnish streaks); piedmont foothills and alluvial fans; a
+     * cultivation mosaic and canal tree-line; the monuments' own earthworks; the widened
+     * Pulvar river (layered water, point bars, ripples, pebbles, sheen + thinned glitter,
+     * tree reflections, reed clumps); space-colonization trees and scrub; clumped tuft
+     * grass. Composition and parameters were tuned in
      * `tools/persepolis/render_framing_preview.py` against the exact framing; colours are
      * derived per-frame from the theme palette and the live Sun, so the whole valley warms
      * at golden hour and dissolves into a moonlit silhouette at night. The GL relief
@@ -379,12 +424,15 @@ object SceneGroundRenderer {
         val farBase = groundTopY + height * 0.006f
         drawMountainLayer(
             drawScope = drawScope, width = width, sceneHeight = height, baseY = farBase,
-            heights = LandscapeProfile.mountainHeights(120, height * 0.125f, FAR_ZAGROS_ENVELOPE, seed = 11),
+            heights = LandscapeProfile.mountainHeights(
+                120, height * 0.130f, FAR_ZAGROS_ENVELOPE, seed = 11,
+                benchAmp = 0.12f, benchStep = 0.16f
+            ),
             lit = lerp(palette.farRidge, rockLit, 0.35f),
             shade = lerp(palette.farRidge, rockShade, 0.35f),
             haze = atmosphere, hazeTop = 0.28f, hazeBase = 0.55f,
             sunSign = sunSign, facetStrength = 0.32f, strataAmp = 0f,
-            microSeed = 3, crestAlpha = 0.05f + 0.10f * lightLevel
+            microSeed = 3, crestAlpha = 0.05f + 0.10f * lightLevel, capAmount = 0.25f
         )
 
         // 2. Mist shelf on the horizon — the far range's distance cue.
@@ -430,14 +478,19 @@ object SceneGroundRenderer {
         // 4. Kuh-e Rahmat: the great limestone wall at Persepolis' back. Nearer, warmer and
         //    more strongly faceted than the far range, with folded strata and gullies.
         val massifBase = toeY - height * 0.004f
-        val massifHeights = LandscapeProfile.mountainHeights(140, height * 0.190f, KUH_RAHMAT_ENVELOPE, seed = 29)
+        val massifHeights = LandscapeProfile.mountainHeights(
+            140, height * 0.205f, KUH_RAHMAT_ENVELOPE, seed = 29,
+            benchAmp = 0.22f, benchStep = 0.13f,
+            notches = floatArrayOf(0.63f, 0.030f, 0.38f) // water-gap; its fan spills below
+        )
         drawMountainLayer(
             drawScope = drawScope, width = width, sceneHeight = height, baseY = massifBase,
             heights = massifHeights,
             lit = rockLit, shade = rockShade,
             haze = atmosphere, hazeTop = 0.10f, hazeBase = 0.30f,
             sunSign = sunSign, facetStrength = 0.65f, strataAmp = 0.045f,
-            microSeed = 5, crestAlpha = 0.08f + 0.16f * lightLevel
+            microSeed = 5, crestAlpha = 0.08f + 0.16f * lightLevel,
+            strataDip = 0.9f, hingeX = width * 0.76f, capAmount = 0.38f
         )
         // Erosion gullies: dark seams from crest to fan apex with a faint lit lip.
         fun massifTopAt(x: Float): Float =
@@ -467,6 +520,69 @@ object SceneGroundRenderer {
             }
             drawScope.drawPath(dark, gullyDark, style = Stroke(width = gullyWidth))
             drawScope.drawPath(lip, gullyLip, style = Stroke(width = gullyWidth * 0.6f))
+        }
+        // Talus cones under the steepest faces: scree resting at ~35 degrees of repose,
+        // paler and warmer than the bedrock above it.
+        run {
+            val nIdx = massifHeights.size - 1
+            val stepX = width / nIdx
+            val chosenX = ArrayList<Float>()
+            val order = (4 until nIdx - 3).sortedByDescending { i ->
+                abs(massifHeights[i + 3] - massifHeights[i - 3])
+            }
+            for (i in order) {
+                val h = massifHeights[i]
+                val x = stepX * i
+                if (h < height * 0.07f) continue
+                if (chosenX.any { abs(it - x) < width * 0.09f }) continue
+                chosenX.add(x)
+                val apexY = massifBase - h * 0.38f
+                val halfW = h * 0.38f * 1.43f
+                val footY = massifBase + height * 0.012f
+                val cone = Path().apply {
+                    moveTo(x, apexY)
+                    lineTo(x - halfW, footY)
+                    lineTo(x + halfW, footY)
+                    close()
+                }
+                drawScope.drawPath(cone, sand.copy(alpha = 0.05f + 0.11f * lightLevel))
+                for (r in listOf(-0.5f, 0f, 0.5f)) {
+                    drawScope.drawLine(
+                        color = sand.copy(alpha = 0.04f + 0.06f * lightLevel),
+                        start = Offset(x, apexY),
+                        end = Offset(x + halfW * r, footY),
+                        strokeWidth = 1f,
+                        cap = StrokeCap.Round
+                    )
+                }
+                if (chosenX.size >= 5) break
+            }
+        }
+        // Desert-varnish streaks: dark rain-washed runnels on the steepest cliffs only.
+        run {
+            val nIdx = massifHeights.size - 1
+            val stepX = width / nIdx
+            val streakColor = rockShade.scaled(0.45f).copy(alpha = 0.10f + 0.12f * lightLevel)
+            var drawn = 0
+            for (i in 3 until nIdx - 2) {
+                val slope = abs(massifHeights[i + 2] - massifHeights[i - 2]) /
+                    (stepX * 4f).coerceAtLeast(1f)
+                if (slope < 0.55f) continue
+                if (LandscapeProfile.hash01(331, i * 7 + 3) > 0.45f) continue
+                val x = stepX * i + (LandscapeProfile.hash01(337, i * 5 + 1) - 0.5f) * stepX
+                val y0 = massifTopAt(x) + height * 0.006f
+                drawScope.drawLine(
+                    color = streakColor,
+                    start = Offset(x, y0),
+                    end = Offset(
+                        x + height * 0.002f,
+                        y0 + height * (0.016f + 0.020f * LandscapeProfile.hash01(339, i * 3 + 2))
+                    ),
+                    strokeWidth = (height * 0.0016f).coerceIn(1f, 3f),
+                    cap = StrokeCap.Round
+                )
+                if (++drawn >= 14) break
+            }
         }
         // Haze pooling where the massif meets the piedmont.
         drawScope.drawRect(
@@ -505,7 +621,7 @@ object SceneGroundRenderer {
         // 6. Alluvial fans: pale gravel skirts where the gullies debouch onto the plain.
         val fanColor = lerp(steppeTop, Color(0xFFB29066), 0.55f * day)
             .copy(alpha = 0.14f + 0.12f * day)
-        for ((p, spread) in listOf(0.56f to 0.075f, 0.68f to 0.09f, 0.82f to 0.08f, 0.93f to 0.07f)) {
+        for ((p, spread) in listOf(0.56f to 0.075f, 0.63f to 0.095f, 0.82f to 0.08f, 0.93f to 0.07f)) {
             val ax = p * width
             val ay = massifBase - 2f
             val by = toeY + height * 0.036f
@@ -570,31 +686,37 @@ object SceneGroundRenderer {
         // 9. The monuments' own earthworks (aprons, talus, contact shadows, debris).
         drawCombinedLandscapeGrounding(drawScope, composition, palette, lighting, framing)
 
-        // 10. The Pulvar stream in the near foreground: the viewer stands on its far bank.
+        // 10. The Pulvar river in the near foreground: the viewer stands on its far bank.
         val riverY = (framing.milSlopeFrontYPx + height * 0.055f).coerceIn(height * 0.885f, height * 0.94f)
         val riverMargin = width * 0.02f
         fun riverP(x: Float): Float = ((x + riverMargin) / (width + 2f * riverMargin)).coerceIn(0f, 1f)
         fun riverCenterY(x: Float): Float {
             val p = riverP(x)
-            return riverY + height * 0.016f * sin(p * 4.6f + 0.7f) +
+            return riverY + height * 0.017f * sin(p * 4.6f + 0.7f) +
                 height * 0.008f * LandscapeProfile.fbm(p * 3.1f, 41, octaves = 3) + p * height * 0.014f
         }
         fun riverHalfW(x: Float, y: Float): Float {
             val p = riverP(x)
             val depth = ((y / height - 0.86f) / 0.12f).coerceIn(0f, 1f)
-            val pool = 1f + 0.5f * maxOf(0f, sin(p * 4.6f + 2.0f))
-            return height * (0.0055f + 0.0065f * depth) * pool
+            val pool = 1f + 0.45f * maxOf(0f, sin(p * 4.6f + 2.0f))
+            // ~1.9x the old stream: a real river, still clear of the Mil slope front step.
+            return height * (0.0105f + 0.0125f * depth) * pool
         }
-        fun ribbonPath(scale: Float): Path = Path().apply {
+        // Meander phase: +1 bulges toward the viewer, -1 away. Drives the thalweg offset
+        // (deep water hugs the outer bank) and the gravel point bars (inner bank).
+        fun riverBend(x: Float): Float = sin(riverP(x) * 4.6f + 0.7f)
+        fun ribbonPath(scale: Float, offset: Float = 0f): Path = Path().apply {
             val steps = 28
             for (i in 0..steps) {
                 val x = -riverMargin + (width + 2f * riverMargin) * i / steps
-                val y = riverCenterY(x) - riverHalfW(x, riverCenterY(x)) * scale
+                val yc = riverCenterY(x)
+                val y = yc + riverBend(x) * offset * riverHalfW(x, yc) - riverHalfW(x, yc) * scale
                 if (i == 0) moveTo(x, y) else lineTo(x, y)
             }
             for (i in steps downTo 0) {
                 val x = -riverMargin + (width + 2f * riverMargin) * i / steps
-                lineTo(x, riverCenterY(x) + riverHalfW(x, riverCenterY(x)) * scale)
+                val yc = riverCenterY(x)
+                lineTo(x, yc + riverBend(x) * offset * riverHalfW(x, yc) + riverHalfW(x, yc) * scale)
             }
             close()
         }
@@ -606,14 +728,55 @@ object SceneGroundRenderer {
                 if (i == 0) moveTo(x, y) else lineTo(x, y)
             }
         }
-        val deepWater = lerp(Color(0xFF0A141C), Color(0xFF36525A), day)
+        val deepWater = lerp(Color(0xFF0A141C), Color(0xFF2E4A52), day)
+        val shallowWater = lerp(Color(0xFF0E1814), Color(0xFF4A5A4C), day) // bed through thin water
+        val wetBank = lerp(Color(0xFF0C0E08), Color(0xFF4C4434), day)      // damp darkened shore
         val reflection = lerp(lerp(lighting.horizonTone, lighting.skyTone, 0.35f), deepWater, 0.22f)
-        drawScope.drawPath(ribbonPath(1f), deepWater)
-        drawScope.drawPath(ribbonPath(0.55f), reflection.copy(alpha = 0.88f))
+        // Layered water, wettest to deepest: damp bank fringe, shallow bed showing at the
+        // edges, the sky's reflection, then the deep thalweg hugging each outer bank.
+        drawScope.drawPath(ribbonPath(1.18f), wetBank.copy(alpha = 0.55f + 0.30f * day))
+        drawScope.drawPath(ribbonPath(1f), shallowWater)
+        drawScope.drawPath(ribbonPath(0.84f), reflection.copy(alpha = 0.90f))
+        drawScope.drawPath(ribbonPath(0.30f, offset = 0.40f), deepWater.copy(alpha = 0.78f))
         for (i in 0 until 8) { // dark slow water breaking the reflection
             val x = width * LandscapeProfile.hash01(97, i * 11 + 4)
             val yc = riverCenterY(x)
-            drawSoftPatch(drawScope, x, yc, width * 0.10f, riverHalfW(x, yc) * 1.1f, deepWater, 0.28f, layers = 8)
+            drawSoftPatch(drawScope, x, yc, width * 0.07f, riverHalfW(x, yc) * 1.0f, deepWater, 0.18f, layers = 8)
+        }
+        // Pale gravel point bars inside the bends, where the current drops its load.
+        for (i in 0..28) {
+            val x = -riverMargin + (width + 2f * riverMargin) * i / 28f
+            val b = riverBend(x)
+            if (abs(b) <= 0.72f) continue
+            val yc = riverCenterY(x)
+            drawSoftPatch(
+                drawScope, x, yc - b * riverHalfW(x, yc) * 0.82f,
+                width * 0.07f, riverHalfW(x, yc) * 0.5f, sand,
+                peakAlpha = 0.10f + 0.20f * day, layers = 8
+            )
+        }
+        // Flow ripples: small sky-coloured dashes riding the current.
+        val rippleColor = lerp(lighting.skyTone, Color.White, 0.25f)
+        for (i in 0 until 90) {
+            val x = width * LandscapeProfile.hash01(179, i * 17 + 3)
+            val yc = riverCenterY(x)
+            val y = yc + (LandscapeProfile.hash01(73, i * 7 + 5) - 0.5f) * 1.7f * riverHalfW(x, yc)
+            val len = height * (0.004f + 0.010f * LandscapeProfile.hash01(39, i * 3 + 1))
+            drawScope.drawLine(
+                color = rippleColor.copy(alpha = 0.05f + 0.13f * lightLevel),
+                start = Offset(x, y),
+                end = Offset(x + len, y + len * 0.10f),
+                strokeWidth = (height * 0.0014f).coerceIn(0.8f, 2.5f),
+                cap = StrokeCap.Round
+            )
+        }
+        // Submerged pebbles freckling the near shallows.
+        for (i in 0 until 26) {
+            val x = width * LandscapeProfile.hash01(231, i * 19 + 5)
+            val yc = riverCenterY(x)
+            val y = yc + riverHalfW(x, yc) * (0.62f + 0.3f * LandscapeProfile.hash01(47, i * 3 + 2))
+            val r = height * (0.0012f + 0.0018f * LandscapeProfile.hash01(63, i * 5 + 1))
+            oval(x, y, r * 2f, r, sand.copy(alpha = 0.10f + 0.18f * day))
         }
         drawScope.drawPath(
             bankPath(-1f),
@@ -650,16 +813,29 @@ object SceneGroundRenderer {
         }
         if (glint != null && glint.second > 0.01f) {
             val (glintX, glintStrength, glintColor) = glint
-            for (i in 0 until 46) {
+            // Broad Fresnel sheen across the reflection column, under the sparkles.
+            val sheenY = riverCenterY(glintX)
+            drawSoftPatch(
+                drawScope, glintX, sheenY, width * 0.52f, riverHalfW(glintX, sheenY) * 1.7f,
+                glintColor, peakAlpha = 0.10f * glintStrength, layers = 10
+            )
+            drawSoftPatch(
+                drawScope, glintX, sheenY, width * 0.30f, riverHalfW(glintX, sheenY) * 1.5f,
+                glintColor, peakAlpha = 0.20f * glintStrength, layers = 10
+            )
+            for (i in 0 until 64) {
                 val x = width * LandscapeProfile.hash01(137, i * 7 + 2)
+                val gauss = exp(-(((x - glintX) / (width * 0.17f)).pow(2)))
+                // Stochastic thinning: sparkles are a point process whose density follows
+                // the column, not a uniform rain of dashes.
+                if (LandscapeProfile.hash01(193, i * 11 + 8) > 0.25f + 0.75f * gauss) continue
                 val yc = riverCenterY(x)
                 val hw = riverHalfW(x, yc)
-                val y = yc + (LandscapeProfile.hash01(79, i * 5 + 3) - 0.5f) * 1.4f * hw
-                val gauss = exp(-(((x - glintX) / (width * 0.17f)).pow(2)))
+                val y = yc + (LandscapeProfile.hash01(79, i * 5 + 3) - 0.5f) * 1.5f * hw
                 val alpha = (glintStrength * gauss *
                     (0.35f + 0.65f * LandscapeProfile.hash01(31, i * 3 + 1))).coerceIn(0f, 0.9f)
                 if (alpha < 0.02f) continue
-                val len = height * (0.006f + 0.020f * LandscapeProfile.hash01(57, i * 9 + 5) * (0.4f + gauss))
+                val len = height * (0.006f + 0.023f * LandscapeProfile.hash01(57, i * 9 + 5) * (0.4f + gauss))
                 drawScope.drawLine(
                     color = glintColor.copy(alpha = alpha),
                     start = Offset(x, y),
@@ -667,21 +843,70 @@ object SceneGroundRenderer {
                     strokeWidth = (height * 0.002f).coerceIn(1f, 3.5f),
                     cap = StrokeCap.Round
                 )
+                // Rare star sparkles at the column's heart.
+                if (gauss > 0.78f && LandscapeProfile.hash01(297, i * 3 + 1) > 0.6f) {
+                    val r = height * (0.002f + 0.002f * LandscapeProfile.hash01(41, i * 7 + 2))
+                    drawScope.drawLine(
+                        color = glintColor.copy(alpha = alpha * 0.5f),
+                        start = Offset(x + len / 2f, y - r),
+                        end = Offset(x + len / 2f, y + r),
+                        strokeWidth = (height * 0.0014f).coerceIn(0.8f, 2.5f),
+                        cap = StrokeCap.Round
+                    )
+                }
             }
         }
-        for (i in 0 until 44) { // reeds on both banks
-            val x = width * LandscapeProfile.hash01(113, i * 7 + 6)
-            val yc = riverCenterY(x)
-            val side = if (i % 2 == 0) -1f else 1f
-            val y = yc + side * riverHalfW(x, yc) * 1.05f
-            val bh = height * (0.006f + 0.008f * LandscapeProfile.hash01(43, i * 3 + 2))
-            drawScope.drawLine(
-                color = riparian.copy(alpha = 0.55f),
-                start = Offset(x, y),
-                end = Offset(x + (LandscapeProfile.hash01(29, i * 5 + 1) - 0.5f) * bh * 0.4f, y - bh),
-                strokeWidth = (height * 0.0014f).coerceIn(0.8f, 2.5f),
-                cap = StrokeCap.Round
-            )
+        // Broken reflections of the two foreground trees in the near water.
+        for ((txFrac, thFrac) in listOf(0.115f to 0.068f, 0.875f to 0.058f)) {
+            val tx = width * txFrac
+            val th = height * thFrac
+            val yc = riverCenterY(tx)
+            val hw = riverHalfW(tx, yc)
+            val bot = yc + hw
+            for (j in 0 until 6) {
+                val y = bot - (j + 0.5f) * (th * 0.55f / 6f)
+                if (y < yc - hw) break
+                val wdt = th * 1.1f * (0.55f - 0.06f * j)
+                val xo = (LandscapeProfile.hash01(77, (txFrac * 1000f).toInt() + j * 7) - 0.5f) * height * 0.006f
+                drawScope.drawLine(
+                    color = canopyDark.copy(alpha = (0.30f * (1f - j / 6f) * (0.4f + 0.6f * lightLevel))),
+                    start = Offset(tx + xo - wdt / 2f, y),
+                    end = Offset(tx + xo + wdt / 2f, y),
+                    strokeWidth = (height * 0.002f).coerceIn(1f, 3.5f),
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+        // Reed clumps (Phragmites) at the banks: grouped curved stems, feathery plumes.
+        val plumeColor = lerp(Color(0xFF201A10), Color(0xFFB2966E), day)
+        for (ci in 0 until 7) {
+            val p = 0.08f + 0.84f * (ci + LandscapeProfile.hash01(93, ci * 3 + 1)) / 7f
+            val x0 = -riverMargin + (width + 2f * riverMargin) * p
+            val yc = riverCenterY(x0)
+            val side = if (ci % 2 == 0) -1f else 1f
+            val by = yc + side * riverHalfW(x0, yc) * 1.02f
+            for (si in 0 until 8) {
+                val x = x0 + (LandscapeProfile.hash01(31, ci * 31 + si * 7) - 0.5f) * width * 0.018f
+                val bh = height * (0.014f + 0.012f * LandscapeProfile.hash01(17, ci * 17 + si * 3))
+                val lean = (LandscapeProfile.hash01(13, ci * 13 + si * 5) - 0.5f) * bh * 0.35f
+                val stem = Path()
+                for ((k, t) in listOf(0f, 0.33f, 0.66f, 1f).withIndex()) {
+                    val px = x + lean * t.pow(1.6f)
+                    val py = by - bh * t
+                    if (k == 0) stem.moveTo(px, py) else stem.lineTo(px, py)
+                }
+                drawScope.drawPath(
+                    stem, riparian.copy(alpha = 0.45f + 0.25f * day),
+                    style = Stroke(width = (height * 0.0014f).coerceIn(0.8f, 2.5f))
+                )
+                if (si % 3 == 0) {
+                    oval(
+                        x + lean, by - bh - height * 0.0015f,
+                        height * 0.0028f, height * 0.006f,
+                        plumeColor.copy(alpha = 0.35f + 0.30f * day)
+                    )
+                }
+            }
         }
 
         // 11. Scrub and trees: wild pistachio/almond of the Zagros foothills — sparse,
@@ -689,27 +914,57 @@ object SceneGroundRenderer {
         //     worn clearings.
         val shadowColor = Color.Black.copy(alpha = 0.16f + 0.18f * day)
         val shadowLen = (1.6f - sunAlt.coerceIn(0f, 60f) / 45f).coerceIn(0.5f, 1.8f)
-        fun bush(cx: Float, by: Float, s: Float) {
-            oval(cx - sunSign * s * 0.5f * shadowLen, by, s * (1.6f + shadowLen), s * 0.36f, shadowColor)
-            oval(cx - s * 0.5f, by - s * 0.42f, s * 1.24f, s * 0.77f, canopyDark)
-            oval(cx + s * 0.35f, by - s * 0.50f, s * 1.40f, s * 0.87f, canopy)
-            oval(cx, by - s * 0.72f, s * 1.24f, s * 0.77f, canopy)
-            oval(cx + sunSign * s * 0.18f, by - s * 0.78f, s * 0.64f, s * 0.40f, canopyLight.copy(alpha = 0.55f))
-        }
-        fun tree(cx: Float, by: Float, hgt: Float) {
+        // One space-colonization skeleton planted at (cx, by) with total height [hgt]:
+        // pipe-model woody structure (thick-first, shadow pass offset anti-sun for
+        // roundness), then foliage clusters only where real trees leaf — at the branch
+        // terminals — with a sun-side rim that catches the golden-hour backlight.
+        fun drawSkeletonTree(
+            cx: Float,
+            by: Float,
+            hgt: Float,
+            skeleton: List<LandscapeProfile.BranchSegment>,
+            flip: Boolean,
+            foliage: Float,
+            seed: Int
+        ) {
+            val sx = if (flip) -1f else 1f
             oval(cx - sunSign * hgt * 0.3f * shadowLen, by, hgt * (0.7f + 0.6f * shadowLen), hgt * 0.085f, shadowColor)
-            drawScope.drawLine(
-                color = lerp(Color(0xFF0E0B08), Color(0xFF4A3826), lightLevel),
-                start = Offset(cx, by),
-                end = Offset(cx + hgt * 0.05f, by - hgt * 0.42f),
-                strokeWidth = (hgt * 0.06f).coerceIn(1.5f, 6f),
-                cap = StrokeCap.Round
-            )
-            oval(cx - hgt * 0.30f, by - hgt * 0.62f, hgt * 0.68f, hgt * 0.45f, canopyDark)
-            oval(cx + hgt * 0.22f, by - hgt * 0.66f, hgt * 0.76f, hgt * 0.50f, canopy)
-            oval(cx, by - hgt * 0.84f, hgt * 0.72f, hgt * 0.48f, canopy)
-            oval(cx + hgt * 0.34f, by - hgt * 0.52f, hgt * 0.52f, hgt * 0.34f, canopyDark)
-            oval(cx + sunSign * hgt * 0.10f, by - hgt * 0.90f, hgt * 0.48f, hgt * 0.32f, canopyLight.copy(alpha = 0.50f))
+            val barkDark = lerp(Color(0xFF0A0806), Color(0xFF35271A), lightLevel)
+            val barkLit = lerp(Color(0xFF14100C), Color(0xFF5A4430), lightLevel)
+            for (seg in skeleton) {
+                val wdt = ((seg.r0 + seg.r1) * hgt).coerceIn(0.8f, (hgt * 0.09f).coerceAtLeast(1f))
+                val x0 = cx + sx * seg.x0 * hgt
+                val y0 = by - seg.y0 * hgt
+                val x1 = cx + sx * seg.x1 * hgt
+                val y1 = by - seg.y1 * hgt
+                drawScope.drawLine(
+                    barkDark,
+                    Offset(x0 - sunSign * wdt * 0.22f, y0), Offset(x1 - sunSign * wdt * 0.22f, y1),
+                    wdt, StrokeCap.Round
+                )
+                drawScope.drawLine(barkLit, Offset(x0, y0), Offset(x1, y1), wdt, StrokeCap.Round)
+            }
+            val backlit = sunAlt in -1f..9f && day > 0.05f
+            val rimColor = if (backlit) lerp(canopyLight, lighting.horizonTone, 0.45f) else canopyLight
+            var ci = 0
+            for (seg in skeleton) {
+                if (!seg.terminal && seg.depth < 7) continue
+                ci++
+                if (LandscapeProfile.hash01(seed * 71 + 13, ci * 3 + 1) > foliage) continue
+                val px = cx + sx * seg.x1 * hgt
+                val py = by - seg.y1 * hgt
+                val cr = hgt * (0.045f + 0.040f * LandscapeProfile.hash01(seed * 37 + 7, ci * 5 + 2))
+                val tone = 0.85f + 0.3f * LandscapeProfile.hash01(seed * 53 + 3, ci * 7 + 4)
+                oval(px - sunSign * cr * 0.25f, py + cr * 0.2f, cr * 2f, cr * 1.24f, canopyDark.scaled(tone))
+                oval(px, py, cr * 2f, cr * 1.24f, canopy.scaled(tone))
+                oval(
+                    px + sunSign * cr * 0.20f - cr * 0.16f, py - cr * 0.40f,
+                    cr * 0.9f, cr * 0.54f, rimColor.copy(alpha = 0.50f)
+                )
+            }
+        }
+        fun bush(cx: Float, by: Float, s: Float, idx: Int) {
+            drawSkeletonTree(cx, by, s * 2.1f, BUSH_SKELETONS[idx % 3], idx % 2 == 0, 0.62f, seed = idx * 3 + 1)
         }
         val persepolisApronL = framing.platformLeftXPx - width * 0.030f
         val persepolisApronR = framing.platformRightXPx + width * 0.105f
@@ -722,39 +977,108 @@ object SceneGroundRenderer {
             if (i < 7) {
                 val y = toeY - height * 0.004f + height * 0.010f * LandscapeProfile.hash01(39, i * 3 + 1)
                 if (!inApron(x, y)) {
-                    bush(x, y, height * (0.005f + 0.004f * LandscapeProfile.hash01(71, i * 5 + 2)))
+                    bush(x, y, height * (0.005f + 0.004f * LandscapeProfile.hash01(71, i * 5 + 2)), i)
                 }
             } else {
                 val y = height * (0.90f + 0.075f * LandscapeProfile.hash01(53, i * 7 + 4))
                 if (abs(y - riverCenterY(x)) >= height * 0.02f && !inApron(x, y)) {
-                    bush(x, y, height * (0.008f + 0.010f * LandscapeProfile.hash01(71, i * 5 + 2)))
+                    bush(x, y, height * (0.008f + 0.010f * LandscapeProfile.hash01(71, i * 5 + 2)), i)
                 }
             }
         }
-        tree((framing.platformRightXPx + framing.milSlopeLeftXPx) / 2f, toeY + height * 0.020f, height * 0.040f)
-        tree(width * 0.115f, riverCenterY(width * 0.115f) + height * 0.034f, height * 0.068f)
-        tree(width * 0.875f, riverCenterY(width * 0.875f) + height * 0.036f, height * 0.058f)
+        // Lone pistachio between the sites; two foreground trees on the near bank.
+        drawSkeletonTree(
+            (framing.platformRightXPx + framing.milSlopeLeftXPx) / 2f, toeY + height * 0.020f,
+            height * 0.040f, TREE_SKELETONS[2], flip = false, foliage = 0.9f, seed = 7
+        )
+        drawSkeletonTree(
+            width * 0.115f, riverCenterY(width * 0.115f) + height * 0.034f,
+            height * 0.068f, TREE_SKELETONS[0], flip = false, foliage = 0.95f, seed = 11
+        )
+        drawSkeletonTree(
+            width * 0.875f, riverCenterY(width * 0.875f) + height * 0.036f,
+            height * 0.058f, TREE_SKELETONS[1], flip = true, foliage = 0.95f, seed = 13
+        )
 
-        // 12. Dry steppe grass speckle: patchy (noise-masked), straw-and-olive, growing in
-        //     size toward the viewer, never in the water.
-        val strawBlade = lerp(Color(0xFF2A2416), Color(0xFFAA905E), day)
-        val oliveBlade = lerp(Color(0xFF16200F), Color(0xFF5E6A44), day)
-        for (i in 0 until 210) {
+        // 12. Steppe grass as clumped tufts (the Ghost-of-Tsushima lesson): each cell
+        //     shares lean and height so the plain reads as wind-combed patches, moisture
+        //     (noise + river distance) drives density and green-vs-straw, far tufts are
+        //     curved strokes and near tufts filled tapered blades with Stipa-like seed
+        //     heads. Never in the water, never on the monuments' worn clearings.
+        val strawBase = lerp(Color(0xFF1E1A10), Color(0xFF605030), day)
+        val strawTip = lerp(Color(0xFF2A2416), Color(0xFFBA9C66), day)
+        val oliveBase = lerp(Color(0xFF0E160A), Color(0xFF344026), day)
+        val oliveTip = lerp(Color(0xFF16200F), Color(0xFF6E804C), day)
+        val seedHead = lerp(Color(0xFF241E12), Color(0xFFCCB080), day)
+        val bladeStroke = (height * 0.0013f).coerceIn(0.8f, 2.2f)
+        val bladeTs = floatArrayOf(0f, 0.3f, 0.55f, 0.8f, 1f)
+        fun bladePoint(bx: Float, by: Float, bh: Float, lean: Float, t: Float): Offset =
+            Offset(bx + lean * bh * t.pow(1.7f), by - bh * t)
+        for (i in 0 until 190) {
             val x = width * LandscapeProfile.hash01(239, i * 13 + 7)
-            val depth = LandscapeProfile.hash01(173, i * 17 + 8).pow(1.4f)
+            val depth = LandscapeProfile.hash01(173, i * 17 + 8).pow(1.35f)
             val y = groundTopY + (height - groundTopY) * depth
-            if (abs(y - riverCenterY(x)) < riverHalfW(x, y) * 1.25f) continue
-            if (LandscapeProfile.fbm(x / width * 6f + depth * 3f, 91, octaves = 3) < -0.12f) continue
-            val bh = height * (0.003f + 0.009f * depth) *
-                (0.6f + 0.7f * LandscapeProfile.hash01(37, i * 3 + 1))
-            val straw = LandscapeProfile.hash01(91, i * 7 + 2) > 0.42f
-            drawScope.drawLine(
-                color = (if (straw) strawBlade else oliveBlade).copy(alpha = 0.22f + 0.30f * day),
-                start = Offset(x, y),
-                end = Offset(x + (LandscapeProfile.hash01(61, i * 5 + 3) - 0.5f) * bh * 0.6f, y - bh),
-                strokeWidth = (height * 0.0013f).coerceIn(0.8f, 2.2f),
-                cap = StrokeCap.Round
-            )
+            val riverDist = abs(y - riverCenterY(x))
+            if (riverDist < riverHalfW(x, y) * 1.3f) continue
+            if (inApron(x, y)) continue
+            var moist = 0.5f + 0.5f * LandscapeProfile.fbm(x / width * 5f + depth * 2f, 91, octaves = 3)
+            moist += (1f - riverDist / (height * 0.055f)).coerceIn(0f, 1f) * 0.45f
+            moist = moist.coerceIn(0f, 1f)
+            if (LandscapeProfile.hash01(417, i * 7 + 1) > 0.20f + 0.80f * moist) continue
+            val cell = (x / (width * 0.045f)).toInt() * 7 + (depth * 9f).toInt() * 131
+            val clumpLean = (LandscapeProfile.hash01(131, cell) - 0.5f) * 0.55f
+            val clumpH = 0.75f + 0.5f * LandscapeProfile.hash01(217, cell)
+            val dry = 1f - moist
+            val midCol = lerp(lerp(oliveBase, strawBase, dry), lerp(oliveTip, strawTip, dry), 0.45f)
+            val blades = 4 + (5f * LandscapeProfile.hash01(79, i * 11 + 5)).toInt()
+            for (b in 0 until blades) {
+                val bx = x + (LandscapeProfile.hash01(101, i * 101 + b * 37) - 0.5f) * width * 0.010f
+                val bh = height * (0.004f + 0.015f * depth) * clumpH *
+                    (0.7f + 0.6f * LandscapeProfile.hash01(57, i * 57 + b * 19))
+                val lean = clumpLean + (LandscapeProfile.hash01(67, i * 67 + b * 23) - 0.5f) * 0.5f
+                if (depth < 0.55f) {
+                    val blade = Path()
+                    for ((k, t) in bladeTs.withIndex()) {
+                        val p = bladePoint(bx, y, bh, lean, t)
+                        if (k == 0) blade.moveTo(p.x, p.y) else blade.lineTo(p.x, p.y)
+                    }
+                    drawScope.drawPath(
+                        blade, midCol.copy(alpha = 0.35f + 0.35f * day),
+                        style = Stroke(width = bladeStroke)
+                    )
+                } else {
+                    val wdt = maxOf(1.2f, bh * 0.07f)
+                    val blade = Path()
+                    for ((k, t) in bladeTs.withIndex()) {
+                        val p = bladePoint(bx, y, bh, lean, t)
+                        val px = p.x - wdt * (1f - t) / 2f
+                        if (k == 0) blade.moveTo(px, p.y) else blade.lineTo(px, p.y)
+                    }
+                    for (k in bladeTs.size - 1 downTo 0) {
+                        val t = bladeTs[k]
+                        val p = bladePoint(bx, y, bh, lean, t)
+                        blade.lineTo(p.x + wdt * (1f - t) / 2f, p.y)
+                    }
+                    blade.close()
+                    drawScope.drawPath(blade, midCol.copy(alpha = 0.55f + 0.35f * day))
+                    if (b == 0 && depth > 0.7f) { // feathery seed head with awns
+                        val tip = bladePoint(bx, y, bh, lean, 1f)
+                        oval(
+                            tip.x, tip.y - bh * 0.055f, bh * 0.07f, bh * 0.21f,
+                            seedHead.copy(alpha = 0.35f + 0.35f * day)
+                        )
+                        for (awn in listOf(-0.5f, 0f, 0.5f)) {
+                            drawScope.drawLine(
+                                color = seedHead.copy(alpha = 0.30f + 0.25f * day),
+                                start = Offset(tip.x, tip.y - bh * 0.08f),
+                                end = Offset(tip.x + awn * bh * 0.16f, tip.y - bh * 0.30f),
+                                strokeWidth = 0.8f,
+                                cap = StrokeCap.Round
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // 13. Foreground corner shade: the suggestion of near scrub at the viewer's feet,

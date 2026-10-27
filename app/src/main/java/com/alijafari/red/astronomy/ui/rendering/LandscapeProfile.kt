@@ -1,11 +1,13 @@
 package com.alijafari.red.astronomy.ui.rendering
 
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.pow
+import kotlin.math.sqrt
 
 /**
- * Pure 1D terrain-profile math for the Home scene's photographic mountains.
+ * Pure profile/growth math for the Home scene's photographic mountains and trees.
  *
  * The old ridges were two summed sines — smooth, periodic and visibly synthetic. Real Zagros
  * skylines are folded, faulted limestone: sharp crests, clustered detail on the ridges and
@@ -111,19 +113,46 @@ internal object LandscapeProfile {
      * Height = [maxHeightPx] × envelope × (0.42 + 0.58·ridged^sharpness) — the 0.42 floor
      * keeps the range a continuous wall (valleys saddle, they never vanish to the plain),
      * while the ridged term carves the crest.
+     *
+     * Two geological refinements from the Zagros fold-and-thrust belt:
+     *  - [benchAmp]: soft height terracing. Resistant limestone beds form benches and small
+     *    cliffs while softer marl slopes wash smooth; blending the profile toward a
+     *    soft-quantized version of itself (step = [benchStep] × maxHeight) gives that
+     *    stepped rhythm without cartoon stairs.
+     *  - [notches]: `(position, width, depth)` triples carving gaussian water-gaps — the
+     *    V-valleys where a drainage cuts the ridge and an alluvial fan spills out below.
      */
     fun mountainHeights(
         samples: Int,
         maxHeightPx: Float,
         envelopePoints: FloatArray,
         seed: Int,
-        sharpness: Float = 1.15f
+        sharpness: Float = 1.15f,
+        benchAmp: Float = 0f,
+        benchStep: Float = 0.14f,
+        notches: FloatArray = FloatArray(0)
     ): FloatArray {
         val n = samples.coerceAtLeast(2)
         return FloatArray(n + 1) { i ->
             val p = i / n.toFloat()
-            maxHeightPx * envelope(p, envelopePoints) *
+            var h = maxHeightPx * envelope(p, envelopePoints) *
                 (0.42f + 0.58f * ridged(p, seed).pow(sharpness))
+            if (benchAmp > 0f && maxHeightPx > 0f) {
+                val step = maxHeightPx * benchStep.coerceAtLeast(0.01f)
+                val q = h / step
+                val fl = floor(q)
+                val fr = (q - fl - 0.35f) / 0.30f
+                val s = fr.coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+                val terraced = (fl + s) * step
+                h += (terraced - h) * benchAmp.coerceIn(0f, 1f)
+            }
+            var j = 0
+            while (j + 2 < notches.size) {
+                val d = (p - notches[j]) / notches[j + 1].coerceAtLeast(1e-4f)
+                h *= 1f - notches[j + 2].coerceIn(0f, 0.9f) * exp(-d * d)
+                j += 3
+            }
+            h.coerceAtLeast(0f)
         }
     }
 
@@ -151,4 +180,165 @@ internal object LandscapeProfile {
         val f = x - i
         return heights[i] + (heights[i + 1] - heights[i]) * f
     }
+
+    /**
+     * One woody segment of a [treeSkeleton], in unit space: the tree stands on (0, 0),
+     * reaches y = 1 at its crown top, and spreads x over ±aspect/2. Radii are fractions of
+     * total height. [terminal] segments end in a childless node (where foliage belongs).
+     */
+    data class BranchSegment(
+        val x0: Float, val y0: Float, val x1: Float, val y1: Float,
+        val r0: Float, val r1: Float, val depth: Int, val terminal: Boolean
+    )
+
+    /**
+     * A tree skeleton grown by 2D **space colonization** (Runions, Lane & Prusinkiewicz
+     * 2007): attraction points fill a crown envelope (flattened-top ellipse, hollowed
+     * heart — real crowns leaf at their surface), and branch nodes compete for them,
+     * growing toward the average of the points they claim, biased by upward tropism.
+     * Branching asymmetry, fork angles and the sparse woody interior all *emerge*; nothing
+     * is mirrored or hand-placed. Radii then follow da Vinci's pipe model
+     * `r_parent^2.05 = Σ r_child^2.05`, so trunks are stout exactly where they carry crown.
+     *
+     * Deterministic per [seed] and bounded (≤ [MAX_NODES] nodes), so callers cache a few
+     * skeletons once and redraw them forever at any scale/flip.
+     */
+    fun treeSkeleton(
+        seed: Int,
+        aspect: Float = 1.25f,
+        trunkFraction: Float = 0.34f,
+        attractorCount: Int = 90,
+        lean: Float = 0f
+    ): List<BranchSegment> {
+        var counter = 0
+        fun rnd(): Float = hash01(seed, counter++ * 31 + 7)
+
+        val crownBase = trunkFraction.coerceIn(0.05f, 0.8f)
+        val crownH = 1f - crownBase
+        val cy = crownBase + crownH / 2f
+        val rx = aspect.coerceIn(0.4f, 2.2f) / 2f
+        val ry = crownH / 2f
+
+        // Attraction points inside the crown envelope (rejection-sampled, hollow heart).
+        val attractors = ArrayList<FloatArray>()
+        var guard = 0
+        while (attractors.size < attractorCount && guard++ < attractorCount * 40) {
+            val x = (rnd() * 2f - 1f) * rx
+            var y = cy + (rnd() * 2f - 1f) * ry
+            val e = (x / rx) * (x / rx) + ((y - cy) / ry) * ((y - cy) / ry)
+            if (e > 1f) continue
+            if (e < 0.14f && rnd() < 0.65f) continue // hollow heart: leaves live at the surface
+            if (y > cy) y = cy + (y - cy) * 0.82f // flattened umbrella top (pistachio habit)
+            attractors.add(floatArrayOf(x + lean * (y - crownBase), y))
+        }
+
+        // Nodes: parallel arrays (x, y, parent, depth). Trunk: two segments with the lean,
+        // then three scaffold limbs so the crown forks like a real broadleaf.
+        val nx = ArrayList<Float>()
+        val ny = ArrayList<Float>()
+        val parent = ArrayList<Int>()
+        val depth = ArrayList<Int>()
+        fun addNode(x: Float, y: Float, p: Int): Int {
+            nx.add(x); ny.add(y); parent.add(p)
+            depth.add(if (p < 0) 0 else depth[p] + 1)
+            return nx.size - 1
+        }
+        val root = addNode(0f, 0f, -1)
+        val mid = addNode(lean * 0.4f, crownBase * 0.55f, root)
+        val fork = addNode(lean, crownBase, mid)
+        val step = crownH / 13f
+        for (angleDeg in listOf(-52f, -8f, 44f)) {
+            val a = angleDeg * (Math.PI.toFloat() / 180f)
+            addNode(
+                nx[fork] + kotlin.math.sin(a) * step * 1.7f,
+                ny[fork] + kotlin.math.cos(a) * step * 1.7f,
+                fork
+            )
+        }
+
+        val influence = step * 4.4f
+        val kill = step * 1.15f
+        val alive = BooleanArray(attractors.size) { true }
+        var aliveCount = attractors.size
+        var iterations = 0
+        while (aliveCount > 0 && iterations++ < 110 && nx.size < MAX_NODES) {
+            // Assign each live attractor to its nearest node; kill the reached ones.
+            val claims = HashMap<Int, FloatArray>() // node -> [sumDirX, sumDirY, count]
+            for (ai in attractors.indices) {
+                if (!alive[ai]) continue
+                val ax = attractors[ai][0]
+                val ay = attractors[ai][1]
+                var best = -1
+                var bestD = Float.MAX_VALUE
+                for (ni in nx.indices) {
+                    if (ni == root || ni == mid) continue // trunk does not chase leaves
+                    val dx = ax - nx[ni]
+                    val dy = ay - ny[ni]
+                    val d = dx * dx + dy * dy
+                    if (d < bestD) {
+                        bestD = d
+                        best = ni
+                    }
+                }
+                if (best < 0) continue
+                val dist = sqrt(bestD)
+                if (dist < kill) {
+                    alive[ai] = false
+                    aliveCount--
+                } else if (dist < influence) {
+                    val c = claims.getOrPut(best) { floatArrayOf(0f, 0f, 0f) }
+                    c[0] += (ax - nx[best]) / dist
+                    c[1] += (ay - ny[best]) / dist
+                    c[2] += 1f
+                }
+            }
+            if (claims.isEmpty()) break
+            // Grow one child per claimed node, toward its points + tropism.
+            for ((node, c) in claims) {
+                if (nx.size >= MAX_NODES) break
+                var dx = c[0] / c[2]
+                var dy = c[1] / c[2] + 0.20f // phototropism
+                dx += (nx[node] - lean) * 0.10f // gentle outward spread
+                val len = sqrt(dx * dx + dy * dy).coerceAtLeast(1e-5f)
+                val s = step * (0.85f + 0.3f * rnd())
+                addNode(nx[node] + dx / len * s, ny[node] + dy / len * s, node)
+            }
+        }
+
+        // Pipe-model radii (da Vinci exponent 2.05), normalised so the trunk base reads
+        // stout at landscape scale; a floor keeps twigs drawable.
+        val children = Array(nx.size) { ArrayList<Int>() }
+        for (i in nx.indices) if (parent[i] >= 0) children[parent[i]].add(i)
+        val radius = FloatArray(nx.size)
+        fun computeRadius(i: Int): Float {
+            val r = if (children[i].isEmpty()) {
+                1f
+            } else {
+                var sum = 0f
+                for (ch in children[i]) sum += computeRadius(ch).pow(2.05f)
+                sum.pow(1f / 2.05f) * 1.03f
+            }
+            radius[i] = r
+            return r
+        }
+        computeRadius(root)
+        val scaleR = 0.040f / radius[root].coerceAtLeast(1e-5f)
+        for (i in radius.indices) radius[i] = (radius[i] * scaleR).coerceAtLeast(0.0035f)
+
+        val out = ArrayList<BranchSegment>(nx.size - 1)
+        for (i in nx.indices) {
+            val p = parent[i]
+            if (p < 0) continue
+            out.add(
+                BranchSegment(
+                    x0 = nx[p], y0 = ny[p], x1 = nx[i], y1 = ny[i],
+                    r0 = radius[p], r1 = radius[i],
+                    depth = depth[i], terminal = children[i].isEmpty()
+                )
+            )
+        }
+        return out
+    }
+
+    private const val MAX_NODES = 420
 }

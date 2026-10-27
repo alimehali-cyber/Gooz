@@ -103,15 +103,17 @@ sampled through quadratics and deterministic grass (Papercraft keeps hard cardst
 the strokes).
 
 When the combined relief is active (the photographic themes), the band becomes the full **Marvdasht
-landscape** and is painted underneath the GL stone: a far Zagros range and the Kuh-e Rahmat wall
-built from domain-warped ridged-multifractal profiles (`LandscapeProfile`) with Sun-facing facet
-shading, folded strata, erosion gullies and aerial perspective; piedmont foothills and alluvial
+landscape** and is painted underneath the GL stone: a far Zagros range and the folded Kuh-e Rahmat
+wall built from domain-warped ridged-multifractal profiles (`LandscapeProfile`) with Sun-facing facet
+shading, bedrock benching, a water-gap, strata dipping off the fold hinge, crest caprock, talus
+cones, cliff streaks, erosion gullies and aerial perspective; piedmont foothills and alluvial
 fans; a semi-arid steppe/cultivation plain with an irrigation canal; two separate footprint-local
 earthworks from `PersepolisFraming` (worn apron, talus, contact shadows, debris — ordinary field
 between the sites, feathered and Sun-following, so neither monument ends on a full-width stripe);
-a foreground Pulvar stream whose glitter tracks the real Sun/Moon; and sparse pistachio scrub,
-three trees and steppe grass speckle. All placement is deterministic. See
-[`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
+a widened layered Pulvar river (wet banks, shallows, thalweg, point bars, tree reflections, reed
+clumps) whose sheen and thinned glitter track the real Sun/Moon; space-colonization pistachio
+trees/scrub with pipe-model branching; and clumped moisture-driven tuft grass. All placement is
+deterministic. See [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 
 ### Clouds — `CloudVeilRenderer`
 

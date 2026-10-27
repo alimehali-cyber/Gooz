@@ -104,6 +104,60 @@ class LandscapeProfileTest {
     }
 
     @Test
+    fun benchesTerraceAndNotchesCarveWithoutBreakingBounds() {
+        val envelope = floatArrayOf(0f, 0.6f, 0.5f, 1f, 1f, 0.8f)
+        val plain = LandscapeProfile.mountainHeights(140, 240f, envelope, seed = 29)
+        val benched = LandscapeProfile.mountainHeights(
+            140, 240f, envelope, seed = 29, benchAmp = 0.5f, benchStep = 0.14f
+        )
+        assertTrue(benched.all { it in 0f..240f })
+        // Terracing measurably changes the profile but never by more than a bench step.
+        var changed = 0
+        for (i in plain.indices) {
+            val d = abs(benched[i] - plain[i])
+            assertTrue("bench shift bounded at $i: $d", d <= 240f * 0.14f)
+            if (d > 0.5f) changed++
+        }
+        assertTrue("benches actually bite ($changed samples)", changed > 20)
+
+        val notched = LandscapeProfile.mountainHeights(
+            140, 240f, envelope, seed = 29,
+            notches = floatArrayOf(0.5f, 0.03f, 0.4f)
+        )
+        val atNotch = notched[70]
+        assertTrue("notch carves the crest ($atNotch vs ${plain[70]})", atNotch < plain[70] * 0.75f)
+        // …and heals away from the water-gap.
+        assertEquals(plain[10], notched[10], plain[10] * 0.02f + 0.01f)
+        assertTrue(notched.all { it >= 0f })
+    }
+
+    @Test
+    fun treeSkeletonsAreDeterministicBoundedAndPipeShaped() {
+        val a = LandscapeProfile.treeSkeleton(seed = 101, aspect = 1.3f, trunkFraction = 0.36f, attractorCount = 90)
+        val b = LandscapeProfile.treeSkeleton(seed = 101, aspect = 1.3f, trunkFraction = 0.36f, attractorCount = 90)
+        assertEquals("same seed, same tree", a, b)
+        val other = LandscapeProfile.treeSkeleton(seed = 202, aspect = 1.3f, trunkFraction = 0.36f, attractorCount = 90)
+        assertTrue("different seed, different tree", a != other)
+
+        assertTrue("skeleton has substance (${a.size} segments)", a.size in 40..440)
+        assertTrue("terminals exist for foliage", a.count { it.terminal } >= 15)
+        for (s in a) {
+            assertTrue("x within crown (${s.x1})", abs(s.x1) <= 1.3f * 0.75f)
+            assertTrue("y within tree (${s.y1})", s.y1 in -0.01f..1.06f)
+            assertTrue("radii positive", s.r0 > 0f && s.r1 > 0f)
+            assertTrue("child never fatter than parent (pipe model)", s.r1 <= s.r0 * 1.06f + 0.001f)
+        }
+        val trunk = a.first()
+        assertEquals(0f, trunk.x0, 0f)
+        assertEquals(0f, trunk.y0, 0f)
+        assertTrue("trunk base is the stoutest segment", a.all { it.r0 <= trunk.r0 + 1e-4f })
+        val crownTop = a.maxOf { it.y1 }
+        assertTrue("crown reaches up ($crownTop)", crownTop > 0.8f)
+        val spread = a.maxOf { it.x1 } - a.minOf { it.x1 }
+        assertTrue("crown spreads ($spread)", spread > 0.7f)
+    }
+
+    @Test
     fun foothillHeightsAreSmoothComparedToTheMassif() {
         val envelope = floatArrayOf(0f, 0.7f, 0.5f, 1f, 1f, 0.5f)
         val foothills = LandscapeProfile.foothillHeights(80, 26f, envelope, seed = 77)
