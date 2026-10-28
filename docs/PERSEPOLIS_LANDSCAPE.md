@@ -33,8 +33,8 @@ no assets, geometry generated procedurally into static VBOs — 148,985 triangle
 with one fixed camera and all "3D behaviour" in the lighting). It now lives at
 `app/src/main/java/com/alijafari/red/astronomy/ui/persepolis/PersepolisMilAzhdaha.kt`,
 **integrated exactly where the Home scene permits** — same builders, same element tables, same
-fixed camera and same Sun/Moon light derivation — with eight changes, each recorded in the file's
-header note. The first six are host/lifecycle adaptations; the last two are the explicitly
+fixed camera and same Sun/Moon light derivation — with nine changes, each recorded in the file's
+header note. Six are host/lifecycle adaptations (including #9, the TextureView host); the last two are the explicitly
 requested Home placement and material harmonization:
 
 | # | Change | Why |
@@ -42,11 +42,12 @@ requested Home placement and material harmonization:
 | 1 | Package line | As the file's own first line instructed |
 | 2 | `PersepolisMilAzhdahaScene.init()` drops stale GL names before rebuilding | `init()` runs per fresh EGL context; Home's scene is a `LazyColumn` item, so the surface *will* be destroyed and recreated on scroll. Unpatched, a later `init()` appended second chunk sets for **both** programs and drew buffer names from the dead context |
 | 3 | CPU mesh arrays for both monument groups memoised per process | Each `MeshBuilder` is deterministic (fixed LCG seed), and the caches preserve the supplied Persepolis-then-Mil build order and baked transforms, so the arrays are bit-identical; only VBO uploads repeat per context. Scroll-back stays near-instant instead of rebuilding ~149 k triangles on the GL thread. Roughly 8 MB retained |
-| 4 | `setPreserveEGLContextOnPause(true)` | Backgrounding the app need not re-upload static VBOs where the driver keeps the context; change 2 covers the rest |
+| 4 | EGL context preserved across pauses (was `setPreserveEGLContextOnPause(true)` on the supplied overlay view) | Backgrounding the app need not re-upload static VBOs where the context survives; since #9 the context belongs to the host's own render thread, which keeps it across pauses structurally; change 2 covers the rest |
 | 5 | GL calls via the ES 3.0 API on an ES 3.0 context (was ES 2.0) | The app declares ES 3.0 in its manifest and keeps every renderer on it, guarded by `AnimationRecordPrecisionTest.legacyRenderersStayOnGles3…`. ES 3.0 compiles the supplied GLSL ES 1.00 shaders unchanged; this is an Android API/context change, not a shader rewrite |
 | 6 | Optional `centerFractionFromLeft` framing input | Places the unchanged fixed-camera combined group left of centre by shifting only the orthographic window. The default remains 0.5 (the supplied centred framing); ZIG passes 0.30 for the Home landscape |
 | 7 | `MIL_HOME_RIGHT_SHIFT_M = 66 m`, applied only to the cached Mil mesh | Moves the complete tower/foot/slope group to the far right without touching any Persepolis transform. On the retained 178 m phone window the tower centre lands at 90.8 % of width and its slope spans 76.3–109.8 %, so the upslope is cropped by the edge rather than terminating inside the field |
 | 8 | Persepolis palette unified as **one** warm limestone hue at ten values, matching the Mil family; restrained distance-scaled grain, tooling relief, sparse scalar staining, aerial softening and a final hue-lock blend in `FRAGMENT_SHADER_P` | The supplied Persepolis program was deliberately cooler and comparatively flat, which made the two ruins look as if they came from different material worlds; and its frame stone was a neutral grey, which against warm limestone reads as a *second* stone colour. Every index now shares one hue (frames/recesses differ only in value), all shader variation is scalar, and settled dust is the same stone powdered — so the monument can never split into two colours. The value hierarchy is retained; the Mil program and palette remain exactly as supplied |
+| 9 | Overlay view replaced by a TextureView host (`PersepolisTextureView.kt`: TextureView + hand-rolled EGL thread, the way `SkyPanoramaSurfaceView` hosts the panorama) | The supplied overlay surface claimed the top window z-order and composited above the *entire window*: it punched through the search overlay, the fullscreen viewer and every other Compose overlay, ignored the scene's clipping, and could swim behind fast scrolls. As ordinary window content the relief now takes Compose z-order, clipping and scrolling like the painted layers; the splash gate (`LocalSplashActive`) that papered over the same punch-through for the intro is gone with it. Scene, shaders and the render-on-demand cadence are unchanged |
 
 Persepolis' placement is preserved exactly: it is baked at `PERSEPOLIS_X = -9.7 m`, and its empty
 platform wings remain cut back. The Mil group retains its supplied 2.04× scale, −0.20 rad yaw and
@@ -55,12 +56,15 @@ baked tower centre of `(106.7, 1.1, 15.6)`. The retained Mil geometry is the tow
 rubble/sand/scrub foot group and `milSlope()`; the standalone wide bedrock pavement and ledge set
 excluded by the combined builder stay excluded.
 
-Hosting uses the file's **Option A** — its own `PersepolisMilAzhdahaView`, a transparent
-`GLSurfaceView` (RGBA8888 + depth, `RENDERMODE_WHEN_DIRTY`) composited over the sky — wrapped by
-`PersepolisLandscape` (`ui/persepolis/PersepolisLandscape.kt`) and inserted in `HeroSkyCanvas`
-between the sky canvas and the cloud-motion canvas. Option B (drawing the scene inside a host GL
-renderer) was not used: the Home sky is a Compose `Canvas`, not a GL renderer, and Option A is the
-integration the file designs for exactly this situation.
+Hosting was the file's **Option A** (a transparent overlay surface claiming the top window
+z-order); it is now a **TextureView** (`PersepolisTextureView.kt`: TextureView + hand-rolled EGL
+thread, RGBA8888 + 16-bit depth, render-on-demand — change 9), wrapped by `PersepolisLandscape`
+(`ui/persepolis/PersepolisLandscape.kt`) and inserted in `HeroSkyCanvas` between the sky canvas
+and the cloud-motion canvas. Option B (drawing the scene inside a host GL renderer) is still not
+used: the Home sky is a Compose `Canvas`, not a GL renderer. A TextureView is the hosting this
+codebase already trusts for in-window GL (`SkyPanoramaSurfaceView`, `ArSkyGlView`), and it costs
+one texture copy per presented frame plus a hand-owned EGL lifecycle in exchange for true
+in-window compositing.
 
 **What did not change:** the Compose ground band ([`SceneGroundRenderer`](HOME_SKY_SCENE.md)) is
 painted underneath the GL stone — far ridge, mid ridge, ground, grass — because it is
@@ -83,7 +87,7 @@ No new astronomy. `SkySceneFrame` already computes, for the exact instant the sk
 
 - `sunHoriz` — Sun azimuth/altitude from `CoordinateEngine.equatorialToHorizontal`, azimuth measured
   **from North = 0°, East = 90°** — precisely the convention
-  `PersepolisMilAzhdahaView.setSun` takes (its world axes are +X = north, +Z = east;
+  `PersepolisTextureView.setSun` takes (its world axes are +X = north, +Z = east;
   `dirFromAzAlt` needs no conversion);
 - `moonData` — Moon azimuth/altitude/illumination from `MoonEngine`.
 
@@ -181,16 +185,21 @@ back to front:
   shoulder behind the ruins/readout while the whaleback crest swells behind the tower. Each
   range is facet-shaded from its profile slope against the *actual* Sun's screen side, with
   erosion gullies, a crest catch-light, and depth-graded aerial perspective into the scene's
-  haze colour — at night the same shapes collapse to a moonlit silhouette;
+  haze colour — at night the same shapes collapse to a moonlit silhouette. The relief is
+  kept honest to the real topography: Kuh-e Rahmat tops out at 2,413 m above the 1,620 m
+  plain (≈0.8 km of relief), so both ranges were lowered to low whaleback ridges whose
+  crests ride just above the horizon line, *below* the tallest column tops — the ruins
+  dominate, the mountains frame;
 - **piedmont foothills and alluvial fans** where the massif's gullies debouch, then the
   semi-arid **steppe plain**: dry olive-straw field mosaic (irrigated green against fallow),
   an irrigation canal with its tree line, and a three-band **batched grass system** built on
   the production recipe (Ghost-of-Tsushima/GodotGrass class): true Voronoi clumps sharing
   height/lean/dryness/density softened at their borders, tapered blades along a cubic-Bézier
   bend profile with ground-tinted AO roots and backlit tips, a ground-cover carpet plus
-  thousands of micro-blades at range, and real steppe species in the foreground — *Stipa*
-  feather grass with fans of silky awns, nodding *Bromus* panicles, broad riparian tufts,
-  dry litter and sparse forbs — all batched into ~10 draw calls, moisture-driven
+  thousands of micro-blades at range, dry litter — and, on the viewer's own near bank, a
+  low harmonized fringe of short ground-tinted tufts whose tones are lerped toward the
+  steppe ground colour so the foreground grass reads as the plain's own sunlit skin
+  (the earlier tall filled foreground blades are gone), all batched, moisture-driven
   (noise + river + canal), never in the water or the clearings;
 - a **broad Pulvar river** (≈3.8× the first stream) the viewer stands across from: layered
   water (damp wet-bank fringe, shallow edges with the bed and pebbles showing, sky
@@ -199,12 +208,16 @@ back to front:
   broad Fresnel sheen plus stochastically thinned glitter (with rare star sparkles)
   concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
   illumination, at night);
-- a **mixed parkland of 28 trees** (riparian gallery, canal line, foothill woodland,
-  scattered plain trees, near-bank foreground trees, the lone tree between the sites):
-  wild pistachio, gnarled decurrent **Zagros oaks** (*Quercus brantii* — the lone tree
-  between the sites and the foreground frame) and vase-shaped **flowering cherries** in
-  Somei Yoshino bloom (pale-pink cloud crowns on both riverbanks, petal litter beneath),
-  plus pistachio scrub and silver-grey *Artemisia* sage. All are grown by 2D space
+- a **mixed parkland of 63 space-colonization trees** (riparian gallery, canal line,
+  foothill woodland, scattered plain trees, near-bank foreground trees, the lone tree
+  between the sites): wild pistachio, gnarled decurrent **Zagros oaks** (*Quercus
+  brantii* — the lone tree between the sites and the foreground frame), vase-shaped
+  **flowering cherries** in Somei Yoshino bloom (pale-pink cloud crowns on both
+  riverbanks, petal litter beneath), and tall umbrella-crowned **Paulownia**
+  (*Paulownia tomentosa*) carrying upright lavender terminal panicles over oversized
+  heart-shaped foliage — planted as dedicated groves (+15 Paulownia, +10 cherry, +8 oak)
+  with refuse-and-retry placement so the species counts always hold — plus pistachio
+  scrub and silver-grey *Artemisia* sage. All are grown by 2D space
   colonization upgraded with the self-organizing tree model (Palubicki et al. 2009:
   bud occupancy zones, shadow self-pruning, apical-control scaffold spread, arching and
   gnarl per species) with da Vinci pipe-model branch radii. Foliage is leaf-cluster dabs
@@ -254,34 +267,35 @@ both sites back into the living plain.
 
 ## 4. Lifecycle, cost, interaction
 
-- `PersepolisLandscape` forwards `ON_RESUME`/`ON_PAUSE` to the `GLSurfaceView` from the composition's
-  lifecycle owner and frees both program/chunk sets on the GL thread in `onRelease`. First surface
+- `PersepolisLandscape` forwards `ON_RESUME`/`ON_PAUSE` to the TextureView host from the
+  composition's lifecycle owner (pausing gates GL drawing; the context and VBOs survive) and frees
+  both program/chunk sets on the render thread in `onRelease`. First surface
   creation runs the two procedural builds on the GL thread while the sky and ground are already
-  visible through the transparent surface; every later creation re-uploads from memoised arrays.
+  visible through the transparent texture; every later creation re-uploads from memoised arrays.
 - The view is non-clickable/non-focusable and consumes no touches: tap-to-identify and finger time
   travel on the canvas are unaffected (its geometry is not hit-tested — a tap on a star projected
   over a column still identifies the star).
 - Per-repaint cost is the file's own: two shader programs drawing their static ≤60 k-vertex VBO
   chunks, on demand. At idle that is one frame per 15 s model bucket; the surface does no work
   between light changes.
-- **Splash gate.** The one-shot splash is only a Compose overlay over the already-composed
-  Home scene, and a z-order-on-top surface composites above the entire window — the relief
-  used to show through the splash. `MainActivity` now provides `LocalSplashActive`, and
-  `HeroSkyCanvas` does not compose `PersepolisLandscape` until the splash completes.
+- **Splash gate (removed with change 9).** The one-shot splash is only a Compose overlay over
+  the already-composed Home scene, and the old window-level surface used to show straight
+  through it; `MainActivity` provided `LocalSplashActive` and `HeroSkyCanvas` held the relief
+  uncomposed until the splash completed. With the relief on a TextureView it is ordinary scene
+  content that the splash covers like everything else, so the gate and the plumbing are gone.
 
 ### Known trade-offs (honest list)
 
-- **Surface above siblings.** `setZOrderOnTop` places the GL surface above the Compose layers
-  inside its bounds. Framing (§3.4) keeps stone off the readout and header; what remains beneath
-  is where it belongs physically — cloud veils drift behind the ruins, and a near-horizon selection
-  ring is occluded by the stone that occludes its object. If that ever stops being acceptable, the
-  upgrade path is the file's Option B: host the untouched scene on a `TextureView` the way
-  `SkyPanoramaSurfaceView` hosts the panorama, gaining true Compose z-order at the cost of a
-  hand-rolled EGL thread. The scene's `RectangleShape` clip is why the surface needs no clipping
-  here, unlike the panorama's squircle card.
-- **Scroll.** The scene is the first `LazyColumn` item; a `SurfaceView` layer follows its window
-  position per frame on current Android, but can lag a frame behind fast flings on some devices.
-  The TextureView path above removes that too.
+- **In-window compositing (the TextureView bargain).** The relief is ordinary window content:
+  Compose siblings drawn after it — the motion veils, selection ring, readout, and overlays such
+  as the sky search (scrim included) — cover and dim it exactly like the painted layers, it
+  follows the canvas's clipping, and it scrolls with the feed instead of trailing a
+  window-level surface. What remains physically ordered is what the painter's order decides:
+  cloud veils drift behind the ruins, and a near-horizon selection ring now draws *over* the
+  stone that occludes its object (a usability win the old surface made impossible). The costs
+  are one texture copy per presented frame and a hand-owned EGL thread, both of which the app
+  already pays for the panorama and the AR sky. Framing (§3.4) still keeps stone off the readout
+  and header — as composition, not survival.
 - **Fixed combined view.** One fixed camera and the supplied composite placement. Persepolis and
   the Nurabad-area Mil-e Azhdaha are real places, but this is not a literal single viewpoint from
   which both are visible together, and it is not tied to the observer's location. It is the Home
@@ -294,6 +308,8 @@ both sites back into the living plain.
 
 ## 5. Verification
 
+- `PersepolisHostingGuardTest` (JVM, source-shape): the relief stays hosted on a TextureView
+  with its own EGL thread, and no window-top GL surface claim returns to the persepolis package.
 - `PersepolisFramingTest` (JVM): the retained half scale, left placement, distant toe,
   protected-readout rules, cut-back platform and Mil slope/tower footprint ordering over six scene
   sizes, the theme gate, and the moonlight scaling.

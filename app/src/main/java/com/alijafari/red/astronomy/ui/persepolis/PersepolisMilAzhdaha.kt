@@ -17,9 +17,11 @@ package com.alijafari.red.astronomy.ui.persepolis
 //     object). Both builders are deterministic (fixed LCG seed per
 //     MeshBuilder), so the cached arrays are bit-identical to fresh builds;
 //     only the VBO uploads repeat per GL context.
-//  4. [PersepolisMilAzhdahaView] preserves its EGL context on pause, so
-//     backgrounding the app does not force VBO re-uploads when the context
-//     survives. Change 2 covers the devices where preservation fails.
+//  4. The overlay view preserves its EGL context on pause, so backgrounding
+//     the app does not force VBO re-uploads when the context survives;
+//     change 2 covers the devices where preservation fails. Since change 9
+//     the context belongs to the host's own render thread
+//     ([PersepolisTextureView]), which keeps it across pauses structurally.
 //  5. The renderer is hosted through the OpenGL ES 3.0 Android API and an
 //     ES 3.0 EGL context. That conversion itself changes no shader source
 //     or rendering operation; it only follows the app's renderer policy.
@@ -42,6 +44,19 @@ package com.alijafari.red.astronomy.ui.persepolis
 //     and platform is kept, and the added surface detail is scaled for
 //     Persepolis' greater viewing distance. Mil-e Azhdaha's palette and
 //     shader are unchanged.
+//  9. The ready-made overlay view at the end of this file (the old
+//     the supplied overlay view, a window-level surface claiming the top z-order) is
+//     replaced by [PersepolisTextureView] in its own file: a TextureView
+//     driven by a hand-rolled EGL thread, the way SkyPanoramaSurfaceView
+//     hosts the panorama. A z-order-on-top SurfaceView composites above the
+//     *entire window*, so the relief punched through the search overlay,
+//     the fullscreen viewer and every other Compose overlay, ignored the
+//     scene's clipping, and could swim a frame behind the scrolling feed.
+//     As ordinary window content the relief now takes Compose z-order,
+//     clipping and scrolling exactly like the painted layers around it —
+//     it is part of the sky canvas instead of a picture pasted over the
+//     app. Scene, shaders and the render-on-demand cadence are unchanged;
+//     only the host moved.
 //
 // Hosting, framing and the Sun/Moon feed live outside this file: see
 // PersepolisLandscape (Compose host) and
@@ -49,18 +64,12 @@ package com.alijafari.red.astronomy.ui.persepolis
 // math), and docs/PERSEPOLIS_LANDSCAPE.md for the integration record.
 // ============================================================================
 
-import android.content.Context
-import android.graphics.PixelFormat
 import android.opengl.GLES30
-import android.opengl.GLSurfaceView
 import android.opengl.Matrix
-import android.util.AttributeSet
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.ShortBuffer
-import javax.microedition.khronos.egl.EGLConfig
-import javax.microedition.khronos.opengles.GL10
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
@@ -83,7 +92,7 @@ import kotlin.math.sqrt
  * total, measured;
  * split into ≤60k-vertex chunks so plain 16-bit indices work everywhere), so
  * the per-frame cost is a few draw calls and the view can render strictly
- * on demand ([GLSurfaceView.RENDERMODE_WHEN_DIRTY]) whenever your
+ * on demand (render-when-dirty) whenever your astronomy engine moves
  * astronomy engine moves the Sun or Moon. Ideal for a live-sky app:
  * zero battery cost between updates.
  *
@@ -213,10 +222,10 @@ import kotlin.math.sqrt
  *
  * INTEGRATION (astronomy app, Kotlin)
  * -----------------------------------
- * Option A — transparent overlay view (simplest). Put [PersepolisMilAzhdahaView] as
+ * Option A — transparent overlay view (simplest). Put [PersepolisTextureView] as
  * the top child of the FrameLayout that holds your sky, e.g. in XML:
  *
- *   <com.example.astronomy.PersepolisMilAzhdahaView
+ *   <com.alijafari.red.astronomy.ui.persepolis.PersepolisTextureView
  *       android:id="@+id/persepolis_mil_azhdaha"
  *       android:layout_width="match_parent"
  *       android:layout_height="240dp"
@@ -224,8 +233,8 @@ import kotlin.math.sqrt
  *
  * then, whenever your ephemeris updates (and in onResume):
  *
- *   persepolisMilAzhdahaView.setSun(azimuthDeg = sunAzimuthDeg, altitudeDeg = sunAltitudeDeg)
- *   persepolisMilAzhdahaView.setMoon(azimuthDeg = moonAzimuthDeg, altitudeDeg = moonAltitudeDeg)
+ *   persepolisTextureView.setSun(azimuthDeg = sunAzimuthDeg, altitudeDeg = sunAltitudeDeg)
+ *   persepolisTextureView.setMoon(azimuthDeg = moonAzimuthDeg, altitudeDeg = moonAltitudeDeg)
  *
  * Azimuth uses the astronomical convention 0°=N, 90°=E, 180°=S, 270°=W —
  * exactly what an ephemeris produces, no conversion needed. [setSun]
@@ -233,16 +242,16 @@ import kotlin.math.sqrt
  * sun, twilight fade below the horizon, dim blue night ambient), so one
  * call per update is enough; [PersepolisMilAzhdahaScene.setSunLight] and
  * [PersepolisMilAzhdahaScene.setAmbient] exist if you want full control.
- * Forward the lifecycle: persepolisMilAzhdahaView.onPause()/onResume() from the
+ * Forward the lifecycle: persepolisTextureView.onPause()/onResume() from the
  * Activity/Fragment. The view is non-clickable/non-focusable and renders
- * one frame per light change (RENDERMODE_WHEN_DIRTY) — call it on your
+ * one frame per light change (render-when-dirty) — call it on your
  * normal sky-refresh cadence; redundant calls are cheap.
  * Choose the view's aspect ≲ 3.6 : 1 (width:height) for the default
  * framing; wider/shorter strips auto-fit (see [PersepolisMilAzhdahaScene.draw])
  * by zooming out rather than cropping the columns.
  *
  * Option B — draw inside your existing GL renderer (best if your sky is
- * itself a SurfaceView/GLSurfaceView). On the GL thread: create a
+ * itself a GL surface of your own). On the GL thread: create a
  * [PersepolisMilAzhdahaScene], call [PersepolisMilAzhdahaScene.init] in onSurfaceCreated,
  * [PersepolisMilAzhdahaScene.draw] with your viewport size each frame after the
  * sky, and [PersepolisMilAzhdahaScene.release] when the context goes away. The
@@ -2482,62 +2491,10 @@ class PersepolisMilAzhdahaScene {
     }
 }
 
+
 // ============================================================================
-// Ready-made transparent overlay view (Option A in the header docs).
-// Non-interactive, renders ONE frame per light/framing change.
-// Remember to forward onPause()/onResume() from your Activity/Fragment.
+// The ready-made transparent overlay view that used to stand here (a
+// window-level overlay surface claiming the top window z-order) moved to
+// PersepolisTextureView.kt as a TextureView - see change 9 in the header
+// note above for why.
 // ============================================================================
-
-class PersepolisMilAzhdahaView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-) : GLSurfaceView(context, attrs) {
-
-    /** The scene, exposed for framing controls and explicit-light APIs. */
-    val scene = PersepolisMilAzhdahaScene()
-
-    init {
-        setEGLContextClientVersion(3)
-        setEGLConfigChooser(8, 8, 8, 8, 16, 0)   // RGBA8888 + depth, for alpha compositing
-        // ZIG integration (change 4 in the header note): keep the static VBOs across
-        // Activity pauses when the driver allows it; init()'s guard covers the rest.
-        setPreserveEGLContextOnPause(true)
-        holder.setFormat(PixelFormat.TRANSLUCENT)
-        setZOrderOnTop(true)                     // surface above the sky beneath it
-        setRenderer(object : Renderer {
-            override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) = scene.init()
-            override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) = Unit
-            override fun onDrawFrame(gl: GL10?) = scene.draw(width, height, clear = true)
-        })
-        renderMode = RENDERMODE_WHEN_DIRTY       // draw only when the light moves
-        isClickable = false
-        isFocusable = false
-    }
-
-    /** Astronomical azimuth/altitude; colour & ambient derived automatically. */
-    fun setSun(azimuthDeg: Float, altitudeDeg: Float) {
-        scene.setSun(azimuthDeg, altitudeDeg)
-        requestRender()
-    }
-
-    /** Moon as second light; scale [intensity] by illuminated fraction (≈0.22 = full). */
-    fun setMoon(azimuthDeg: Float, altitudeDeg: Float, intensity: Float = 0.22f) {
-        scene.setMoon(azimuthDeg, altitudeDeg, intensity)
-        requestRender()
-    }
-
-    /** Framing: visible world width in metres (116 = the preview look), the
-     *  ground-line position as a fraction of the view height from the top
-     *  (0.80 = the preview look; 0.995 plants the base on the bottom edge), and
-     *  optionally the combined frame's anchor x as a fraction from the left. */
-    fun setFraming(
-        visibleWidthMeters: Float,
-        baseFractionFromTop: Float,
-        centerFractionFromLeft: Float = 0.5f,
-    ) {
-        scene.visibleWidthMeters = visibleWidthMeters
-        scene.baseFractionFromTop = baseFractionFromTop
-        scene.centerFractionFromLeft = centerFractionFromLeft
-        requestRender()
-    }
-}

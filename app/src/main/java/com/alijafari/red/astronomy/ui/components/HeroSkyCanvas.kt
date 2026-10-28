@@ -525,10 +525,11 @@ fun HeroSkyCanvas(
         // localized earthwork the sky pass paints around both footprints seats them in the
         // terrain. They are lit by
         // this frame's real Sun and Moon and render on demand (per sky-model change), never on the
-        // motion clock. Photographic themes only — PersepolisFeature is the gate. It also stays
-        // uncomposed while the splash is up: the relief's z-order-on-top GL surface composites
-        // above the whole window and would show through the Compose splash overlay.
-        if (persepolisFraming != null && !LocalSplashActive.current) {
+        // motion clock. Photographic themes only — PersepolisFeature is the gate. The relief is
+        // hosted on a TextureView (see PersepolisTextureView), so it is ordinary window content:
+        // layers composed after it — motion veils, the readout, in-window overlays such as the
+        // sky search — cover and dim it like the painted layers, and it scrolls with the feed.
+        if (persepolisFraming != null) {
             PersepolisLandscape(
                 frame = skyFrame,
                 framing = persepolisFraming,

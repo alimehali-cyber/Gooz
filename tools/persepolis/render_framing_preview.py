@@ -390,9 +390,9 @@ def main():
     SUN_SIGN, SUN_X = -1.0, 0.22 * W
     far_base = GROUND_TOP + H * 0.006  # strips fill to the plain: no sky sliver under the range
     far_samples = mountain_samples(
-        far_base, H * 0.130,
-        [(0, .70), (.18, .95), (.38, .75), (.55, .92), (.72, .88), (.88, 1.0), (1, .90)],
-        seed=11, sharpness=1.15, bench_amp=0.12, bench_step=0.16,
+        far_base, H * 0.088,
+        [(0, .58), (.18, .78), (.38, .64), (.55, .76), (.72, .72), (.88, .82), (1, .74)],
+        seed=11, sharpness=1.15, bench_amp=0.08, bench_step=0.16,
     )
     draw_mountain(d, far_samples, far_base, lit=(126, 108, 140), shade=(94, 84, 116),
                   haze=(240, 170, 118), haze_amt=0.25, sun_sign=SUN_SIGN, facet=0.32,
@@ -409,10 +409,10 @@ def main():
     # keeps a low shoulder behind the ruins/readout, crest at the right.
     massif_base = TOE_Y - H * 0.004
     massif = mountain_samples(
-        massif_base, H * 0.205,
-        [(0, .32), (.14, .40), (.30, .50), (.45, .58), (.58, .62), (.68, .88),
-         (.76, 1.0), (.86, .88), (1, .72)],
-        seed=29, bench_amp=0.22, bench_step=0.13, notches=[(0.63, 0.030, 0.38)],
+        massif_base, H * 0.138,
+        [(0, .26), (.14, .34), (.30, .42), (.45, .50), (.58, .55), (.68, .70),
+         (.76, .85), (.86, .76), (1, .60)],
+        seed=29, bench_amp=0.16, bench_step=0.13, notches=[(0.63, 0.030, 0.30)],
     )
     draw_mountain(d, massif, massif_base, lit=(150, 108, 82), shade=(86, 64, 60),
                   haze=(226, 158, 110), haze_amt=0.15, sun_sign=SUN_SIGN, facet=0.65,
@@ -795,6 +795,15 @@ def main():
                       shell_bias=0.35, top_flatten=0.96),
     ]
 
+    # Paulownia (princess tree): long straight trunk, broad umbrella crown of
+    # huge heart leaves, upright lavender panicles as the leaves expand.
+    PAULOWNIA_SKELS = [
+        tree_skeleton(1111, aspect=1.08, trunk_fraction=0.42, attractor_count=120, lean=0.02,
+                      scaffold_spread=0.95, arch=0.35, gnarl=0.25, shell_bias=0.60, top_flatten=0.80),
+        tree_skeleton(1212, aspect=0.98, trunk_fraction=0.46, attractor_count=110, lean=-0.03,
+                      scaffold_spread=0.90, arch=0.30, gnarl=0.30, shell_bias=0.58, top_flatten=0.82),
+    ]
+
     def draw_skeleton(cx, by, hgt, skel, flip, foliage, seed, kind="pistachio"):
         sx = -1.0 if flip else 1.0
 
@@ -825,10 +834,11 @@ def main():
             "sage": ((86, 96, 78), (118, 130, 106), (118, 130, 106), (168, 180, 156)),
             "oak": ((34, 46, 26), (46, 62, 34), (84, 106, 58), (140, 158, 102)),
             "cherry": ((146, 96, 116), (206, 138, 162), (242, 184, 200), (255, 222, 230)),
+            "Paulownia": ((34, 48, 26), (62, 88, 40), (96, 128, 58), (156, 186, 106)),
         }
         base_dark, base_dim, base_bright, base_rim = PALS[kind]
-        dabs = 4 if kind in ("oak", "cherry") else 3
-        min_dep = 6 if kind == "cherry" else 7
+        dabs = 4 if kind in ("oak", "cherry", "Paulownia") else 3
+        min_dep = 6 if kind in ("cherry", "Paulownia") else 7
         ci = 0
         for x0, y0, x1, y1, r0, r1, dep, term in skel:
             if not term and dep < min_dep:
@@ -842,7 +852,7 @@ def main():
             if _hash01(seed * 7.1 + ci * 3.3) > accept:
                 continue
             px, py = P(x1, y1)
-            cr_mul = 1.25 if kind == "oak" else (0.80 if kind == "cherry" else 1.0)
+            cr_mul = 1.25 if kind == "oak" else (0.80 if kind == "cherry" else (1.50 if kind == "Paulownia" else 1.0))
             cr = hgt * (0.045 + 0.040 * _hash01(seed * 3.7 + ci * 5.1)) * cr_mul
             tone = 0.85 + 0.3 * _hash01(seed * 5.3 + ci * 7.7)
             light = (0.50 + 0.42 * facing) * (0.42 + 0.58 * r01) * tone
@@ -903,6 +913,13 @@ def main():
             if kind == "cherry" and _hash01(seed * 13.1 + ci * 0.3) < 0.22:
                 d.ellipse([px - cr * 0.42, py - cr * 0.12, px + cr * 0.42, py + cr * 0.42],
                           fill=(52, 64, 42, 230))  # emerging leaf among blossom
+            # Paulownia: upright lavender panicles off the outer terminals.
+            if kind == "Paulownia" and term and _hash01(seed * 19.1 + ci * 1.9) < 0.72:
+                fcol = (197, 181, 236, 235) if light >= 0.50 else (126, 110, 168, 225)
+                fw = cr * (0.50 + 0.18 * _hash01(seed * 19.7 + ci * 2.9))
+                fx = px + (_hash01(seed * 19.3 + ci * 2.3) - 0.5) * cr * 0.45
+                fy = py - cr * 0.55
+                d.ellipse([fx - fw / 2, fy - cr * 0.58, fx + fw / 2, fy + cr * 0.58], fill=fcol)
         if kind == "cherry":  # petal litter + drift
             for p in range(12):
                 gx = cx + sx * ccx * hgt + (_hash01(seed * 13.9 + p * 0.7) - 0.5) * crx * hgt * 2.1
@@ -938,13 +955,14 @@ def main():
 
     def plant(x, y, hgt, idx, kind="pistachio"):
         if in_apron(x, y) and y < TOE_Y + H * 0.038:
-            return
+            return False
         yc = river_at(x)
         if abs(y - yc) < river_halfw(x, yc) * 1.22:
-            return
-        skels = {"oak": OAK_SKELS, "cherry": CHERRY_SKELS}.get(kind, TREE_SKELS)
+            return False
+        skels = {"oak": OAK_SKELS, "cherry": CHERRY_SKELS, "Paulownia": PAULOWNIA_SKELS}.get(kind, TREE_SKELS)
         draw_skeleton(x, y, hgt, skels[idx % len(skels)], idx % 2 == 1,
                       0.82 + 0.15 * _hash01(idx * 7.01), seed=idx * 7 + 3, kind=kind)
+        return True
 
     for i in range(9):  # far-bank gallery: cherries + oaks among pistachios
         x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
@@ -969,6 +987,61 @@ def main():
         x = W * (xf + (_hash01(j * 3.3 + 6.53) - 0.5) * 0.03)
         plant(x, near_bank_y(x), H * (0.054 + 0.012 * _hash01(j * 5.5 + 6.57)), 180 + j,
               "cherry" if j == 0 else "oak")
+    # Grove expansion (+33): 15 Paulownia, 10 cherry, 8 oak — waterside
+    # Paulownia, gallery/grove cherry, dry-grove oak; refused spots retry.
+    def far_bank_y(x, mul):
+        return river_at(x) - river_halfw(x, river_at(x)) * mul
+
+    def canal_line_y(x):
+        return canal_y - H * 0.004 + (x / W) * H * 0.010
+
+    grove_counts = {"Paulownia": 0, "cherry": 0, "oak": 0}
+    _gi = [200]
+
+    def plant_grove(x, y, hgt, kind):
+        for dy in (0.0, -H * 0.014, H * 0.014):
+            if plant(x, y + dy, hgt, _gi[0], kind):
+                _gi[0] += 1
+                grove_counts[kind] += 1
+                return
+        raise AssertionError(f"grove planting refused: {kind} at {x / W:.2f},{y / H:.3f}")
+
+    for j, xf in enumerate((0.09, 0.27, 0.48, 0.69, 0.90)):  # Paulownia far bank x5
+        x = W * xf
+        plant_grove(x, far_bank_y(x, 1.52 + 0.22 * _hash01(j * 3.1 + 12.01)),
+                    H * (0.038 + 0.010 * _hash01(j * 5.1 + 12.03)), "Paulownia")
+    for j, xf in enumerate((0.16, 0.36, 0.58, 0.80)):  # Paulownia canal x4
+        x = W * xf
+        plant_grove(x, canal_line_y(x), H * (0.028 + 0.008 * _hash01(j * 5.3 + 12.07)), "Paulownia")
+    for j, (xf, yf, hf) in enumerate(((0.24, 0.858, 0.044), (0.44, 0.862, 0.040),
+                                      (0.64, 0.856, 0.046), (0.84, 0.864, 0.042))):  # plain x4
+        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.7 + 12.11)), "Paulownia")
+    for j, xf in enumerate((0.20, 0.78)):  # Paulownia near bank x2
+        x = W * xf
+        plant_grove(x, near_bank_y(x), H * (0.056 + 0.008 * _hash01(j * 5.9 + 12.13)), "Paulownia")
+    for j, xf in enumerate((0.18, 0.58, 0.84)):  # cherry far bank x3
+        x = W * xf
+        plant_grove(x, far_bank_y(x, 1.55 + 0.20 * _hash01(j * 3.3 + 12.17)),
+                    H * (0.030 + 0.008 * _hash01(j * 5.11 + 12.19)), "cherry")
+    for j, xf in enumerate((0.26, 0.68)):  # cherry canal x2
+        x = W * xf
+        plant_grove(x, canal_line_y(x), H * (0.024 + 0.006 * _hash01(j * 5.13 + 12.23)), "cherry")
+    for j, (xf, yf, hf) in enumerate(((0.34, 0.852, 0.034), (0.52, 0.858, 0.038),
+                                      (0.74, 0.850, 0.032), (0.42, 0.866, 0.036),
+                                      (0.92, 0.860, 0.034))):  # cherry groves x5
+        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.17 + 12.29)), "cherry")
+    for j, (xf, yf, hf) in enumerate(((0.12, 0.850, 0.028), (0.48, 0.854, 0.030),
+                                      (0.86, 0.866, 0.028))):  # oak groves x3
+        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.19 + 12.31)), "oak")
+    for j, (xf, yf, hf) in enumerate(((0.30, 0.864, 0.036), (0.58, 0.868, 0.038),
+                                      (0.78, 0.860, 0.034))):  # oak plain x3
+        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.23 + 12.37)), "oak")
+    for j, xf in enumerate((0.36, 0.95)):  # oak far bank x2
+        x = W * xf
+        plant_grove(x, far_bank_y(x, 1.58 + 0.18 * _hash01(j * 3.7 + 12.41)),
+                    H * (0.032 + 0.008 * _hash01(j * 5.29 + 12.43)), "oak")
+    assert grove_counts == {"Paulownia": 15, "cherry": 10, "oak": 8}, grove_counts
+
     # Grass v4 mirror (simplified): carpet colour field + true Voronoi clumps +
     # cubic-Bezier blades in three bands, three-tone shading, true blade width
     # profile + Stipa/Bromus/riparian hero species.
@@ -1027,9 +1100,20 @@ def main():
         soft_drift(x, y, W * (0.10 + 0.10 * _hash01(i * 7.3 + 8.13)), H * (0.010 + 0.016 * depth),
                    peak_alpha=0.15, layers=6, rgb=TIP_GRN if moist > 0.52 else TIP_DRY)
 
-    def stroke_blade(bx, by, bh, lean, stiff, dry):
-        # Three tones root -> mid -> tip (v4 mirror; two tones posterised).
-        root, mid, tip = (ROOT_DRY, MID_DRY, TIP_DRY) if dry else (ROOT_GRN, MID_GRN, TIP_GRN)
+    # Near-bank harmonized tones: pulled halfway toward the steppe ground.
+    NEAR_ROOT_DRY = lerp(ROOT_DRY, (88, 76, 50), 0.45)
+    NEAR_TIP_DRY = lerp(TIP_DRY, (150, 128, 86), 0.50)
+    NEAR_ROOT_GRN = lerp(ROOT_GRN, (70, 66, 44), 0.48)
+    NEAR_TIP_GRN = lerp(TIP_GRN, (104, 106, 66), 0.52)
+    NEAR_MID_DRY = lerp(NEAR_ROOT_DRY, NEAR_TIP_DRY, 0.52)
+    NEAR_MID_GRN = lerp(NEAR_ROOT_GRN, NEAR_TIP_GRN, 0.52)
+
+    def stroke_blade(bx, by, bh, lean, stiff, dry, near=False):
+        # Three tones root -> mid -> tip (two tones posterised).
+        if near:
+            root, mid, tip = (NEAR_ROOT_DRY, NEAR_MID_DRY, NEAR_TIP_DRY) if dry else (NEAR_ROOT_GRN, NEAR_MID_GRN, NEAR_TIP_GRN)
+        else:
+            root, mid, tip = (ROOT_DRY, MID_DRY, TIP_DRY) if dry else (ROOT_GRN, MID_GRN, TIP_GRN)
         pts = [bpt(bx, by, bh, lean, stiff, t) for t in (0, .18, .36, .58, .78, .90, 1.0)]
         d.line(pts[:3], fill=(*root, 200), width=2)
         d.line(pts[2:5], fill=(*mid, 195), width=2)
@@ -1052,7 +1136,7 @@ def main():
         stroke_blade(x, y, bh, lean, 0.25 + 0.45 * (1 - drymix), drymix > 0.5)
     for i in range(380):  # mid tufts
         x = W * _hash01(i * 13.1 + 8.39)
-        depth = 0.30 + 0.62 * _hash01(i * 17.7 + 8.43)
+        depth = 0.30 + 0.54 * _hash01(i * 17.7 + 8.43)
         y = GROUND_TOP + (H - GROUND_TOP) * depth
         if not g_allowed(x, y):
             continue
@@ -1067,54 +1151,31 @@ def main():
             bh = H * (0.005 + 0.013 * depth) * (1 + (hm - 1) * soft) * (0.7 + 0.6 * _hash01(i * 57 + b * 19 + 8.63))
             lean = cl * soft + (_hash01(i * 67 + b * 23 + 8.67) - 0.5) * 0.55
             stroke_blade(bx, y, bh, lean, 0.25 + 0.45 * (1 - drymix), drymix > 0.5)
-    for i in range(110):  # hero tufts on the near strip
-        x = W * _hash01(i * 13.3 + 8.77)
-        depth = 0.84 + 0.16 * _hash01(i * 17.1 + 8.81)
+    for i in range(36):  # carpet fringe along the near bank: the grass mass
+        x = W * _hash01(i * 13.3 + 9.37)
+        yc = river_at(x)
+        y = yc + river_halfw(x, yc) * (1.30 + 0.30 * _hash01(i * 7.1 + 9.41)) + H * 0.006 * _hash01(i * 11.3 + 9.43)
+        if not g_allowed(x, y):
+            continue
+        soft_drift(x, y, W * 0.085, H * 0.011, peak_alpha=0.13, layers=5,
+                   rgb=TIP_GRN if g_moist(x, y, 0.92) > 0.52 else TIP_DRY)
+    for i in range(170):  # near-bank harmonized grass: short, fine, ground-tinted
+        x = W * _hash01(i * 13.7 + 9.47)
+        depth = 0.86 + 0.14 * _hash01(i * 17.3 + 9.49)
         y = GROUND_TOP + (H - GROUND_TOP) * depth
         if not g_allowed(x, y):
             continue
         moist = g_moist(x, y, depth)
         hm, cl, dryn, dens, edge = grass_clump(x / W, depth)
-        if _hash01(i * 19.7 + 8.83) > (0.30 + 0.70 * moist) * (0.40 + 0.60 * dens):
+        if _hash01(i * 19.9 + 9.51) > (0.42 + 0.58 * moist) * (0.45 + 0.55 * dens):
             continue
         soft = 0.45 + 0.55 * edge
-        drymix = 0.5 * (1 - moist) + 0.5 * dryn
-        stiff = 0.22 + 0.50 * (1 - drymix)
-        soft_drift(x, y, H * 0.034, H * 0.008, peak_alpha=0.2, layers=5, rgb=(10, 12, 6))
-        pick = _hash01(i * 3.3 + 8.87)
-        species = 2 if moist > 0.62 else (0 if drymix > 0.58 and pick < 0.55 else (1 if pick < 0.82 else 2))
-        fillc = lerp(ROOT_DRY, TIP_DRY, 0.45) if drymix > 0.5 else lerp(ROOT_GRN, TIP_GRN, 0.45)
-        ribc = TIP_DRY if drymix > 0.5 else TIP_GRN
-        blades = 7 + int(5 * _hash01(i * 11.3 + 8.89))
-        for b in range(blades):
-            bx = x + (_hash01(i * 101 + b * 37 + 8.93) - 0.5) * W * 0.012
-            bh = H * (0.012 + 0.016 * depth) * (1 + (hm - 1) * soft) * (0.72 + 0.55 * _hash01(i * 57 + b * 19 + 8.99))
-            if species == 0 and b < 2:
-                bh *= 1.3
-            lean = cl * soft + (_hash01(i * 67 + b * 23 + 9.01) - 0.5) * 0.6
-            if species == 0:
-                lean += (b - blades / 2) * 0.07
-            wdt = max(1.6, bh * (0.11 if species == 2 else 0.08))
-            ts = (0, .2, .4, .6, .8, 1.0)
-            pts = [bpt(bx, y, bh, lean, stiff, t) for t in ts]
-            # Width profile (1-t)^0.8: full at the base, needle tip (v4 mirror).
-            left = [(px - wdt * (1 - t) ** 0.8 / 2, py) for (px, py), t in zip(pts, ts)]
-            right = [(px + wdt * (1 - t) ** 0.8 / 2, py) for (px, py), t in zip(reversed(pts), reversed(ts))]
-            d.polygon(left + right, fill=(*fillc, 215))
-            d.line([pts[1], pts[3], pts[5]], fill=(*ribc, 160), width=1)
-            tip = pts[5]
-            if b < 2 and species == 0:  # Stipa awn fan
-                for a in range(5):
-                    spread = (a - 2) * 0.13
-                    ln = bh * 0.5
-                    d.line([tip, (tip[0] + spread * ln * 0.5, tip[1] - ln * 0.55),
-                            (tip[0] + spread * ln, tip[1] - ln)], fill=(216, 192, 150, 150), width=1)
-            elif b < 2 and species == 1:  # Bromus nodding panicle
-                for a in range(4):
-                    dx = (a - 1.5) * bh * 0.055
-                    top = tip[1] - bh * (0.05 + 0.04 * (3 - a))
-                    d.line([tip, (tip[0] + dx, top), (tip[0] + dx * 1.4, top + bh * 0.07)],
-                           fill=(168, 132, 94, 190), width=2)
+        drymix = 0.55 * (1 - moist) + 0.45 * dryn
+        for b in range(6 + int(4 * _hash01(i * 11.7 + 9.53))):
+            bx = x + (_hash01(i * 101 + b * 37 + 9.57) - 0.5) * W * 0.010
+            bh = H * (0.0055 + 0.0075 * depth) * (1 + (hm - 1) * soft) * (0.70 + 0.55 * _hash01(i * 57 + b * 19 + 9.59))
+            lean = cl * soft + (_hash01(i * 67 + b * 23 + 9.61) - 0.5) * 0.50
+            stroke_blade(bx, y, bh, lean, 0.30 + 0.40 * (1 - drymix), drymix > 0.52, near=True)
     for i in range(200):  # dry litter
         x = W * _hash01(i * 13.9 + 9.29)
         depth = 0.3 + 0.7 * _hash01(i * 17.3 + 9.31)

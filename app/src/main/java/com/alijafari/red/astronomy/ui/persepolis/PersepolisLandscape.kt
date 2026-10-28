@@ -38,7 +38,7 @@ object PersepolisFeature {
 }
 
 /**
- * Moonlight intensity for [PersepolisMilAzhdahaView.setMoon] from the illuminated fraction.
+ * Moonlight intensity for [PersepolisTextureView.setMoon] from the illuminated fraction.
  *
  * The model's own guidance: ≈0.22 is a bright full Moon, scaled by the illuminated fraction. The view
  * additionally fades the light out as the Moon approaches the horizon and switches it off below it.
@@ -47,24 +47,25 @@ internal fun persepolisMoonIntensity(illuminationPercent: Double): Float =
     (0.22 * illuminationPercent.coerceIn(0.0, 100.0) / 100.0).toFloat()
 
 /**
- * Compose host for [PersepolisMilAzhdahaView]: the Apadana east façade in the left distance and
+ * Compose host for [PersepolisTextureView]: the Apadana east façade in the left distance and
  * the Mil-e Azhdaha tower on its limestone hillside as the ground of the Home sky scene.
  *
- * The view is the file's own Option A: a transparent `GLSurfaceView` (`setZOrderOnTop(true)`,
- * RGBA8888 + depth, render-on-demand) laid over the sky canvas, showing through wherever there is no
- * stone. Two consequences of that choice are handled by the framing rather than by this host:
- *
- *  - The surface composites above the Compose siblings in its bounds. [PersepolisFraming] keeps opaque
- *    stone clear of the scene readout and the header, so nothing the user must read can be painted
- *    over. What remains underneath is where it belongs physically: cloud veils drift *behind* the
- *    columns, and a selection ring for an object near the horizon is occluded by the stone that
- *    occludes the object.
- *  - The scene's clip is `RectangleShape` (edge-to-edge), so the squared-off surface needs no
- *    clipping — the reason the panorama needed a TextureView does not apply here.
+ * The view is a transparent `TextureView` (RGBA8888 + depth, render-on-demand) laid over
+ * the sky canvas, showing through wherever there is no
+ * stone. Unlike the supplied file's original window-level overlay view, a TextureView is
+ * composited into the window like any other view, so the relief is ordinary scene
+ * content: Compose siblings drawn after it (the motion layer, the readout, overlays such
+ * as the sky search) cover and dim it, its bounds follow the canvas's clip, and it scrolls
+ * with the Home feed instead of trailing a window-level surface behind it. [PersepolisFraming]
+ * keeps opaque
+ * stone clear of the scene readout and the header as composition, so the caption reads
+ * against sky; what lies beneath the stone is where it belongs physically: cloud veils drift
+ * behind the
+ * columns.
  *
  * The lighting feed is ZIG's own ephemeris, unchanged: [SkySceneFrame.sunHoriz] and
  * [SkySceneFrame.moonData] already carry astronomical azimuth (0° = N, 90° = E) and altitude — exactly
- * the convention [PersepolisMilAzhdahaView.setSun]/[PersepolisMilAzhdahaView.setMoon] take — so
+ * the convention [PersepolisTextureView.setSun]/[PersepolisTextureView.setMoon] take — so
  * both ruins are lit by the
  * same Sun and Moon that light the sky behind it, including while the finger scrubs time. Updates are
  * keyed on the ephemeris values, so the GL view renders one frame per sky-model change (the usual 15 s
@@ -72,7 +73,7 @@ internal fun persepolisMoonIntensity(illuminationPercent: Double): Float =
  *
  * The view itself is non-clickable and non-focusable and consumes no touches, so tap-to-identify and
  * finger time travel on the surrounding canvas are unaffected. Lifecycle is forwarded from the
- * composition's [androidx.lifecycle.LifecycleOwner], as `GLSurfaceView` requires.
+ * composition's [androidx.lifecycle.LifecycleOwner], as the host's render thread requires.
  */
 @Composable
 fun PersepolisLandscape(
@@ -80,7 +81,7 @@ fun PersepolisLandscape(
     framing: PersepolisFraming.Result,
     modifier: Modifier = Modifier
 ) {
-    var view by remember { mutableStateOf<PersepolisMilAzhdahaView?>(null) }
+    var view by remember { mutableStateOf<PersepolisTextureView?>(null) }
 
     val sunAzimuthDeg = frame.sunHoriz.azimuthDeg.toFloat()
     val sunAltitudeDeg = frame.sunHoriz.altitudeDeg.toFloat()
@@ -104,7 +105,7 @@ fun PersepolisLandscape(
         )
     }
 
-    // GLSurfaceView lifecycle: pause the GL thread with the host, resume with it. Adding the observer
+    // Render-thread lifecycle: gate drawing with the host's lifecycle, resume with it. Adding the observer
     // syncs it to the current lifecycle state, so a view created while already RESUMED is resumed too.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, view) {
@@ -122,7 +123,7 @@ fun PersepolisLandscape(
 
     AndroidView(
         factory = { context ->
-            PersepolisMilAzhdahaView(context).apply {
+            PersepolisTextureView(context).apply {
                 // Framing and lights are set before the surface exists, so the first drawn frame is
                 // already the composed one; the effects above keep them current afterwards.
                 setFraming(
@@ -138,11 +139,10 @@ fun PersepolisLandscape(
         // All state flows through the keyed effects above; there is nothing to push per recomposition.
         update = {},
         onRelease = { released ->
-            // Free the VBOs on the GL thread while it still exists, then pause it. If the event is
-            // dropped because the surface is already gone, PersepolisMilAzhdahaScene.init()'s guard
-            // covers the next surface.
-            runCatching { released.queueEvent { released.scene.release() } }
-            released.onPause()
+            // Terminal for this view instance: frees the scene's GL objects on its render
+            // thread and stops that thread. If the surface is already gone, the texture
+            // callback covers the renderer's teardown instead.
+            released.release()
             if (view === released) view = null
         },
         modifier = modifier

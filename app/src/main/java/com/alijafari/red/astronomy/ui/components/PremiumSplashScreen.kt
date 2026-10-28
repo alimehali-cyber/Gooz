@@ -27,17 +27,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * True while the one-shot splash is on screen (provided by MainActivity).
- *
- * This splash is only a Compose overlay on top of the already-composed Home scene, and a
- * `SurfaceView` set to z-order-on-top (the Persepolis + Mil-e Azhdaha GL relief) composites
- * above the entire window regardless of Compose order — it would punch straight through the
- * splash. Surface-backed layers therefore consult this local and stay uncomposed until the
- * splash completes.
- */
-val LocalSplashActive = compositionLocalOf { false }
-
-/**
  * Splash Screen for "RED".
  * Displays a fully code-drawn Compose Canvas paper-craft art style splash illustration
  * featuring layered cut-paper mountains, soft clouds, warm glowing sun, starry cosmos, and 'RED' typography.

@@ -31,9 +31,11 @@ import kotlin.math.sqrt
  *    alluvial fans, a semi-arid steppe/cultivation plain with an irrigation canal, the
  *    monuments' own earthworks, a broad foreground Pulvar river (wet banks, shallow
  *    bed, deep thalweg, point bars, sheen/stochastic glitter tracking the real Sun or
- *    Moon, tree reflections, reed clumps), a space-colonization pistachio parkland with
- *    Artemisia sage scrub, and a three-band batched grass system (Voronoi clumps,
- *    Bézier blades, Stipa/Bromus/riparian species). It is the monuments' actual geography —
+ *    Moon, tree reflections, reed clumps), a space-colonization parkland of pistachio,
+ *    Zagros oak, flowering cherry and tall Paulownia with Artemisia sage scrub, and a
+ *    batched grass system (Voronoi clumps, Bézier blades) whose near-bank band is
+ *    harmonized — ground-tinted, short and fine — instead of foreground hero tufts.
+ *    It is the monuments' actual geography —
  *    Persepolis stands at the foot of Kuh-e Rahmat on the Marvdasht plain near the Pulvar
  *    River, ringed by Zagros ranges — art-directed to the scene's framing.
  *
@@ -47,13 +49,13 @@ object SceneGroundRenderer {
     // low shoulder behind the ruins and readout, swelling to the great crest at the right
     // that backs the Mil-e Azhdaha tower, then continuing off-frame.
     private val FAR_ZAGROS_ENVELOPE = floatArrayOf(
-        0f, 0.70f, 0.18f, 0.95f, 0.38f, 0.75f, 0.55f, 0.92f, 0.72f, 0.88f, 0.88f, 1f, 1f, 0.90f
+        0f, 0.58f, 0.18f, 0.78f, 0.38f, 0.64f, 0.55f, 0.76f, 0.72f, 0.72f, 0.88f, 0.82f, 1f, 0.74f
     )
     // Kuh-e Rahmat as a folded whaleback anticline: long gentle back-limb rising from the
     // left, hinge near x = 0.76, then the crest continuing high off-frame at the right.
     private val KUH_RAHMAT_ENVELOPE = floatArrayOf(
-        0f, 0.32f, 0.14f, 0.40f, 0.30f, 0.50f, 0.45f, 0.58f, 0.58f, 0.62f,
-        0.68f, 0.88f, 0.76f, 1f, 0.86f, 0.88f, 1f, 0.72f
+        0f, 0.26f, 0.14f, 0.34f, 0.30f, 0.42f, 0.45f, 0.50f, 0.58f, 0.55f,
+        0.68f, 0.70f, 0.76f, 0.85f, 0.86f, 0.76f, 1f, 0.60f
     )
     private val FOOTHILL_ENVELOPE = floatArrayOf(0f, 0.7f, 0.5f, 1f, 1f, 0.5f)
 
@@ -89,7 +91,7 @@ object SceneGroundRenderer {
     }
 
     /** The woody species of the valley floor, each with its own growth + foliage recipe. */
-    private enum class TreeKind { PISTACHIO, OAK, CHERRY, SAGE }
+    private enum class TreeKind { PISTACHIO, OAK, CHERRY, SAGE, PAULOWNIA }
 
     // Zagros oak (Quercus brantii): strongly decurrent — a short gnarled trunk losing
     // itself into wide, twisted, self-pruned limbs under a broad flattened crown.
@@ -124,6 +126,26 @@ object SceneGroundRenderer {
                 lean = -0.03f, vase = 0.65f, scaffoldSpread = 0.50f, arch = 0.9f,
                 gnarl = 0.20f, occupancy = 0.6f, selfPrune = 0.3f,
                 shellBias = 0.35f, topFlatten = 0.96f
+            ).sortedByDescending { it.r0 }
+        )
+    }
+
+    // Paulownia (princess/empress tree, Paulownia tomentosa): a tall straight
+    // trunk under a broad rounded-to-umbrella crown of very large heart-shaped
+    // leaves, flowering in upright lavender panicles just as the leaves expand.
+    // Long clear trunk (trunkFraction ~0.44), flattened umbrella top, half-open
+    // crown shell — the space-colonization recipe for that habit.
+    private val PAULOWNIA_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
+        listOf(
+            LandscapeProfile.treeSkeleton(
+                seed = 1111, aspect = 1.08f, trunkFraction = 0.42f, attractorCount = 120,
+                lean = 0.02f, scaffoldSpread = 0.95f, arch = 0.35f, gnarl = 0.25f,
+                occupancy = 0.65f, selfPrune = 0.35f, shellBias = 0.60f, topFlatten = 0.80f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 1212, aspect = 0.98f, trunkFraction = 0.46f, attractorCount = 110,
+                lean = -0.03f, scaffoldSpread = 0.90f, arch = 0.30f, gnarl = 0.30f,
+                occupancy = 0.65f, selfPrune = 0.30f, shellBias = 0.58f, topFlatten = 0.82f
             ).sortedByDescending { it.r0 }
         )
     }
@@ -186,6 +208,10 @@ object SceneGroundRenderer {
         val oakRimP: Path,
         val oakGlowP: Path,
         val oakFruitP: Path,
+        val paulowniaLeafDarkP: Path,
+        val paulowniaLeafP: Path,
+        val paulowniaFlowerShadowP: Path,
+        val paulowniaFlowerLitP: Path,
         val twigP: Path,
         val blossomShadowP: Path,
         val blossomMidP: Path,
@@ -197,12 +223,13 @@ object SceneGroundRenderer {
         val greenRootP: Path,
         val greenMidP: Path,
         val greenTipP: Path,
-        val awnP: Path,
-        val panicleP: Path,
         val litterP: Path,
-        val fillDryP: Path,
-        val fillGreenP: Path,
-        val forbP: Path
+        val nearDryRootP: Path,
+        val nearDryMidP: Path,
+        val nearDryTipP: Path,
+        val nearGreenRootP: Path,
+        val nearGreenMidP: Path,
+        val nearGreenTipP: Path
     )
 
     /** Last built layout's vegetation; replaced whenever the key changes. Main-thread only. */
@@ -536,8 +563,8 @@ object SceneGroundRenderer {
         drawMountainLayer(
             drawScope = drawScope, width = width, sceneHeight = height, baseY = farBase,
             heights = LandscapeProfile.mountainHeights(
-                120, height * 0.130f, FAR_ZAGROS_ENVELOPE, seed = 11,
-                benchAmp = 0.12f, benchStep = 0.16f
+                120, height * 0.088f, FAR_ZAGROS_ENVELOPE, seed = 11,
+                benchAmp = 0.08f, benchStep = 0.16f
             ),
             // Opaque and only lightly hazed: at 0.72 alpha washed 55% toward a
             // near-white haze, this range plus the sky bleeding through it was the
@@ -574,9 +601,9 @@ object SceneGroundRenderer {
         //    more strongly faceted than the far range, with folded strata and gullies.
         val massifBase = toeY - height * 0.004f
         val massifHeights = LandscapeProfile.mountainHeights(
-            140, height * 0.205f, KUH_RAHMAT_ENVELOPE, seed = 29,
-            benchAmp = 0.22f, benchStep = 0.13f,
-            notches = floatArrayOf(0.63f, 0.030f, 0.38f) // water-gap; its fan spills below
+            140, height * 0.138f, KUH_RAHMAT_ENVELOPE, seed = 29,
+            benchAmp = 0.16f, benchStep = 0.13f,
+            notches = floatArrayOf(0.63f, 0.030f, 0.30f) // water-gap; its fan spills below
         )
         drawMountainLayer(
             drawScope = drawScope, width = width, sceneHeight = height, baseY = massifBase,
@@ -1084,11 +1111,14 @@ object SceneGroundRenderer {
             val silverDarkP = Path(); val silverBodyP = Path(); val silverRimP = Path(); val silverGlowP = Path()
             val oakDarkP = Path(); val oakDimP = Path(); val oakBrightP = Path(); val oakRimP = Path()
             val oakGlowP = Path(); val oakFruitP = Path(); val twigP = Path()
+            val paulowniaLeafDarkP = Path(); val paulowniaLeafP = Path()
+            val paulowniaFlowerShadowP = Path(); val paulowniaFlowerLitP = Path()
             val blossomShadowP = Path(); val blossomMidP = Path(); val blossomLitP = Path(); val petalP = Path()
             val dryRootP = Path(); val dryMidP = Path(); val dryTipP = Path()
             val greenRootP = Path(); val greenMidP = Path(); val greenTipP = Path()
-            val awnP = Path(); val panicleP = Path(); val litterP = Path()
-            val fillDryP = Path(); val fillGreenP = Path(); val forbP = Path()
+            val litterP = Path()
+            val nearDryRootP = Path(); val nearDryMidP = Path(); val nearDryTipP = Path()
+            val nearGreenRootP = Path(); val nearGreenMidP = Path(); val nearGreenTipP = Path()
 
             fun addOvalTo(path: Path, cx: Float, cy: Float, w: Float, h: Float) {
                 path.addOval(
@@ -1154,10 +1184,10 @@ object SceneGroundRenderer {
                 val cry = ((topUy - lowUy) / 2f).coerceAtLeast(0.05f)
 
                 val dabs = when (kind) {
-                    TreeKind.OAK, TreeKind.CHERRY -> if (detail) 5 else 3
+                    TreeKind.OAK, TreeKind.CHERRY, TreeKind.PAULOWNIA -> if (detail) 5 else 3
                     else -> if (detail) 4 else 2
                 }
-                val minDepth = if (kind == TreeKind.CHERRY) 6 else 7
+                val minDepth = if (kind == TreeKind.CHERRY || kind == TreeKind.PAULOWNIA) 6 else 7
                 var ci = 0
                 for (seg in skeleton) {
                     if (!seg.terminal && seg.depth < minDepth) continue
@@ -1175,6 +1205,7 @@ object SceneGroundRenderer {
                     val crMul = when (kind) {
                         TreeKind.OAK -> 1.25f
                         TreeKind.CHERRY -> 0.80f
+                        TreeKind.PAULOWNIA -> 1.50f // huge heart leaves read coarse at range
                         else -> 1f
                     }
                     val cr = hgt * (0.045f + 0.040f * LandscapeProfile.hash01(seed * 37 + 7, ci * 5 + 2)) * crMul
@@ -1247,6 +1278,13 @@ object SceneGroundRenderer {
                                 light < 0.72f -> blossomMidP
                                 else -> blossomLitP
                             }
+                            TreeKind.PAULOWNIA -> when {
+                                isCore -> paulowniaLeafDarkP
+                                rimDab -> paulowniaLeafP
+                                glowDab -> paulowniaLeafP
+                                light < 0.55f -> paulowniaLeafDarkP
+                                else -> paulowniaLeafP
+                            }
                             else -> when {
                                 isCore -> leafDarkP
                                 rimDab -> leafRimP
@@ -1256,6 +1294,22 @@ object SceneGroundRenderer {
                             }
                         }
                         addOvalTo(target, px + ox, py + oy, r * 2f, r * 1.25f)
+                    }
+                    // Paulownia flowers before/with the leaves: upright foxglove-like
+                    // panicles standing off the outer terminals — pale lavender in the
+                    // light, mauve in the crown's shade. They are what makes the species
+                    // identifiable across a valley in spring, like cherry blossom.
+                    if (kind == TreeKind.PAULOWNIA && seg.terminal &&
+                        LandscapeProfile.hash01(seed * 191 + 23, ci * 19 + 7) < 0.72f
+                    ) {
+                        val flowerP = if (light >= 0.50f) paulowniaFlowerLitP else paulowniaFlowerShadowP
+                        addOvalTo(
+                            flowerP,
+                            px + (LandscapeProfile.hash01(seed * 193 + 29, ci * 23 + 3) - 0.5f) * cr * 0.45f,
+                            py - cr * 0.55f,
+                            cr * (0.50f + 0.18f * LandscapeProfile.hash01(seed * 197 + 31, ci * 29 + 5)),
+                            cr * 1.15f
+                        )
                     }
                     // Fine twig tips poking just past the leaf shell — the lace on the
                     // crown's lit edge. Without them every crown ends in a smooth
@@ -1353,16 +1407,17 @@ object SceneGroundRenderer {
             // which reads as natural gaps): a riparian gallery on the far bank, an open
             // woodland along the canal and foothills, scattered plain pistachios and two
             // more near-bank trees — the Zagros oak/pistachio parkland this plain has.
-            fun plantTree(x: Float, y: Float, hgt: Float, idx: Int, kind: TreeKind = TreeKind.PISTACHIO) {
+            fun plantTree(x: Float, y: Float, hgt: Float, idx: Int, kind: TreeKind = TreeKind.PISTACHIO): Boolean {
                 // Trees are refused only in the worn earth right at the stone's feet; the
                 // aprons' faint forward tails are ordinary foreground field where the
                 // riparian and canal trees belong.
-                if (inApron(x, y) && y < toeY + height * 0.038f) return
+                if (inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
-                if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.22f) return
+                if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.22f) return false
                 val skeleton = when (kind) {
                     TreeKind.OAK -> OAK_SKELETONS[idx % OAK_SKELETONS.size]
                     TreeKind.CHERRY -> CHERRY_SKELETONS[idx % CHERRY_SKELETONS.size]
+                    TreeKind.PAULOWNIA -> PAULOWNIA_SKELETONS[idx % PAULOWNIA_SKELETONS.size]
                     else -> TREE_SKELETONS[idx % TREE_SKELETONS.size]
                 }
                 buildSkeletonTree(
@@ -1372,6 +1427,7 @@ object SceneGroundRenderer {
                     seed = idx * 7 + 3,
                     kind = kind
                 )
+                return true
             }
             for (i in 0 until 9) { // riparian gallery, far bank — cherries among the pistachios
                 val x = width * (0.05f + 0.90f * (i + LandscapeProfile.hash01(601, i * 3 + 1)) / 9f)
@@ -1414,15 +1470,133 @@ object SceneGroundRenderer {
                 )
             }
 
-            // Steppe grass v4 — the researched recipe from production grass systems
+            // Grove expansion (+33 trees): 15 Paulownia, 10 flowering cherry, 8 Zagros
+            // oak, planted where each species belongs — Paulownia on the moist ground
+            // along the river and canal (it is a waterside tree wherever it grows),
+            // cherry in the riparian gallery and plain groves where its blossom reads,
+            // oak in the dry groves and scattered plain. Heights follow perspective:
+            // small at the foothills, largest on the near bank. A refused spot retries
+            // a step away from the water, so these counts are the counts that stand.
+            fun farBankY(x: Float, mul: Float): Float {
+                val yc = riverCenterY(x)
+                return yc - riverHalfW(x, yc) * mul
+            }
+            fun canalLineY(x: Float): Float =
+                canalY - height * 0.004f + (x / width) * height * 0.010f
+            var groveIdx = 200
+            fun plantGrove(x: Float, y: Float, hgt: Float, kind: TreeKind) {
+                if (plantTree(x, y, hgt, groveIdx, kind)) {
+                    groveIdx++
+                    return
+                }
+                if (plantTree(x, y - height * 0.014f, hgt, groveIdx, kind)) {
+                    groveIdx++
+                    return
+                }
+                if (plantTree(x, y + height * 0.014f, hgt, groveIdx, kind)) groveIdx++
+            }
+            // Paulownia x15: 5 far bank, 4 canal, 4 plain grove, 2 near-bank frame.
+            for ((j, xf) in listOf(0.09f, 0.27f, 0.48f, 0.69f, 0.90f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, farBankY(x, 1.52f + 0.22f * LandscapeProfile.hash01(1201, j * 3 + 1)),
+                    height * (0.038f + 0.010f * LandscapeProfile.hash01(1203, j * 5 + 2)),
+                    TreeKind.PAULOWNIA
+                )
+            }
+            for ((j, xf) in listOf(0.16f, 0.36f, 0.58f, 0.80f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, canalLineY(x),
+                    height * (0.028f + 0.008f * LandscapeProfile.hash01(1207, j * 5 + 2)),
+                    TreeKind.PAULOWNIA
+                )
+            }
+            for ((j, t) in listOf(
+                Triple(0.24f, 0.858f, 0.044f), Triple(0.44f, 0.862f, 0.040f),
+                Triple(0.64f, 0.856f, 0.046f), Triple(0.84f, 0.864f, 0.042f)
+            ).withIndex()) {
+                plantGrove(
+                    width * t.first, height * t.second,
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1211, j * 5 + 2)),
+                    TreeKind.PAULOWNIA
+                )
+            }
+            for ((j, xf) in listOf(0.20f, 0.78f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, nearBankY(x),
+                    height * (0.056f + 0.008f * LandscapeProfile.hash01(1213, j * 5 + 2)),
+                    TreeKind.PAULOWNIA
+                )
+            }
+            // Flowering cherry x10: 3 far bank, 2 canal, 5 plain groves.
+            for ((j, xf) in listOf(0.18f, 0.58f, 0.84f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, farBankY(x, 1.55f + 0.20f * LandscapeProfile.hash01(1217, j * 3 + 1)),
+                    height * (0.030f + 0.008f * LandscapeProfile.hash01(1219, j * 5 + 2)),
+                    TreeKind.CHERRY
+                )
+            }
+            for ((j, xf) in listOf(0.26f, 0.68f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, canalLineY(x),
+                    height * (0.024f + 0.006f * LandscapeProfile.hash01(1223, j * 5 + 2)),
+                    TreeKind.CHERRY
+                )
+            }
+            for ((j, t) in listOf(
+                Triple(0.34f, 0.852f, 0.034f), Triple(0.52f, 0.858f, 0.038f),
+                Triple(0.74f, 0.850f, 0.032f), Triple(0.42f, 0.866f, 0.036f),
+                Triple(0.92f, 0.860f, 0.034f)
+            ).withIndex()) {
+                plantGrove(
+                    width * t.first, height * t.second,
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1229, j * 5 + 2)),
+                    TreeKind.CHERRY
+                )
+            }
+            // Zagros oak x8: 3 dry groves, 3 scattered plain, 2 far bank.
+            for ((j, t) in listOf(
+                Triple(0.12f, 0.850f, 0.028f), Triple(0.48f, 0.854f, 0.030f),
+                Triple(0.86f, 0.866f, 0.028f)
+            ).withIndex()) {
+                plantGrove(
+                    width * t.first, height * t.second,
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1231, j * 5 + 2)),
+                    TreeKind.OAK
+                )
+            }
+            for ((j, t) in listOf(
+                Triple(0.30f, 0.864f, 0.036f), Triple(0.58f, 0.868f, 0.038f),
+                Triple(0.78f, 0.860f, 0.034f)
+            ).withIndex()) {
+                plantGrove(
+                    width * t.first, height * t.second,
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1237, j * 5 + 2)),
+                    TreeKind.OAK
+                )
+            }
+            for ((j, xf) in listOf(0.36f, 0.95f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, farBankY(x, 1.58f + 0.18f * LandscapeProfile.hash01(1241, j * 3 + 1)),
+                    height * (0.032f + 0.008f * LandscapeProfile.hash01(1243, j * 5 + 2)),
+                    TreeKind.OAK
+                )
+            }
+
+            // Steppe grass — the researched recipe from production grass systems
             // (Ghost-of-Tsushima GDC, GodotGrass, Unity-Grass), translated to static 2D:
             // tapered blades on a cubic-Bezier bend profile, true Voronoi clumps sharing
-            // height/lean/dryness/density, three distance bands, and real Zagros
-            // species at hero range (Stipa awn fans, Bromus panicles, riparian tufts,
-            // litter, forbs) — all batched into the colour buckets above. v4 shades
+            // height/lean/dryness/density, distance bands, dry litter — all batched
+            // into the colour buckets above. The near-bank band is the harmonized
+            // treatment of section (d): short ground-tinted blades over a carpet
+            // fringe, no foreground hero species. The far/mid bands shade
             // every stroked blade in three tones (root/mid/tip instead of two, which
-            // posterised) and gives hero blades the true grass width profile —
-            // full at the rooted base, needle at the tip. Moisture (noise + river +
+            // posterised). Moisture (noise + river +
             // canal) drives density and the green-vs-straw mix; nothing grows in the
             // water or the worn clearings.
             val densityScale = ((width * height) / (1080f * 1260f)).coerceIn(0.6f, 2.2f)
@@ -1502,7 +1676,7 @@ object SceneGroundRenderer {
             val midTufts = (520 * densityScale).toInt()
             for (i in 0 until midTufts) {
                 val x = width * LandscapeProfile.hash01(839, i * 13 + 1)
-                val depth = 0.30f + 0.62f * LandscapeProfile.hash01(843, i * 17 + 3)
+                val depth = 0.30f + 0.54f * LandscapeProfile.hash01(843, i * 17 + 3)
                 val y = groundTopY + (height - groundTopY) * depth
                 if (!grassAllowed(x, y)) continue
                 val moist = moistureAt(x, y, depth)
@@ -1525,86 +1699,54 @@ object SceneGroundRenderer {
                     strokeBlade(bx, y, bh, lean, stiff, darkB, midB, lightB)
                 }
             }
-            // (d) Hero tufts on the near strip: filled tapered blades with a centre rib
-            //     (the rounded-normal trick), an AO contact patch, and species seed heads.
-            val heroTufts = (100 * densityScale).toInt()
-            for (i in 0 until heroTufts) {
-                val x = width * LandscapeProfile.hash01(877, i * 13 + 3)
-                val depth = 0.84f + 0.16f * LandscapeProfile.hash01(881, i * 17 + 5)
+            // (d) Near-bank harmonized grass: the old hero tufts are gone — the filled
+            //     broad blades, Stipa awn fans, Bromus panicles, green riparian leaf
+            //     tufts and forb dots at the viewer's feet read as lawn spikes and
+            //     leafy clumps pasted onto the bank. What stands here now follows the
+            //     field-as-one-mass lesson of the production grass systems: a soft
+            //     ground-tinted carpet fringe (the grass *mass*, sharing the ground's
+            //     colour) plus short, fine, three-tone blades from the same Voronoi
+            //     clumps as the rest of the field. Every near-bank tone is pulled
+            //     halfway toward the steppe ground colour at replay, so this grass is
+            //     the ground itself, lit — it can never shout lawn-green against the
+            //     dry valley, and nothing here is taller than an ankle.
+            for (i in 0 until 36) { // carpet fringe along the near bank: the mass itself
+                val x = width * LandscapeProfile.hash01(937, i * 13 + 3)
+                val ycHere = riverCenterY(x)
+                val y = ycHere + riverHalfW(x, ycHere) *
+                    (1.30f + 0.30f * LandscapeProfile.hash01(941, i * 7 + 1)) +
+                    height * 0.006f * LandscapeProfile.hash01(943, i * 11 + 2)
+                if (!grassAllowed(x, y)) continue
+                carpetPatches += PatchSpec(
+                    x, y, width * 0.085f, height * 0.011f,
+                    green = moistureAt(x, y, 0.92f) > 0.52f
+                )
+            }
+            val nearTufts = (170 * densityScale).toInt()
+            for (i in 0 until nearTufts) {
+                val x = width * LandscapeProfile.hash01(947, i * 13 + 3)
+                val depth = 0.86f + 0.14f * LandscapeProfile.hash01(949, i * 17 + 5)
                 val y = groundTopY + (height - groundTopY) * depth
                 if (!grassAllowed(x, y)) continue
                 val moist = moistureAt(x, y, depth)
                 val clump = LandscapeProfile.grassClump(x / width, depth, 517)
-                if (LandscapeProfile.hash01(883, i * 19 + 7) >
-                    (0.30f + 0.70f * moist) * (0.40f + 0.60f * clump.density01)) continue
+                if (LandscapeProfile.hash01(951, i * 19 + 7) >
+                    (0.42f + 0.58f * moist) * (0.45f + 0.55f * clump.density01)) continue
                 val soft = 0.45f + 0.55f * clump.edge01
                 val hm = 1f + (clump.heightMul - 1f) * soft
-                val dryMix = 0.5f * (1f - moist) + 0.5f * clump.dryness01
-                val stiff = 0.22f + 0.50f * (1f - dryMix)
-                val fillB = if (dryMix > 0.5f) fillDryP else fillGreenP
-                val lightB = if (dryMix > 0.5f) dryTipP else greenTipP
-                aoPatches += PatchSpec(x, y, height * 0.034f, height * 0.008f, green = false)
-                val pick = LandscapeProfile.hash01(887, i * 3 + 1)
-                val species = when {
-                    moist > 0.62f -> 2              // riparian: broad, upright, plain
-                    dryMix > 0.58f && pick < 0.55f -> 0  // Stipa feather grass
-                    pick < 0.82f -> 1               // Bromus
-                    else -> 2
-                }
-                val blades = 7 + (5 * LandscapeProfile.hash01(889, i * 11 + 5)).toInt()
+                val dryMix = 0.55f * (1f - moist) + 0.45f * clump.dryness01
+                val stiff = 0.30f + 0.40f * (1f - dryMix)
+                val rootB = if (dryMix > 0.52f) nearDryRootP else nearGreenRootP
+                val midB = if (dryMix > 0.52f) nearDryMidP else nearGreenMidP
+                val tipB = if (dryMix > 0.52f) nearDryTipP else nearGreenTipP
+                val blades = 6 + (4 * LandscapeProfile.hash01(953, i * 11 + 5)).toInt()
                 for (b in 0 until blades) {
-                    val bx = x + (LandscapeProfile.hash01(893, i * 101 + b * 37) - 0.5f) * width * 0.012f
-                    val bh = height * (0.012f + 0.016f * depth) * hm *
-                        (0.72f + 0.55f * LandscapeProfile.hash01(899, i * 57 + b * 19)) *
-                        if (species == 0 && b < 2) 1.3f else 1f // Stipa culms rise above the fountain
-                    val lean = clump.lean * soft + (LandscapeProfile.hash01(901, i * 67 + b * 23) - 0.5f) * 0.6f +
-                        if (species == 0) (b - blades / 2f) * 0.07f else 0f // Stipa fans outward
-                    val wdt = maxOf(1.3f, bh * if (species == 2) 0.10f else 0.07f)
-                    val ts = floatArrayOf(0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f)
-                    val tip = bladePt(bx, y, bh, lean, stiff, 1f)
-                    // Width follows bladeWidthProfile: full at the rooted base,
-                    // narrowing convexly to a needle tip (a linear taper ribbons).
-                    for ((k, t) in ts.withIndex()) {
-                        val p = bladePt(bx, y, bh, lean, stiff, t)
-                        val px = p.x - wdt * LandscapeProfile.bladeWidthProfile(t) / 2f
-                        if (k == 0) fillB.moveTo(px, p.y) else fillB.lineTo(px, p.y)
-                    }
-                    for (k in 5 downTo 0) {
-                        val t = ts[k]
-                        val p = bladePt(bx, y, bh, lean, stiff, t)
-                        fillB.lineTo(p.x + wdt * LandscapeProfile.bladeWidthProfile(t) / 2f, p.y)
-                    }
-                    fillB.close()
-                    // Centre rib highlight (rounded-normal fake).
-                    var rp = bladePt(bx, y, bh, lean, stiff, 0.15f)
-                    lightB.moveTo(rp.x, rp.y)
-                    rp = bladePt(bx, y, bh, lean, stiff, 0.55f); lightB.lineTo(rp.x, rp.y)
-                    lightB.lineTo(tip.x, tip.y)
-                    if (b < 2 && species == 0) { // Stipa: a fan of long silky awns
-                        for (a in 0 until 5) {
-                            val spread = (a - 2) * 0.13f + (LandscapeProfile.hash01(907, i * 31 + a * 7) - 0.5f) * 0.05f
-                            val len = bh * (0.42f + 0.16f * LandscapeProfile.hash01(911, i * 37 + a * 11))
-                            awnP.moveTo(tip.x, tip.y)
-                            awnP.lineTo(tip.x + spread * len * 0.5f + lean * len * 0.2f, tip.y - len * 0.55f)
-                            awnP.lineTo(tip.x + spread * len + lean * len * 0.35f, tip.y - len)
-                        }
-                    } else if (b < 2 && species == 1) { // Bromus: nodding branched panicle
-                        for (a in 0 until 4) {
-                            val dx = (a - 1.5f) * bh * 0.055f
-                            val top = tip.y - bh * (0.05f + 0.04f * (3 - a))
-                            panicleP.moveTo(tip.x, tip.y)
-                            panicleP.lineTo(tip.x + dx, top)
-                            panicleP.lineTo(tip.x + dx * 1.4f, top + bh * 0.07f) // spikelet nods back down
-                        }
-                    }
-                }
-                if (moist > 0.55f && LandscapeProfile.hash01(917, i * 41 + 3) < 0.30f) { // sparse forbs
-                    for (f in 0 until 3) {
-                        val fx = x + (LandscapeProfile.hash01(919, i * 43 + f * 7) - 0.5f) * width * 0.014f
-                        val fy = y - height * (0.008f + 0.010f * LandscapeProfile.hash01(923, i * 47 + f * 11))
-                        val r = height * 0.0016f
-                        forbP.addOval(androidx.compose.ui.geometry.Rect(fx - r, fy - r, fx + r, fy + r))
-                    }
+                    val bx = x + (LandscapeProfile.hash01(957, i * 101 + b * 37) - 0.5f) * width * 0.010f
+                    val bh = height * (0.0055f + 0.0075f * depth) * hm *
+                        (0.70f + 0.55f * LandscapeProfile.hash01(959, i * 57 + b * 19))
+                    val lean = clump.lean * soft +
+                        (LandscapeProfile.hash01(961, i * 67 + b * 23) - 0.5f) * 0.50f
+                    strokeBlade(bx, y, bh, lean, stiff, rootB, midB, tipB)
                 }
             }
             // (e) Dry litter flecks — last season's blades lying flat in the dry patches.
@@ -1640,6 +1782,10 @@ object SceneGroundRenderer {
                 oakRimP = oakRimP,
                 oakGlowP = oakGlowP,
                 oakFruitP = oakFruitP,
+                paulowniaLeafDarkP = paulowniaLeafDarkP,
+                paulowniaLeafP = paulowniaLeafP,
+                paulowniaFlowerShadowP = paulowniaFlowerShadowP,
+                paulowniaFlowerLitP = paulowniaFlowerLitP,
                 twigP = twigP,
                 blossomShadowP = blossomShadowP,
                 blossomMidP = blossomMidP,
@@ -1651,12 +1797,13 @@ object SceneGroundRenderer {
                 greenRootP = greenRootP,
                 greenMidP = greenMidP,
                 greenTipP = greenTipP,
-                awnP = awnP,
-                panicleP = panicleP,
                 litterP = litterP,
-                fillDryP = fillDryP,
-                fillGreenP = fillGreenP,
-                forbP = forbP
+                nearDryRootP = nearDryRootP,
+                nearDryMidP = nearDryMidP,
+                nearDryTipP = nearDryTipP,
+                nearGreenRootP = nearGreenRootP,
+                nearGreenMidP = nearGreenMidP,
+                nearGreenTipP = nearGreenTipP
             )
         }
         val veg = vegetationCache?.takeIf { it.key == vegKey }
@@ -1752,6 +1899,20 @@ object SceneGroundRenderer {
         drawScope.drawPath(veg.blossomMidP, blossomMid)
         drawScope.drawPath(veg.blossomLitP, blossomLit)
         drawScope.drawPath(veg.petalP, blossomMid.copy(alpha = 0.80f))
+        // Paulownia: big soft green leaves, darker in the crown heart; upright
+        // lavender panicles over them, warming with the sky at golden hour like
+        // any thin petal held to the light.
+        val paulLeaf = lerp(Color(0xFF0C140B), Color(0xFF5A7A36), lightLevel)
+        drawScope.drawPath(veg.paulowniaLeafDarkP, paulLeaf.scaled(0.58f))
+        drawScope.drawPath(veg.paulowniaLeafP, paulLeaf)
+        var paulFlowerShadow = lerp(Color(0xFF120E18), Color(0xFF7E6FA8), lightLevel)
+        var paulFlowerLit = lerp(Color(0xFF1A1424), Color(0xFFC9B6EE), lightLevel)
+        if (backlit) {
+            paulFlowerShadow = lerp(paulFlowerShadow, lighting.horizonTone, 0.15f)
+            paulFlowerLit = lerp(paulFlowerLit, lighting.horizonTone, 0.30f)
+        }
+        drawScope.drawPath(veg.paulowniaFlowerShadowP, paulFlowerShadow)
+        drawScope.drawPath(veg.paulowniaFlowerLitP, paulFlowerLit)
 
         val backlight = if (sunAlt in -2f..14f && day > 0.04f) 0.40f else 0.10f
         val gRootDry = lerp(lerp(Color(0xFF171307), Color(0xFF4A3A1E), day), steppeTop, 0.30f)
@@ -1763,9 +1924,6 @@ object SceneGroundRenderer {
             lerp(lerp(Color(0xFF16200F), Color(0xFF7E9455), day), lighting.horizonTone, backlight * 0.30f),
             steppeTop, 0.16f
         )
-        val awnCol = lerp(Color(0xFF241E12), Color(0xFFD8C096), day)
-        val panicleCol = lerp(Color(0xFF1C1410), Color(0xFFA8845E), day)
-        val forbCol = lerp(Color(0xFF201A10), Color(0xFFD9C98A), day)
         val carpetDry = lerp(gTipDry, steppeTop, 0.55f)
         val carpetGreen = lerp(gTipGreen, steppeTop, 0.55f)
         for (p in veg.carpetPatches) {
@@ -1782,18 +1940,27 @@ object SceneGroundRenderer {
             )
         }
         val strokeW = (height * 0.0013f).coerceIn(0.9f, 2.0f)
-        drawScope.drawPath(veg.fillDryP, lerp(gRootDry, gTipDry, 0.45f).copy(alpha = 0.50f + 0.30f * day))
-        drawScope.drawPath(veg.fillGreenP, lerp(gRootGreen, gTipGreen, 0.45f).copy(alpha = 0.50f + 0.30f * day))
         drawScope.drawPath(veg.dryRootP, gRootDry.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.greenRootP, gRootGreen.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.dryMidP, lerp(gRootDry, gTipDry, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.greenMidP, lerp(gRootGreen, gTipGreen, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.dryTipP, gTipDry.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.greenTipP, gTipGreen.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
+        // Near-bank harmonized grass: every tone pulled halfway toward the steppe
+        // ground colour, so the foreground grass is the ground's own colour lit by
+        // the same sky — straw where the clump is dry, muted sage where the river
+        // feeds it, never the old lawn green.
+        val nearRootDry = lerp(gRootDry, steppeTop, 0.45f)
+        val nearTipDry = lerp(gTipDry, steppeTop, 0.50f)
+        val nearRootGreen = lerp(gRootGreen, steppeTop, 0.48f)
+        val nearTipGreen = lerp(gTipGreen, steppeTop, 0.52f)
+        drawScope.drawPath(veg.nearDryRootP, nearRootDry.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
+        drawScope.drawPath(veg.nearGreenRootP, nearRootGreen.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
+        drawScope.drawPath(veg.nearDryMidP, lerp(nearRootDry, nearTipDry, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
+        drawScope.drawPath(veg.nearGreenMidP, lerp(nearRootGreen, nearTipGreen, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
+        drawScope.drawPath(veg.nearDryTipP, nearTipDry.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
+        drawScope.drawPath(veg.nearGreenTipP, nearTipGreen.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
         drawScope.drawPath(veg.litterP, gTipDry.copy(alpha = 0.25f + 0.25f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.panicleP, panicleCol.copy(alpha = 0.45f + 0.35f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.awnP, awnCol.copy(alpha = 0.35f + 0.35f * day), style = Stroke(width = 0.8f, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.forbP, forbCol.copy(alpha = 0.40f + 0.35f * day))
     }
 
     /**

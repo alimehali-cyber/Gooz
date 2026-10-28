@@ -112,10 +112,12 @@ fans; a semi-arid steppe/cultivation plain with an irrigation canal; two separat
 earthworks from `PersepolisFraming` (worn apron, talus, contact shadows, debris — ordinary field
 between the sites, feathered and Sun-following, so neither monument ends on a full-width stripe);
 a broad layered Pulvar river (wet banks, shallows, thalweg, point bars, tree reflections, reed
-clumps) whose sheen and thinned glitter track the real Sun/Moon; a 28-tree space-colonization
-pistachio parkland plus *Artemisia* sage scrub with pipe-model branching and leaf-cluster
-foliage; and a three-band batched grass system (Voronoi clumps, Bézier blades, tri-tone AO
-roots, *Stipa*/*Bromus*/riparian species). All placement is deterministic. See
+clumps) whose sheen and thinned glitter track the real Sun/Moon; a 63-tree space-colonization
+parkland (pistachio, *Quercus brantii* oak, flowering cherry, lavender-panicle Paulownia)
+plus *Artemisia* sage scrub with pipe-model branching and leaf-cluster foliage; low
+whaleback Zagros/Kuh-e Rahmat ridges at true relief; and a batched grass system (Voronoi
+clumps, Bézier blades, tri-tone AO roots, ground-tinted harmonized near-bank tufts). All
+placement is deterministic. See
 [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 
 ### Clouds — `CloudVeilRenderer`

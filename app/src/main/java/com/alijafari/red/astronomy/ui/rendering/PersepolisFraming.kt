@@ -178,7 +178,7 @@ object PersepolisFraming {
 
     /** Resolved framing for one scene size. Pixel rows are measured from the top of the scene. */
     data class Result(
-        /** Passed straight to `PersepolisMilAzhdahaView.setFraming`. */
+        /** Passed straight to `PersepolisTextureView.setFraming`. */
         val visibleWidthMeters: Float,
         /** Passed straight to `setFraming`: [toeYPx] as a fraction of the scene height. */
         val baseFractionFromTop: Float,

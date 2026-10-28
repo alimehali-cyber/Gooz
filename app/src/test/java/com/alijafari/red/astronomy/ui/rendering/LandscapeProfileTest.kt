@@ -221,6 +221,32 @@ class LandscapeProfileTest {
     }
 
     @Test
+    fun paulowniaSkeletonIsTallUmbrellaAndDeterministic() {
+        // Paulownia recipe (SceneGroundRenderer.PAULOWNIA_SKELETONS): long clear
+        // trunk, broad rounded-umbrella crown, half-open shell for the huge leaves.
+        val paul = LandscapeProfile.treeSkeleton(
+            seed = 1111, aspect = 1.08f, trunkFraction = 0.42f, attractorCount = 120,
+            scaffoldSpread = 0.95f, arch = 0.35f, gnarl = 0.25f, occupancy = 0.65f,
+            selfPrune = 0.35f, shellBias = 0.60f, topFlatten = 0.80f
+        )
+        assertEquals("Paulownia deterministic", paul, LandscapeProfile.treeSkeleton(
+            seed = 1111, aspect = 1.08f, trunkFraction = 0.42f, attractorCount = 120,
+            scaffoldSpread = 0.95f, arch = 0.35f, gnarl = 0.25f, occupancy = 0.65f,
+            selfPrune = 0.35f, shellBias = 0.60f, topFlatten = 0.80f
+        ))
+        assertTrue("Paulownia has substance (${paul.size})", paul.size in 30..440)
+        assertTrue("terminals exist for panicles/leaves", paul.count { it.terminal } >= 8)
+        val crownTop = paul.maxOf { it.y1 }
+        assertTrue("crown reaches up ($crownTop)", crownTop > 0.75f)
+        val spread = paul.maxOf { it.x1 } - paul.minOf { it.x1 }
+        assertTrue("umbrella crown spreads ($spread)", spread > 0.45f)
+        for (seg in paul) {
+            assertTrue("Paulownia pipe model holds", seg.r1 <= seg.r0 * 1.06f + 0.001f)
+            assertTrue("Paulownia y in tree (${seg.y1})", seg.y1 in -0.02f..1.06f)
+        }
+    }
+
+    @Test
     fun grassClumpsAreDeterministicSharedAndBounded() {
         val a = LandscapeProfile.grassClump(0.30f, 0.62f, seed = 517)
         assertEquals(a, LandscapeProfile.grassClump(0.30f, 0.62f, seed = 517))
