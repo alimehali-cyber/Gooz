@@ -9,21 +9,139 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaSkyModel
+import kotlin.math.abs
+import kotlin.math.hypot
 
 object AtmosphereRenderer {
+
+    /** Compose colour for a palette component. Alpha is always opaque here. */
+    private fun RealSkyPalette.Rgb.toColor(alpha: Float = 1f): Color = Color(r, g, b, alpha)
 
     fun drawAtmosphere(
         drawScope: DrawScope,
         lightingState: LightingState,
         sunPosPx: Offset?,
-        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
+        sunAzimuthDeg: Double = 180.0,
+        latitudeDeg: Double = 0.0,
+        panoramaMode: Boolean = false,
+        projection: SkyProjection = HeroProjection
     ) {
         when (theme) {
+            SkyCanvasTheme.REAL_SKY -> drawRealSkyAtmosphere(drawScope, lightingState, sunPosPx, sunAzimuthDeg, latitudeDeg, panoramaMode, projection)
             SkyCanvasTheme.ATMOSPHERIC_SKY -> drawAtmosphericSky(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.OBSERVATORY -> drawObservatoryAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftAtmosphere(drawScope, lightingState, sunPosPx)
+        }
+    }
+
+    /**
+     * Real Sky. Legacy mode (`panoramaMode = false`) is unchanged in drawing order and values: gradient,
+     * Sun dome, Belt of Venus, night airglow.
+     *
+     * Panorama mode (`panoramaMode = true`): the photographic panorama is beneath this layer and already
+     * supplies the sky gradient on the GPU, so the gradient and night airglow are skipped. The Sun dome
+     * and Belt of Venus are drawn on top scaled by `1 - nightWeight`, so they fade out as the photographic
+     * night sky takes over and never tint the panorama at night.
+     */
+    private fun drawRealSkyAtmosphere(
+        drawScope: DrawScope,
+        lightingState: LightingState,
+        sunPosPx: Offset?,
+        sunAzimuthDeg: Double,
+        latitudeDeg: Double,
+        panoramaMode: Boolean,
+        projection: SkyProjection
+    ) {
+        val width = drawScope.size.width
+        val height = drawScope.size.height
+        // The horizon belongs to the surface's projection: the full-bleed scene moves it up, the card keeps 0.85.
+        val horizonY = projection.horizonY(width, height)
+        val sunAlt = lightingState.sunAltitudeDeg
+        val overlayScale = if (panoramaMode) {
+            1f - SkyPanoramaSkyModel.nightWeight(sunAlt)
+        } else 1f
+
+        // 1. Zenith -> Mid -> Horizon gradient from the shared palette (skipped in panorama mode).
+        if (!panoramaMode) {
+            val g = RealSkyPalette.gradientAt(sunAlt, lightingState.moonGlowIntensity)
+            drawScope.drawRect(
+                brush = Brush.verticalGradient(
+                    0.0f to g.zenith.toColor(),
+                    RealSkyPalette.MID_STOP to g.mid.toColor(),
+                    RealSkyPalette.HORIZON_STOP to g.horizon.toColor(),
+                    1.0f to g.horizon.toColor(),
+                    startY = 0f,
+                    endY = height
+                ),
+                size = drawScope.size
+            )
+        }
+
+        // 2. Sun-centered radial twilight dome.
+        if (sunPosPx != null) {
+            val dome = RealSkyPalette.twilightDome(sunAlt, extendPastHorizonGlow = panoramaMode)
+            val domeAlpha = (dome?.second ?: 0f) * overlayScale
+            if (dome != null && domeAlpha > 0.005f) {
+                val domeColor = dome.first.toColor()
+                val outerRadius = (hypot(width, height) * 0.78f).coerceAtLeast(220f)
+                drawScope.drawCircle(
+                    brush = Brush.radialGradient(
+                        0.0f to domeColor.copy(alpha = domeAlpha),
+                        0.38f to domeColor.copy(alpha = domeAlpha * 0.45f),
+                        0.72f to domeColor.copy(alpha = domeAlpha * 0.12f),
+                        1.0f to Color.Transparent,
+                        center = sunPosPx,
+                        radius = outerRadius
+                    ),
+                    radius = outerRadius,
+                    center = sunPosPx
+                )
+            }
+        }
+
+        // 3. Opposite-horizon Belt of Venus & Earth's Shadow arch during sunrise/sunset (-5° <= sunAlt <= +4°)
+        if (sunAlt in -5.0..4.0) {
+            val beltEnvelope = (1.0 - abs(sunAlt + 0.5) / 4.5).coerceIn(0.0, 1.0).toFloat() * overlayScale
+            if (beltEnvelope > 0.02f) {
+                val antiSunAz = (sunAzimuthDeg + 180.0) % 360.0
+                val antiCenter = projection.project(antiSunAz, 3.0, width, height, latitudeDeg)
+                val beltY = projection.beltAnchorY(antiCenter, horizonY)
+                val beltRadius = (width * 0.55f).coerceAtLeast(180f)
+                // Rose-lavender Belt of Venus arch
+                drawScope.drawCircle(
+                    brush = Brush.radialGradient(
+                        0.0f to Color(0xFFD88CA8).copy(alpha = 0.15f * beltEnvelope),
+                        0.55f to Color(0xFF9A6B9A).copy(alpha = 0.07f * beltEnvelope),
+                        1.0f to Color.Transparent,
+                        center = Offset(antiCenter.x, beltY),
+                        radius = beltRadius
+                    ),
+                    radius = beltRadius,
+                    center = Offset(antiCenter.x, beltY)
+                )
+            }
+        }
+
+        // 4. Subtle natural airglow / atmospheric extinction horizon band at night (legacy only).
+        if (!panoramaMode && sunAlt < -12.0) {
+            val airglowAlpha = (((-sunAlt - 12.0) / 6.0).coerceIn(0.0, 1.0) * 0.14).toFloat()
+            val bandHeight = height * 0.22f
+            drawScope.drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color(0xFF142038).copy(alpha = airglowAlpha)
+                    ),
+                    startY = horizonY - bandHeight,
+                    endY = horizonY
+                ),
+                topLeft = Offset(0f, horizonY - bandHeight),
+                size = drawScope.size.copy(height = bandHeight)
+            )
         }
     }
 
@@ -253,6 +371,24 @@ object AtmosphereRenderer {
             ),
             radius = width * 0.6f,
             center = Offset(width * 0.3f, height * 0.4f)
+        )
+
+        // Whimsical crayon doodle clouds
+        val cloudFill = if (isDay) Color(0xFFFFFDF8).copy(alpha = 0.90f) else Color(0xFF3D348B).copy(alpha = 0.72f)
+        val cloudOutline = if (isDay) Color(0xFF4A4E69).copy(alpha = 0.75f) else Color(0xFFB8B8FF).copy(alpha = 0.65f)
+        drawCrayonDoodleCloud(
+            drawScope = drawScope,
+            center = Offset(width * 0.22f, height * 0.24f),
+            scale = 1.0f,
+            fillColor = cloudFill,
+            outlineColor = cloudOutline
+        )
+        drawCrayonDoodleCloud(
+            drawScope = drawScope,
+            center = Offset(width * 0.78f, height * 0.20f),
+            scale = 0.85f,
+            fillColor = cloudFill,
+            outlineColor = cloudOutline
         )
     }
 

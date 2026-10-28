@@ -33,7 +33,9 @@ class Phase5FeatureMigrationTest {
 
     @Test
     fun testWhatsUpTonightEngineUsesCanonicalObjects() {
-        val jd = TimeEngine.getJulianDate()
+        // Evaluate at nighttime (20:00 UTC) so planets are observable above horizon
+        val nightTimeMs = 1789761600000L
+        val jd = TimeEngine.getJulianDate(nightTimeMs)
         val events = WhatsUpTonightEngine.calculateTonightEvents(
             jd = jd,
             userLatDeg = 35.6892,

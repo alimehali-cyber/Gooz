@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,12 +19,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -39,6 +38,8 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Locale
 
@@ -51,8 +52,7 @@ enum class SpeedUnit(val labelEn: String, val labelFa: String) {
 data class SpeedPreset(
     val titleEn: String,
     val titleFa: String,
-    val speedMs: Double,
-    val icon: String
+    val speedMs: Double
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,16 +94,16 @@ fun TimeDilationCalculatorScreen(
     // Speed Presets
     val speedPresets = remember {
         listOf(
-            SpeedPreset("Walking", "پیاده‌روی", 1.38889, "🚶"),
-            SpeedPreset("Sound", "سرعت صوت", 343.0, "🔊"),
-            SpeedPreset("Fighter Jet", "جت جنگنده", 686.11, "✈️"),
-            SpeedPreset("Spacecraft", "فضاپیمای وویجر", 17000.0, "🛸"),
-            SpeedPreset("Starship Rocket", "موشک استارشیپ", 75000.0, "🚀"),
-            SpeedPreset("10% c", "۱۰٪ سرعت نور", 0.10 * RelativisticEngine.SPEED_OF_LIGHT_MS, "⚡"),
-            SpeedPreset("50% c", "۵۰٪ سرعت نور", 0.50 * RelativisticEngine.SPEED_OF_LIGHT_MS, "💫"),
-            SpeedPreset("90% c", "۹۰٪ سرعت نور", 0.90 * RelativisticEngine.SPEED_OF_LIGHT_MS, "🌌"),
-            SpeedPreset("99% c", "۹۹٪ سرعت نور", 0.99 * RelativisticEngine.SPEED_OF_LIGHT_MS, "✨"),
-            SpeedPreset("Speed of Light (c)", "سرعت نور (c)", 1.00 * RelativisticEngine.SPEED_OF_LIGHT_MS, "☀️")
+            SpeedPreset("Walking", "پیاده‌روی", 1.38889),
+            SpeedPreset("Sound", "سرعت صوت", 343.0),
+            SpeedPreset("Fighter Jet", "جت جنگنده", 686.11),
+            SpeedPreset("Spacecraft", "فضاپیمای وویجر", 17000.0),
+            SpeedPreset("Starship Rocket", "موشک استارشیپ", 75000.0),
+            SpeedPreset("10% c", "۱۰٪ سرعت نور", 0.10 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("50% c", "۵۰٪ سرعت نور", 0.50 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("90% c", "۹۰٪ سرعت نور", 0.90 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("99% c", "۹۹٪ سرعت نور", 0.99 * RelativisticEngine.SPEED_OF_LIGHT_MS),
+            SpeedPreset("Speed of Light (c)", "سرعت نور (c)", 1.00 * RelativisticEngine.SPEED_OF_LIGHT_MS)
         )
     }
 
@@ -269,7 +269,7 @@ fun TimeDilationCalculatorScreen(
                             horizontalArrangement = Arrangement.End
                         ) {
                             Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.full),
+                                shape = RedShapes.capsule,
                                 color = RedTheme.colors.surfaceElevated,
                                 border = BorderStroke(1.dp, RedTheme.colors.border),
                                 modifier = Modifier
@@ -302,11 +302,13 @@ fun TimeDilationCalculatorScreen(
 
                         // Distance Card with Unit Selector Carousel
                         val distRes = journeyResult.distance
-                        Surface(
+                        LiquidGlassSurface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(RedCornerRadius.lg),
-                            color = RedTheme.colors.surfaceElevated,
-                            border = BorderStroke(1.dp, RedTheme.colors.border)
+                            shape = squircleShape(RedCornerRadius.lg),
+                            fallbackColor = RedTheme.colors.surfaceElevated,
+                            fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                            style = LiquidGlassDefaults.Card,
+                            fallbackShadowElevation = RedElevation.none,
                         ) {
                             Column(
                                 modifier = Modifier.padding(RedSpacing.md),
@@ -337,7 +339,7 @@ fun TimeDilationCalculatorScreen(
                                     items(DistanceUnit.entries) { unit ->
                                         val isSelected = distanceUnit == unit
                                         Surface(
-                                            shape = RoundedCornerShape(RedCornerRadius.full),
+                                            shape = RedShapes.capsule,
                                             color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
                                             border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
                                             modifier = Modifier.clickable { distanceUnit = unit }
@@ -412,7 +414,7 @@ fun TimeDilationCalculatorScreen(
                             items(SpeedUnit.entries) { unit ->
                                 val isSelected = speedUnit == unit
                                 Surface(
-                                    shape = RoundedCornerShape(RedCornerRadius.full),
+                                    shape = RedShapes.capsule,
                                     color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
                                     border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
                                     modifier = Modifier.clickable {
@@ -447,7 +449,7 @@ fun TimeDilationCalculatorScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(speedPresets) { preset ->
-                                Surface(
+                                LiquidGlassSurface(
                                     onClick = {
                                         when (speedUnit) {
                                             SpeedUnit.PERCENT_C -> {
@@ -463,16 +465,17 @@ fun TimeDilationCalculatorScreen(
                                             }
                                         }
                                     },
-                                    shape = RoundedCornerShape(RedCornerRadius.md),
-                                    color = RedTheme.colors.surfaceElevated,
-                                    border = BorderStroke(1.dp, RedTheme.colors.border)
+                                    shape = squircleShape(RedCornerRadius.window),
+                                    fallbackColor = RedTheme.colors.surfaceElevated,
+                                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                                    style = LiquidGlassDefaults.Card,
+                                    fallbackShadowElevation = RedElevation.none,
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Text(text = preset.icon, fontSize = 14.sp)
                                         Text(
                                             text = if (isFa) preset.titleFa else preset.titleEn,
                                             style = RedTypography.bodySmall.copy(fontWeight = FontWeight.Medium),
@@ -499,7 +502,7 @@ fun TimeDilationCalculatorScreen(
                             },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(RedCornerRadius.md),
+                            shape = squircleShape(RedCornerRadius.md),
                             trailingIcon = {
                                 Text(
                                     text = if (isFa) speedUnit.labelFa else speedUnit.labelEn,
@@ -512,10 +515,12 @@ fun TimeDilationCalculatorScreen(
 
                         // Superluminal / Light Speed Warnings
                         if (journeyResult.isSuperluminal) {
-                            Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.md),
-                                color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, RedTheme.colors.accentRed)
+                            LiquidGlassSurface(
+                                shape = squircleShape(RedCornerRadius.window),
+                                fallbackColor = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -536,10 +541,12 @@ fun TimeDilationCalculatorScreen(
                                 }
                             }
                         } else if (journeyResult.isSpeedOfLight) {
-                            Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.md),
-                                color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, RedTheme.colors.accentRed)
+                            LiquidGlassSurface(
+                                shape = squircleShape(RedCornerRadius.window),
+                                fallbackColor = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -621,7 +628,7 @@ fun TimeDilationCalculatorScreen(
                                 },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = squircleShape(RedCornerRadius.md),
                                 trailingIcon = {
                                     Text(
                                         text = "g",
@@ -633,11 +640,13 @@ fun TimeDilationCalculatorScreen(
                             )
 
                             // Acceleration breakdown display
-                            Surface(
+                            LiquidGlassSurface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(RedCornerRadius.md),
-                                color = RedTheme.colors.surfaceElevated,
-                                border = BorderStroke(1.dp, RedTheme.colors.border)
+                                shape = squircleShape(RedCornerRadius.window),
+                                fallbackColor = RedTheme.colors.surfaceElevated,
+                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Column(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -783,11 +792,13 @@ fun TimeDilationCalculatorScreen(
                             }
 
                             // Summary metrics grid
-                            Surface(
+                            LiquidGlassSurface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(RedCornerRadius.md),
-                                color = RedTheme.colors.surfaceElevated,
-                                border = BorderStroke(1.dp, RedTheme.colors.border)
+                                shape = squircleShape(RedCornerRadius.window),
+                                fallbackColor = RedTheme.colors.surfaceElevated,
+                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Column(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -879,7 +890,7 @@ fun TimeDilationCalculatorScreen(
     if (showHowItWorksDialog) {
         AlertDialog(
             onDismissRequest = { showHowItWorksDialog = false },
-            shape = RoundedCornerShape(RedCornerRadius.xl),
+            shape = squircleShape(RedCornerRadius.xl),
             containerColor = RedTheme.colors.surfaceElevated,
             confirmButton = {
                 TextButton(onClick = { showHowItWorksDialog = false }) {
@@ -919,10 +930,12 @@ fun TimeDilationCalculatorScreen(
                         color = RedTheme.colors.textSecondary
                     )
 
-                    Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.md),
-                        color = RedTheme.colors.surfaceElevated,
-                        border = BorderStroke(1.dp, RedTheme.colors.border)
+                    LiquidGlassSurface(
+                        shape = squircleShape(RedCornerRadius.window),
+                        fallbackColor = RedTheme.colors.surfaceElevated,
+                        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
                         Text(
                             text = if (isFa) "فرمول عامل لورنتس:\nγ = 1 / √(1 - v²/c²)\n\nزمان ناظر ساکن (زمین):\nt = γ × τ"
@@ -956,14 +969,16 @@ private fun ObjectSelectionChip(
     onClick: () -> Unit,
     testTag: String
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier
-            .clip(RoundedCornerShape(RedCornerRadius.lg))
+            .clip(squircleShape(RedCornerRadius.lg))
             .clickable(onClick = onClick)
             .testTag(testTag),
-        shape = RoundedCornerShape(RedCornerRadius.lg),
-        color = RedTheme.colors.surfaceElevated,
-        border = BorderStroke(1.dp, RedTheme.colors.border)
+        shape = squircleShape(RedCornerRadius.lg),
+        fallbackColor = RedTheme.colors.surfaceElevated,
+        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(RedSpacing.md),
@@ -1002,11 +1017,13 @@ private fun ResultComparisonTile(
     badgeText: String,
     isAccent: Boolean
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier,
-        shape = RoundedCornerShape(RedCornerRadius.lg),
-        color = if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.12f) else RedTheme.colors.surfaceElevated,
-        border = BorderStroke(1.dp, if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border)
+        shape = squircleShape(RedCornerRadius.lg),
+        fallbackColor = if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.12f) else RedTheme.colors.surfaceElevated,
+        fallbackBorder = BorderStroke(1.dp, if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(RedSpacing.md),
@@ -1087,7 +1104,7 @@ private fun ObjectSearchModal(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = RedTheme.colors.surfaceElevated,
-        shape = RoundedCornerShape(topStart = RedCornerRadius.xl, topEnd = RedCornerRadius.xl)
+        shape = squircleShape(topStart = RedCornerRadius.xl, topEnd = RedCornerRadius.xl)
     ) {
         Column(
             modifier = Modifier
@@ -1119,7 +1136,7 @@ private fun ObjectSearchModal(
                     Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = RedTheme.colors.accentRed)
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(RedCornerRadius.md)
+                shape = squircleShape(RedCornerRadius.md)
             )
 
             LazyColumn(
@@ -1129,14 +1146,16 @@ private fun ObjectSearchModal(
                 verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
             ) {
                 items(filtered) { obj ->
-                    Surface(
+                    LiquidGlassSurface(
                         onClick = { onObjectSelected(obj) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("search_dialog_item_${obj.id}"),
-                        shape = RoundedCornerShape(RedCornerRadius.md),
-                        color = RedTheme.colors.surfaceElevated,
-                        border = BorderStroke(1.dp, RedTheme.colors.border)
+                        shape = squircleShape(RedCornerRadius.window),
+                        fallbackColor = RedTheme.colors.surfaceElevated,
+                        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
                         Row(
                             modifier = Modifier.padding(RedSpacing.md),

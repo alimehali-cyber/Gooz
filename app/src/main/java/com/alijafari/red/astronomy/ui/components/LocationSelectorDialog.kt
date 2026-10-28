@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,13 +24,13 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,6 +47,7 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.kyant.backdrop.Backdrop
 import java.util.Locale
 
@@ -135,7 +135,7 @@ fun LocationSelectorDialog(
                     )
                     .testTag("location_selector_glass_window"),
                 backdrop = backdrop,
-                shape = RoundedCornerShape(RedCornerRadius.xxl),
+                shape = squircleShape(RedCornerRadius.xxl),
                 style = LiquidGlassDefaults.Window,
                 glassTint = RedTheme.colors.surfaceElevated.copy(alpha = if (RedTheme.colors.isDark) 0.65f else 0.75f),
                 glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
@@ -229,7 +229,7 @@ fun LocationSelectorDialog(
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        shape = squircleShape(RedCornerRadius.md),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = RedTheme.colors.accentRed,
                             unfocusedBorderColor = RedTheme.colors.border,
@@ -290,7 +290,7 @@ fun LocationSelectorDialog(
                                         )
                                     }
                                 },
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = squircleShape(RedCornerRadius.window),
                                 style = LiquidGlassDefaults.LocationCard,
                                 glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.40f else 0.50f),
                                 glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
@@ -458,7 +458,7 @@ fun LocationSelectorDialog(
                                     .fillMaxWidth()
                                     .testTag("manual_coordinates_card"),
                                 backdrop = backdrop,
-                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                shape = squircleShape(RedCornerRadius.window),
                                 style = LiquidGlassDefaults.LocationCard,
                                 glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
                                 glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
@@ -522,7 +522,7 @@ fun LocationSelectorDialog(
                                                 .testTag("manual_lat_input"),
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                             singleLine = true,
-                                            shape = RoundedCornerShape(RedCornerRadius.sm),
+                                            shape = squircleShape(RedCornerRadius.sm),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = RedTheme.colors.accentRed,
                                                 unfocusedBorderColor = RedTheme.colors.border,
@@ -543,7 +543,7 @@ fun LocationSelectorDialog(
                                                 .testTag("manual_lon_input"),
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                             singleLine = true,
-                                            shape = RoundedCornerShape(RedCornerRadius.sm),
+                                            shape = squircleShape(RedCornerRadius.sm),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = RedTheme.colors.accentRed,
                                                 unfocusedBorderColor = RedTheme.colors.border,
@@ -568,7 +568,7 @@ fun LocationSelectorDialog(
                                                     .testTag("manual_elev_input"),
                                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                                 singleLine = true,
-                                                shape = RoundedCornerShape(RedCornerRadius.sm),
+                                                shape = squircleShape(RedCornerRadius.sm),
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedBorderColor = RedTheme.colors.accentRed,
                                                     unfocusedBorderColor = RedTheme.colors.border,
@@ -585,7 +585,7 @@ fun LocationSelectorDialog(
                                                     .weight(1f)
                                                     .testTag("manual_name_input"),
                                                 singleLine = true,
-                                                shape = RoundedCornerShape(RedCornerRadius.sm),
+                                                shape = squircleShape(RedCornerRadius.sm),
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedBorderColor = RedTheme.colors.accentRed,
                                                     unfocusedBorderColor = RedTheme.colors.border,
@@ -634,7 +634,7 @@ fun LocationSelectorDialog(
                                                 .fillMaxWidth()
                                                 .height(44.dp)
                                                 .testTag("apply_manual_coordinates_button"),
-                                            shape = RoundedCornerShape(RedCornerRadius.md),
+                                            shape = squircleShape(RedCornerRadius.md),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = RedTheme.colors.accentRed,
                                                 contentColor = Color.White
@@ -724,7 +724,7 @@ private fun CityItemCard(
             .testTag("city_card_${city.id}"),
         backdrop = backdrop,
         onClick = onSelect,
-        shape = RoundedCornerShape(RedCornerRadius.md),
+        shape = squircleShape(RedCornerRadius.window),
         style = LiquidGlassDefaults.LocationCard,
         glassTint = cardGlassTint,
         glassBorder = cardBorder,
@@ -758,7 +758,7 @@ private fun CityItemCard(
                     if (isNurabad) {
                         Surface(
                             color = if (isDark) RedTheme.colors.accentGold.copy(alpha = 0.18f) else Color(0xFF7A1C30).copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(RedCornerRadius.xs)
+                            shape = squircleShape(RedCornerRadius.xs)
                         ) {
                             Text(
                                 text = "NC",
@@ -773,7 +773,7 @@ private fun CityItemCard(
                     } else if (city.isCapital) {
                         Surface(
                             color = RedTheme.colors.surfaceVariant.copy(alpha = 0.6f),
-                            shape = RoundedCornerShape(RedCornerRadius.xs)
+                            shape = squircleShape(RedCornerRadius.xs)
                         ) {
                             Text(
                                 text = if (isFa) "مرکز" else "Capital",

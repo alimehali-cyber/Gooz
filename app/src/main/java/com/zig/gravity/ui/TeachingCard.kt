@@ -2,7 +2,6 @@ package com.zig.gravity.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,12 +15,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -37,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.edu.Challenge
 import com.zig.gravity.edu.Challenges
 import com.zig.gravity.edu.Glossary
@@ -62,9 +62,9 @@ fun TeachingCardView(vm: SimulationViewModel, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(squircleShape(18.dp))
             .background(c.chrome)
-            .border(1.dp, c.chromeBorder, RoundedCornerShape(18.dp))
+            .border(1.dp, c.chromeBorder, squircleShape(18.dp))
             .padding(14.dp)
             .testTag("teaching_card"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -151,12 +151,12 @@ fun TeachingCardView(vm: SimulationViewModel, modifier: Modifier = Modifier) {
                 val selected = t == tier
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(squircleShape(12.dp))
                         .background(if (selected) c.accent.copy(alpha = 0.18f) else Color.Transparent)
                         .border(
                             1.dp,
                             if (selected) c.accent.copy(alpha = 0.5f) else c.chromeBorder,
-                            RoundedCornerShape(12.dp)
+                            squircleShape(12.dp)
                         )
                         .clickableTag("teaching_tier_${t.name.lowercase()}") { vm.setTeachingTier(t) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
@@ -214,7 +214,7 @@ fun ChallengeSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(squircleShape(14.dp))
                                 .background(c.onSurface.copy(alpha = 0.05f))
                                 .clickableTag("challenge_${ch.kind.name.lowercase()}") { vm.startChallenge(ch) }
                                 .padding(14.dp)
@@ -277,9 +277,9 @@ private fun ActiveChallenge(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(squircleShape(12.dp))
                 .background(if (chosen || isTruth) c.accent.copy(alpha = 0.10f) else Color.Transparent)
-                .border(1.dp, if (chosen || isTruth) c.accent.copy(alpha = 0.5f) else c.chromeBorder, RoundedCornerShape(12.dp))
+                .border(1.dp, if (chosen || isTruth) c.accent.copy(alpha = 0.5f) else c.chromeBorder, squircleShape(12.dp))
                 .clickableTag("option_${option.id}") { if (prediction == null) vm.submitPrediction(option.id) }
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -339,7 +339,7 @@ private fun ActiveChallenge(
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(squircleShape(12.dp))
                 .background(c.accent.copy(alpha = 0.12f))
                 .clickableTag("challenge_close") {
                     vm.closeChallenge()
@@ -351,8 +351,8 @@ private fun ActiveChallenge(
         }
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, c.chromeBorder, RoundedCornerShape(12.dp))
+                .clip(squircleShape(12.dp))
+                .border(1.dp, c.chromeBorder, squircleShape(12.dp))
                 .clickableTag("challenge_watch") { onDismiss() }
                 .padding(horizontal = 14.dp, vertical = 9.dp)
         ) {

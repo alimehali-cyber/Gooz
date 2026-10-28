@@ -37,7 +37,7 @@ object AstronomyRenderer {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
-        val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
+        val sunPosPx = if (sunHoriz.altitudeDeg > -18.0) {
             HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, width, height, latitudeDeg)
         } else null
 
@@ -46,7 +46,9 @@ object AstronomyRenderer {
             drawScope = drawScope,
             lightingState = lightingState,
             sunPosPx = sunPosPx,
-            theme = theme
+            theme = theme,
+            sunAzimuthDeg = sunHoriz.azimuthDeg,
+            latitudeDeg = latitudeDeg
         )
 
         // 2. Coordinate Grid (if enabled)
@@ -85,7 +87,7 @@ object AstronomyRenderer {
         )
 
         // 6. Sun
-        if (sunPosPx != null) {
+        if (sunPosPx != null && sunHoriz.altitudeDeg > -12.0) {
             SunRenderer.drawSun(
                 drawScope = drawScope,
                 center = sunPosPx,

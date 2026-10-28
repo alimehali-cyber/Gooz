@@ -1,0 +1,143 @@
+{
+  "status": "USER_SUPPLIED_NASA_SOURCE_NOT_INDEPENDENTLY_VERIFIED",
+  "status_reason": "The EXR was downloaded by the project owner from the official NASA SVS URL (https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/milkyway_2020_4k.exr), uploaded to Google Drive (file ID 1gBLXDOJYCVjEafA5NMTGg0NdNpGCC_Ns) without modification, and supplied to this project. This is the owner's attestation. The agent did not independently verify it: NASA publishes no checksum for this file, and the sandbox cannot reach svs.gsfc.nasa.gov. No NASA checksum has been verified. The file's header carries no title or ID metadata.",
+  "nasa_svs_id": 4851,
+  "source_title": "NASA SVS | Deep Star Maps 2020 (media group: Milky Way background, celestial coordinates)",
+  "source_page": "https://svs.gsfc.nasa.gov/4851/",
+  "source_url": "https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/milkyway_2020_4k.exr",
+  "file_name": "milkyway_2020_4k.exr",
+  "local_source_path_outside_repo": "/home/user/milkyway_2020_4k.exr",
+  "source_provenance": "user-supplied Google Drive copy, file ID 1gBLXDOJYCVjEafA5NMTGg0NdNpGCC_Ns, modified 2026-10-08T22:50:11Z",
+  "source_size_bytes": 36436668,
+  "source_md5": "77c864dc21332f97f090d794630f36c0",
+  "exr_header": {
+    "dataWindow": [
+      0,
+      0,
+      4095,
+      2047
+    ],
+    "displayWindow": [
+      0,
+      0,
+      4095,
+      2047
+    ],
+    "channels": {
+      "R": "HALF",
+      "G": "HALF",
+      "B": "HALF"
+    },
+    "compression": "ZIP_COMPRESSION",
+    "lineOrder": "INCREASING_Y",
+    "pixelAspectRatio": 1.0,
+    "screenWindowCenter": [
+      0.0,
+      0.0
+    ],
+    "screenWindowWidth": 1.0,
+    "title_or_id_metadata": "none present in header"
+  },
+  "source_pixel_range": {
+    "min": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "pixels_at_1.0_any_channel": 1079,
+    "nan": 0,
+    "inf": 0
+  },
+  "orientation_check": "brightest Dec -29 deg band at u=0.744 vs predicted galactic centre u=0.760; mirror side 5.0 vs 63.4 luminance",
+  "expected_dimensions": [
+    4096,
+    2048
+  ],
+  "expected_projection": "plate carree (equirectangular 2:1), ICRF/J2000 celestial coordinates",
+  "expected_orientation": "centred on 0h right ascension; RA increases to the left; north (Dec +90) at the top row",
+  "published_size_on_nasa_page": "34.7 MB (milkyway_2020_4k.exr, celestial)",
+  "released": "2020-09-09",
+  "access_date": "2026-10-08",
+  "credit_required": "NASA/Goddard Space Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC.",
+  "visualizations_by": "Ernie Wright (USRA)",
+  "licence_status": "CLEARED per the project owner's confirmation, which the owner states was made with the advice of the owner's lawyer. The agent has not reviewed the legal basis. Required credit line, to be kept in project attribution: 'NASA/Goddard Space Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC.' Visualization by Ernie Wright (USRA).",
+  "conversion": {
+    "tool": "tools/sky-panorama/convert_milkyway_exr.py",
+    "converter_sha256": "b32c896b2e5657df8e506923beeac4d18f90933bd15cdb76908c26969250beaf",
+    "exposure_ev": 0.0,
+    "highlight_roll_off": "none",
+    "resize_crop_flip_rotate": "none",
+    "transfer": "clip to [0,1] then sRGB OETF (IEC 61966-2-1); no tone curve",
+    "dither": "deterministic TPDF, +/-1 LSB, seed 0x5A1C",
+    "jpeg_quality": 92,
+    "chroma_subsampling": "4:4:4",
+    "jpeg_optimize": true,
+    "icc": "built-in sRGB (LittleCMS via PIL), ICC creation date pinned to 2000-01-01 00:00:00 for reproducibility",
+    "reproducible": "two consecutive runs are byte-identical"
+  },
+  "output": {
+    "path": "app/src/main/assets/sky/panorama/milkyway_2020_4k.jpg",
+    "dimensions": [
+      4096,
+      2048
+    ],
+    "size_bytes": 3134424,
+    "sha256": "36b585ab1a39262da41c08dbc7660fa2f900341b42f5c55b70ae5a08b416f20e",
+    "superseded_sha256": "b470031130bba58811ed6ac4aa5a8fb76832781924eedc3ef9d689d9456ab08a",
+    "superseded_reason": "previous build embedded a wall-clock ICC creation date; the scan data is identical, only ICC bytes 24-35 differ"
+  },
+  "validation": {
+    "tool": "tools/sky-panorama/validate_panorama.py",
+    "command": "validate_panorama.py app/src/main/assets/sky/panorama/milkyway_2020_4k.jpg --expected-output-sha256 36b5...f20e --source /home/user/milkyway_2020_4k.exr --expected-source-sha256 2eb8...4fdb --provenance tools/sky-panorama/provenance/milkyway_2020_4k.source.json",
+    "result": "ACCEPTED (technical checks A-D pass; identity NOT established)",
+    "A_source_integrity": "SHA-256 MATCH to the supplied expected hash; header 4096x2048, RGB HALF, data/display window 0,0,4095,2047, ZIP, INCREASING_Y; identity USER_SUPPLIED_IDENTITY_UNVERIFIED",
+    "B_conversion_integrity": "JPEG 4096x2048 RGB; sRGB ICC; 4:4:4; quality-92 quantisation tables; output SHA-256 matches; provenance declarations match",
+    "C_orientation": {
+      "scores_mean_abs_diff": {
+        "180-degree rotation": 30.672,
+        "horizontal mirror": 20.0287,
+        "identity": 0.0,
+        "vertical flip": 28.9071
+      },
+      "best_candidate": "identity",
+      "separation_levels": 20.0287,
+      "required_separation_levels": 5.0
+    },
+    "D_codec_fidelity": {
+      "vs_pre_jpeg_reference": {
+        "fraction_pixels_changed": 0.987658,
+        "max_abs_diff": 32,
+        "mean_abs_diff": 2.3604,
+        "per_channel_mean_abs_diff_RGB": [
+          2.3511,
+          2.1667,
+          2.5633
+        ],
+        "psnr_db": 38.44
+      },
+      "reproducibility_max_abs_diff": 0,
+      "reproducibility_allowed": 1
+    },
+    "previous_threshold_result": "REJECTED under the earlier mean|diff|<=1.5 and PSNR>=38 dB identity test (mean 2.36, PSNR 38.44). Those thresholds were replaced, not weakened: they measured codec loss, which is not an acceptance criterion for a lossy JPEG."
+  },
+  "runtime_output_present": true,
+  "runtime_output_shippable": true,
+  "runtime_output_shippable_reason": "Licensing cleared per owner confirmation. Identity is owner-attested, not independently verified. The runtime output is inert while SkyPanoramaFeature.INTEGRATION_ENABLED = false. Android build and rendering are NOT VERIFIED.",
+  "official_sha256": null,
+  "sha256": "2eb802d6e68d170b410f766c7fec07f7518619f6b6708fdc81e9302d93e74fdb",
+  "validation_tool": "tools/sky-panorama/validate_panorama.py",
+  "source_acquisition": {
+    "acquired_by": "project owner (user), not the agent",
+    "official_url": "https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/milkyway_2020_4k.exr",
+    "modified_after_download": false,
+    "transfer": "Google Drive upload, file ID 1gBLXDOJYCVjEafA5NMTGg0NdNpGCC_Ns",
+    "attestation": "owner-attested; not independently verified by the agent",
+    "nasa_published_checksum": null
+  },
+  "licence_basis": "owner confirmation (lawyer advice); see also the ESA Gaia CC BY-NC 3.0 IGO page and ESDC terms, reviewed earlier"
+}

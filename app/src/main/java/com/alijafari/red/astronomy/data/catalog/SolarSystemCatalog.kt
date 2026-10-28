@@ -208,10 +208,10 @@ object SolarSystemCatalog {
                     5.6
                 )
                 JupiterMoonsEngine.GalileanMoon.ELARA -> Quadruple(
-                    "An irregular Jovian satellite discovered in 1905. Historically, before its official naming in 1975, it was informally called Jupiter VII and colloquially referred to as 'Dianz' (دیانز) or 'Green Tomato' (گوجه سبز).",
-                    "قمر نامنظم و تیره‌رنگ مشتری کشف‌شده در سال ۱۹۰۵. این قمر پیش از نام‌گذاری رسمی در سال ۱۹۷۵ با نام‌های «دیانز» (Dianz) یا «گوجه سبز» (Green Tomato) نیز شناخته می‌شد.",
+                    "An irregular Jovian satellite discovered in 1905 by C. D. Perrine. It did not receive its present name until 1975; before then it was known simply as Jupiter VII, and between 1955 and 1975 it was sometimes informally called 'Hera'.",
+                    "قمر نامنظم و تیره‌رنگ مشتری که در سال ۱۹۰۵ توسط چارلز دیلون پرین کشف شد. این قمر تا سال ۱۹۷۵ تنها با عنوان «مشتری ۷» شناخته می‌شد و میان سال‌های ۱۹۵۵ تا ۱۹۷۵ گاهی به‌طور غیررسمی «هرا» نامیده می‌شد.",
                     "Irregular Jovian Satellite (Himalia Group)",
-                    9.8
+                    16.3
                 )
             }
 

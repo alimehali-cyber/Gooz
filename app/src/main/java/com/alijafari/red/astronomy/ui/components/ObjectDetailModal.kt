@@ -11,30 +11,31 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngineLegacy
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.data.catalog.PhysicalData
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.*
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Locale
 import kotlin.math.tan
 
@@ -236,15 +237,75 @@ fun ObjectDetailModal(
         formatComputedLinearSize(celestialObj.distanceLightYears, celestialObj.angularSizeArcmin, isFa)
     }
 
-    val riseSetTransit = remember(dynamicRa, dynamicDec, uiState.userLocation, jd, isFa) {
-        CoordinateEngine.calculateRiseSetTransit(
+    // Rise / transit / set.
+    //
+    // Stars, planets, deep-sky objects and the Sun keep the analytic solver unchanged.
+    //
+    // The MOON must not. That solver holds one fixed RA/Dec for the whole day and the Moon
+    // moves about 13°/day, which makes its rise/set wrong. Sign convention below: positive
+    // means the suncalc value shown here is that many minutes LATER than what the analytic
+    // solver computed. Tehran, 35.69N 51.39E, 1200 m, h0 = +0.125°, measured once against the
+    // iterative topocentric solve with refraction (PyEphem 4.2.1 next_rising/next_setting as
+    // the proxy for commons-suncalc's MoonTimes, which is a JVM library):
+    //
+    //     2026-06-15   rise +9 min    set +61 min       (at local midnight)
+    //     2026-10-15   rise +27 min   set +45 min       (at local midnight)
+    //
+    // Only the "at midnight" numbers above are quoted, because the analytic solver anchors its
+    // hour angle on local midnight but samples the Moon's RA/Dec at the moment it is called —
+    // so its output moves with the clock. Sampling the same two dates at 00:30, 06:00, 12:00,
+    // 15:00, 18:00, 20:00 and 23:30 local spreads the difference over rise -58..+26 min and set
+    // -4..+61 min. That drift is why the numbers quoted in earlier reviews of this file (+14/+59
+    // and +28/+43) and in the code comment that used to be here (-20/-53 and -34/-37, opposite
+    // sign) did not agree: each was one moment of a moving quantity. Midnight is the moment
+    // this file states, and h0 is fixed at +0.125°, so the table above is reproducible.
+    //
+    // Its horizon constant is also the geocentric one (+0.125°), applied here to coordinates
+    // that already have parallax removed — worth a further ±4 minutes.
+    //
+    // moonData above already carries proper iterative rise/set times from commons-suncalc
+    // (MoonTimes), and that is exactly what the home card shows, so using them here is what
+    // makes the two screens agree. If suncalc has no event for the day (polar day/night),
+    // fall back to the analytic string. Transit needs its own solver — see
+    // CoordinateEngineLegacy.calculateMoonTransitTimeMs for why and for the measured drift.
+    val riseSetTransit = remember(dynamicRa, dynamicDec, uiState.userLocation, jd, isFa, celestialObj.id, moonData) {
+        val analytic = CoordinateEngine.calculateRiseSetTransit(
             raDeg = dynamicRa,
             decDeg = dynamicDec,
             latDeg = uiState.userLocation.latitude,
             lonDeg = uiState.userLocation.longitude,
             jd = jd,
-            isFa = isFa
+            isFa = isFa,
+            timezoneId = uiState.userLocation.timezoneId,
+            horizonAltDeg = CoordinateEngineLegacy.horizonAltDegFor(celestialObj.id)
         )
+        if (celestialObj.id != "moon") {
+            analytic
+        } else {
+            val tz = TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
+            analytic.copy(
+                riseTimeStr = moonData.moonriseTimeMs
+                    ?.let { TimeEngine.formatTime24h(it, isFa, tz) } ?: analytic.riseTimeStr,
+                setTimeStr = moonData.moonsetTimeMs
+                    ?.let { TimeEngine.formatTime24h(it, isFa, tz) } ?: analytic.setTimeStr,
+                transitTimeStr = TimeEngine.formatTime24h(
+                    CoordinateEngineLegacy.calculateMoonTransitTimeMs(
+                        nowMs = timestampMs,
+                        longitudeDeg = uiState.userLocation.longitude,
+                        timezoneId = uiState.userLocation.timezoneId
+                    ) { guessJd ->
+                        MoonEngine.topocentricRaDeg(
+                            jd = guessJd,
+                            latitude = uiState.userLocation.latitude,
+                            longitude = uiState.userLocation.longitude,
+                            elevationM = uiState.userLocation.elevationMeters
+                        )
+                    },
+                    isFa,
+                    tz
+                )
+            )
+        }
     }
 
     var showAddLogDialog by remember { mutableStateOf(false) }
@@ -331,11 +392,13 @@ fun ObjectDetailModal(
 
             // Observability Badge Banner
             item {
-                Surface(
+                LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = obs.level.color.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f))
+                    shape = squircleShape(RedCornerRadius.window),
+                    fallbackColor = obs.level.color.copy(alpha = 0.15f),
+                    fallbackBorder = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f)),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
                     Row(
                         modifier = Modifier
@@ -381,7 +444,7 @@ fun ObjectDetailModal(
                         .fillMaxWidth()
                         .height(50.dp)
                         .testTag("locate_in_ar_button"),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = squircleShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AccentPrimary
                     )
@@ -408,12 +471,55 @@ fun ObjectDetailModal(
 
             // MATHEMATICALLY DERIVED PHYSICAL PROPERTIES CARD
             item {
-                Card(
+                LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    shape = squircleShape(RedCornerRadius.window),
+                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = if (isFa) "مشخصات فیزیکی و محاسباتی مراجع" else "Derived Physical Properties",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PropertyRow(
+                                label = if (isFa) "ابعاد و قطر" else "Size / Diameter",
+                                value = if (isFa) physicalProps.diameterDisplayFa else physicalProps.diameterDisplayEn
+                            )
+                            PropertyRow(
+                                label = if (isFa) "جرم تقریبی" else "Approximate Mass",
+                                value = if (isFa) physicalProps.massKgDisplayFa else physicalProps.massKgDisplayEn
+                            )
+                            PropertyRow(
+                                label = if (isFa) "گرانش سطحی" else "Surface Gravity",
+                                value = if (isFa) physicalProps.gravityMssDisplayFa else physicalProps.gravityMssDisplayEn
+                            )
+                            PropertyRow(
+                                label = if (isFa) "فاصله از زمین" else "Distance from Earth",
+                                value = liveDistanceText
+                            )
+                        }
+                    }
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -460,12 +566,74 @@ fun ObjectDetailModal(
 
             if (isDeepSkyDetail) {
                 item {
-                    Card(
+                    LiquidGlassSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        shape = squircleShape(RedCornerRadius.window),
+                        fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
+                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(20.dp))
+                                Text(
+                                    text = if (isFa) "اطلاعات ژرف‌آسمان" else "Deep-Sky Catalog Data",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AccentPrimary
+                                )
+                            }
+                            if (catalogDesignationText.isNotBlank()) {
+                                PropertyRow(
+                                    label = if (isFa) "شناسه‌های کاتالوگ" else "Catalog designations",
+                                    value = catalogDesignationText
+                                )
+                            }
+                            PropertyRow(
+                                label = if (isFa) "نوع و صورت فلکی" else "Type + constellation",
+                                value = if (isFa) "${celestialObj.type.nameFa} • ${celestialObj.constellationFa.ifBlank { celestialObj.constellationCode }}"
+                                else "${celestialObj.type.nameEn} • ${celestialObj.constellationEn.ifBlank { celestialObj.constellationCode }}"
+                            )
+                            if (celestialObj.constellationCode.isNotBlank()) {
+                                PropertyRow(
+                                    label = if (isFa) "کد صورت فلکی" else "Constellation code",
+                                    value = celestialObj.constellationCode
+                                )
+                            }
+                            PropertyRow(
+                                label = if (isFa) "قدر ظاهری" else "Magnitude",
+                                value = if (isFa) TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.1f", celestialObj.magnitude)) else String.format(Locale.US, "%.1f", celestialObj.magnitude)
+                            )
+                            angularSizeText?.let { angular ->
+                                PropertyRow(
+                                    label = if (isFa) "اندازه زاویه‌ای" else "Angular size",
+                                    value = angular
+                                )
+                            }
+                            linearSizeText?.let { linear ->
+                                PropertyRow(
+                                    label = if (isFa) "اندازه واقعی تخمینی" else "Computed physical size",
+                                    value = linear
+                                )
+                            }
+                            PropertyRow(
+                                label = if (isFa) "فاصله زنده / کاتالوگی" else "Live/catalog distance",
+                                value = liveDistanceText
+                            )
+                            if (celestialObj.bestViewingMonthEn.isNotBlank() || celestialObj.bestViewingMonthFa.isNotBlank()) {
+                                PropertyRow(
+                                    label = if (isFa) "بهترین زمان مشاهده" else "Best viewing month",
+                                    value = if (isFa) celestialObj.bestViewingMonthFa.ifBlank { celestialObj.bestViewingMonthEn } else celestialObj.bestViewingMonthEn.ifBlank { celestialObj.bestViewingMonthFa }
+                                )
+                            }
+                        }
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -532,12 +700,80 @@ fun ObjectDetailModal(
 
             // Rise, Transit, Set Schedule Card
             item {
-                Card(
+                LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    shape = squircleShape(RedCornerRadius.window),
+                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = if (isFa) "زمان‌بندی دقیق طلوع، ترانزیت و غروب" else "Precise Schedule Today",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(horizontalAlignment = Alignment.Start) {
+                                Text(
+                                    text = if (isFa) "طلوع" else "Rise",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = riseSetTransit.riseTimeStr,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = if (isFa) "اوج ارتفاع (ترانزیت)" else "Peak Transit",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = riseSetTransit.transitTimeStr,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = AccentPrimary
+                                )
+                            }
+
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = if (isFa) "غروب" else "Set",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = riseSetTransit.setTimeStr,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -610,12 +846,54 @@ fun ObjectDetailModal(
             // Optional verified / authored facts. Omitted when no facts are available.
             if (coolFacts.isNotEmpty()) {
                 item {
-                    Card(
+                    LiquidGlassSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        shape = squircleShape(RedCornerRadius.window),
+                        fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        style = LiquidGlassDefaults.Card,
+                        fallbackShadowElevation = RedElevation.none,
                     ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = AccentPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = objectDetailFactsHeader(coolFacts.size, isFa),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AccentPrimary
+                                )
+                            }
+
+                            coolFacts.forEachIndexed { index, fact ->
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = if (isFa) "${TimeEngine.formatPersianNumbers((index + 1).toString())}." else "${index + 1}.",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = AccentPrimary
+                                    )
+                                    Text(
+                                        text = fact,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -679,12 +957,55 @@ fun ObjectDetailModal(
 
             // Scientific Coordinates (Collapsible Section - Hidden by default)
             item {
-                Card(
+                LiquidGlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                    shape = squircleShape(RedCornerRadius.window),
+                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackShadowElevation = RedElevation.none,
                 ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showScientificCoords = !showScientificCoords },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isFa) "مختصات علمی نجومی (RA / Dec)" else "Astronomical Coordinates",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Icon(
+                                imageVector = if (showScientificCoords) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = "Toggle Coords",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (showScientificCoords) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(text = "RA (بعد)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Text(text = CoordinateEngine.formatRA(celestialObj.raDeg), style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column {
+                                    Text(text = "Dec (میل)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Text(text = CoordinateEngine.formatDec(celestialObj.decDeg), style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column {
+                                    Text(text = "Magnitude (قدر)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Text(text = String.format("%.1f", celestialObj.magnitude), style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                        }
+                    }
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier
@@ -737,7 +1058,7 @@ fun ObjectDetailModal(
                         .fillMaxWidth()
                         .height(48.dp)
                         .testTag("add_log_button"),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = squircleShape(14.dp)
                 ) {
                     Icon(Icons.Default.EditNote, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -756,7 +1077,7 @@ fun ObjectDetailModal(
         AlertDialog(
             onDismissRequest = { showNotificationSheet = false },
             title = {
-                Text(text = if (isFa) "🔔 تنظیم هشدار رصد ${celestialObj.nameFa}" else "🔔 Set Observation Alert for ${celestialObj.nameEn}")
+                Text(text = if (isFa) "تنظیم هشدار رصد ${celestialObj.nameFa}" else "Set Observation Alert for ${celestialObj.nameEn}")
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

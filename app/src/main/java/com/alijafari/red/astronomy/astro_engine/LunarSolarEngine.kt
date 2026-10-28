@@ -336,7 +336,8 @@ class LunarSolarEngine {
      * @return Solar geocentric position
      */
     fun calculateSun(astroTime: AstroTime): SolarPosition {
-        val t = astroTime.jcTt
+        // VSOP87D series in Meeus Table 32.A uses Julian millennia tau = (JDE - 2451545.0) / 365250.0 = jcTt / 10.0
+        val t = astroTime.jcTt / 10.0
 
         val L0 = (
             175347046.0 + 0.0 * t +
@@ -406,7 +407,7 @@ class LunarSolarEngine {
         )
 
         val L1 = (
-            62833196674.7 +
+            628331966747.0 +
             206059.0 * cos((2.678235 + 6283.075850 * t)) +
             4303.0 * cos((2.6351 + 12566.1517 * t)) +
             425.0 * cos((1.590 + 3.523 * t)) +

@@ -3,8 +3,6 @@ package com.zig.gravity.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,15 +16,16 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.GpsNotFixed
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -46,6 +45,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.physics.BodyType
 import com.zig.gravity.physics.EngineConstants
 import com.zig.gravity.sim.BodyCatalog
@@ -154,7 +154,7 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(squircleShape(14.dp))
                         .background(
                             if (following) c.accent.copy(alpha = 0.18f)
                             else c.onSurface.copy(alpha = 0.05f)
@@ -162,7 +162,7 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                         .border(
                             1.dp,
                             if (following) c.accent.copy(alpha = 0.55f) else c.chromeBorder,
-                            RoundedCornerShape(14.dp)
+                            squircleShape(14.dp)
                         )
                         .clickableTag("inspector_follow") { vm.toggleFollow(vm.selectedId) }
                         .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -507,7 +507,7 @@ private fun TextAction(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(squircleShape(12.dp))
             .background(c.accent.copy(alpha = 0.10f))
             .clickableTag(tag, onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),

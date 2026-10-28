@@ -10,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
@@ -32,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.kyant.backdrop.Backdrop
 
 data class NavItem(
@@ -52,12 +53,12 @@ fun FloatingBottomBar(
     val navItems = listOf(
         NavItem(R.string.nav_home, Icons.Outlined.Home, Icons.Outlined.Home, 4, "nav_item_home"),
         NavItem(R.string.nav_arsky, Icons.Outlined.Explore, Icons.Outlined.Explore, 3, "nav_item_arsky"),
-        NavItem(R.string.nav_moon, Icons.Outlined.DarkMode, Icons.Outlined.DarkMode, 2, "nav_item_moon"),
         NavItem(R.string.nav_satellites, Icons.Outlined.SatelliteAlt, Icons.Outlined.SatelliteAlt, 1, "nav_item_satellites"),
         NavItem(R.string.nav_lab, Icons.Outlined.Science, Icons.Outlined.Science, 0, "nav_item_lab")
     )
 
-    val navShape = RoundedCornerShape(32.dp)
+    // The glass platter wears the same 34 dp window radius as every other container in the app.
+    val navShape = squircleShape(RedCornerRadius.window)
 
     Box(
         modifier = modifier
@@ -110,7 +111,7 @@ fun FloatingBottomBar(
                         label = "NavActiveIndicatorProgress"
                     )
 
-                    val pillShape = RoundedCornerShape(20.dp)
+                    val pillShape = squircleShape(20.dp)
 
                     Box(
                         contentAlignment = Alignment.Center,

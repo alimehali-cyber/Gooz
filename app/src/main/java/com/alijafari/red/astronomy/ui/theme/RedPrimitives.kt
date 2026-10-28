@@ -14,7 +14,6 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -63,7 +62,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun RedCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(RedCornerRadius.lg),
+    shape: Shape = squircleShape(RedCornerRadius.lg),
     backgroundColor: Color = RedTheme.colors.surface,
     borderColor: Color = RedTheme.colors.border,
     borderWidth: Dp = 1.dp,
@@ -71,23 +70,17 @@ fun RedCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val clickModifier = if (onClick != null) {
-        Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(color = RedTheme.colors.accentRed),
-            onClick = onClick
-        )
-    } else {
-        Modifier
-    }
-
-    Surface(
-        modifier = modifier
-            .clip(shape)
-            .then(clickModifier),
+    // Both card primitives are liquid glass. They render through the same fallback path as every other
+    // card when no backdrop is reachable, so a `RedCard` call site gets the glass material, the user's
+    // tint and the contrast-safe ink without knowing any of it exists.
+    LiquidGlassSurface(
+        modifier = modifier,
         shape = shape,
-        color = backgroundColor,
-        border = BorderStroke(borderWidth, borderColor)
+        style = LiquidGlassDefaults.Card,
+        fallbackColor = backgroundColor,
+        fallbackBorder = BorderStroke(borderWidth, borderColor),
+        fallbackShadowElevation = RedElevation.none,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier.padding(contentPadding),
@@ -102,7 +95,7 @@ fun RedCard(
 @Composable
 fun RedElevatedCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(RedCornerRadius.xl),
+    shape: Shape = squircleShape(RedCornerRadius.xl),
     backgroundColor: Color = RedTheme.colors.surfaceElevated,
     borderColor: Color = RedTheme.colors.border,
     borderWidth: Dp = 1.dp,
@@ -111,24 +104,14 @@ fun RedElevatedCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val clickModifier = if (onClick != null) {
-        Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(color = RedTheme.colors.accentRed),
-            onClick = onClick
-        )
-    } else {
-        Modifier
-    }
-
-    Surface(
-        modifier = modifier
-            .clip(shape)
-            .then(clickModifier),
+    LiquidGlassSurface(
+        modifier = modifier,
         shape = shape,
-        color = backgroundColor,
-        shadowElevation = shadowElevation,
-        border = BorderStroke(borderWidth, borderColor)
+        style = LiquidGlassDefaults.Card,
+        fallbackColor = backgroundColor,
+        fallbackBorder = BorderStroke(borderWidth, borderColor),
+        fallbackShadowElevation = shadowElevation,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier.padding(contentPadding),
@@ -285,14 +268,14 @@ fun RedControl(
     Surface(
         modifier = modifier
             .height(RedControlHeight.regular)
-            .clip(RoundedCornerShape(RedCornerRadius.md))
+            .clip(squircleShape(RedCornerRadius.md))
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = if (isPrimary) Color.White.copy(alpha = 0.2f) else RedTheme.colors.accentRed),
                 onClick = onClick
             ),
-        shape = RoundedCornerShape(RedCornerRadius.md),
+        shape = squircleShape(RedCornerRadius.md),
         color = bg,
         border = BorderStroke(1.dp, borderCol)
     ) {

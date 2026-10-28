@@ -863,14 +863,14 @@ object CanonicalAstroCatalog {
             descriptionFa = "هشتمین قمر بزرگ مشتری که در سال ۱۹۰۵ کشف شد.",
             verifiedFactsEn = listOf(
                 "Elara is an irregular Jovian satellite discovered in 1905 by astronomer Charles Dillon Perrine at Lick Observatory.",
-                "Before its official naming in 1975, Elara was designated Jupiter VII and colloquially referred to in some astronomy circles as 'Dianz' or 'Green Tomato'.",
+                "Elara did not receive its present name until 1975; before then it was known simply as Jupiter VII, and between 1955 and 1975 it was sometimes informally called 'Hera'.",
                 "It belongs to the Himalia group of prograde irregular moons orbiting nearly 11.7 million kilometers from Jupiter.",
                 "Elara has an extremely dark C-type carbonaceous surface with an albedo of just 0.04, indicating it is an ancient captured asteroid.",
                 "It takes Elara approximately 259.6 Earth days to complete a single eccentric orbit around Jupiter."
             ),
             verifiedFactsFa = listOf(
                 "این قمر نامنظم مشتری در سال ۱۹۰۵ توسط چارلز دیلون پرین در رصدخانه لیک کشف شد.",
-                "پیش از نام‌گذاری رسمی در سال ۱۹۷۵، این قمر در برخی فرهنگ‌ها و متون نجومی با نام‌های «دیانز» یا «گوجه سبز» نیز شناخته می‌شد.",
+                "این قمر تا سال ۱۹۷۵ نام کنونی خود را نداشت و تنها با عنوان «مشتری ۷» (Jupiter VII) شناخته می‌شد؛ میان سال‌های ۱۹۵۵ تا ۱۹۷۵ گاهی به‌طور غیررسمی «هرا» نامیده می‌شد.",
                 "الارا متعلق به گروه هیمالیا از قمرهای نامنظم مشتری است که مداری موافق و دوردست در فاصله ۱۱.۷ میلیون کیلومتری دارند.",
                 "سطح الارا بسیار تاریک و خاکستری‌رنگ (از نوع کربنی C) است که نشان می‌دهد احتمالاً سیارکی بوده که توسط گرانش مشتری به دام افتاده است.",
                 "یک دور گردش کامل الارا به دور مشتری حدود ۲۵۹.۶ روز زمین به طول می‌انجامد."
@@ -1388,7 +1388,7 @@ object CanonicalAstroCatalog {
         }
 
         // 2. Stars, Deep Sky, Meteor Showers, Asterisms
-        val extraObjects = StarCatalog.getStars() + DeepSkyCatalog.getDeepSkyObjects() +
+        val extraObjects = StarCatalog.getStars() + BscNamedStarCatalog.getStars() + DeepSkyCatalog.getDeepSkyObjects() +
                 MeteorShowerCatalog.getMeteorShowers() + AsterismCatalog.getAsterisms()
 
         for (obj in extraObjects) {
@@ -1418,8 +1418,7 @@ object CanonicalAstroCatalog {
                 val bestMonthFromEngine = matchedEngineDso?.let { deepSkyEngineForMetadata.bestViewingMonth(it).coerceIn(1, 12) }
                 val angularSizeArcmin = obj.angularSizeArcmin ?: matchedEngineDso?.sizeArcmin
 
-                list.addOrMergeCatalogIdentity(
-                    CanonicalAstroObject(
+                val __candidate = CanonicalAstroObject(
                         canonicalId = canonId,
                         legacyIds = listOf(obj.id),
                         type = obj.type,
@@ -1473,8 +1472,12 @@ object CanonicalAstroCatalog {
                             bestViewingMonthEn = obj.bestViewingMonthEn.ifBlank { bestMonthFromEngine?.let { monthNamesEn[it - 1] } ?: "" },
                             bestViewingMonthFa = obj.bestViewingMonthFa.ifBlank { bestMonthFromEngine?.let { monthNamesFa[it - 1] } ?: "" }
                         )
-                    )
                 )
+                if (obj.type == ObjectType.STAR) {
+                    if (!list.any { it.canonicalId == canonId }) list.add(__candidate)
+                } else {
+                    list.addOrMergeCatalogIdentity(__candidate)
+                }
             }
         }
 

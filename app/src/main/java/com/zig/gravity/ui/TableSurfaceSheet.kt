@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.GravitySurface
 import com.zig.gravity.ui.theme.LocalGravityColors
@@ -132,12 +132,12 @@ private fun RowScope.SurfaceSwatch(
     Column(
         modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(squircleShape(16.dp))
             .background(if (selected) c.accent.copy(alpha = 0.12f) else c.onSurface.copy(alpha = 0.04f))
             .border(
                 if (selected) 2.dp else 1.dp,
                 if (selected) c.accent else c.chromeBorder,
-                RoundedCornerShape(16.dp)
+                squircleShape(16.dp)
             )
             .clickableTag("table_surface_${surface.key}", onClick)
             .padding(8.dp),
@@ -147,7 +147,7 @@ private fun RowScope.SurfaceSwatch(
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(squircleShape(16.dp))
                 .testTag("table_swatch_${surface.key}")
                 .drawWithCache {
                     val gradient = surface.gradient.brushFor(size)

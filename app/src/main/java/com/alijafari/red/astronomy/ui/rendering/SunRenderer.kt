@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.ui.rendering
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -15,16 +16,27 @@ import kotlin.math.sin
 
 object SunRenderer {
 
+    private fun lerpColor(a: Color, b: Color, t: Float): Color {
+        val f = t.coerceIn(0f, 1f)
+        return Color(
+            red = a.red + (b.red - a.red) * f,
+            green = a.green + (b.green - a.green) * f,
+            blue = a.blue + (b.blue - a.blue) * f,
+            alpha = a.alpha + (b.alpha - a.alpha) * f
+        )
+    }
+
     fun drawSun(
         drawScope: DrawScope,
         center: Offset,
         sunAltitudeDeg: Double,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
+        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
+        clipBottomPx: Float? = null
     ) {
         if (sunAltitudeDeg < -10.0) return
 
-        val horizonY = drawScope.size.height * 0.85f
+        val horizonY = clipBottomPx ?: (drawScope.size.height * 0.85f)
         drawScope.clipRect(
             left = 0f,
             top = 0f,
@@ -32,13 +44,79 @@ object SunRenderer {
             bottom = horizonY
         ) {
             when (theme) {
+                SkyCanvasTheme.REAL_SKY -> drawRealSkySun(drawScope, center, sunAltitudeDeg)
                 SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs, isObservatory = false)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs, isObservatory = true)
                 SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftSun(drawScope, center)
             }
         }
+    }
+
+    /**
+     * Physical rayless Sun with altitude-dependent Rayleigh reddening, 3-layer Mie forward-scattering
+     * aureole, and limb-darkened photosphere core.
+     */
+    private fun drawRealSkySun(
+        drawScope: DrawScope,
+        center: Offset,
+        sunAltitudeDeg: Double
+    ) {
+        if (sunAltitudeDeg < -2.0) return
+
+        val sunRadius = drawScope.run { 10.5.dp.toPx() }
+        // Atmospheric reddening factor: 0.0 at high altitude (>= 22°), 1.0 right at the horizon (<= 0°)
+        val reddening = ((22.0 - sunAltitudeDeg) / 22.0).coerceIn(0.0, 1.0).toFloat()
+
+        val coreColor = lerpColor(Color(0xFFFFFEF8), Color(0xFFFFE599), reddening)
+        val limbColor = lerpColor(Color(0xFFFFF2B0), Color(0xFFFF7A3D), reddening)
+        val aureoleInner = lerpColor(Color(0xFFFFF4C2), Color(0xFFFF8F4D), reddening)
+        val aureoleOuter = lerpColor(Color(0xFFFFE699), Color(0xFFE0533C), reddening)
+
+        // 1. Wide Mie forward-scattering atmospheric aureole
+        val outerHaloRadius = sunRadius * 5.2f
+        drawScope.drawCircle(
+            brush = Brush.radialGradient(
+                0.0f to aureoleInner.copy(alpha = 0.34f),
+                0.35f to aureoleOuter.copy(alpha = 0.16f),
+                0.70f to aureoleOuter.copy(alpha = 0.05f),
+                1.0f to Color.Transparent,
+                center = center,
+                radius = outerHaloRadius
+            ),
+            radius = outerHaloRadius,
+            center = center,
+            blendMode = BlendMode.Plus
+        )
+
+        // 2. Inner coronal glare bloom
+        val innerBloomRadius = sunRadius * 2.25f
+        drawScope.drawCircle(
+            brush = Brush.radialGradient(
+                0.0f to coreColor.copy(alpha = 0.68f),
+                0.48f to limbColor.copy(alpha = 0.32f),
+                1.0f to Color.Transparent,
+                center = center,
+                radius = innerBloomRadius
+            ),
+            radius = innerBloomRadius,
+            center = center,
+            blendMode = BlendMode.Plus
+        )
+
+        // 3. Limb-darkened solar photosphere disk (no cartoon rays or stroke border)
+        drawScope.drawCircle(
+            brush = Brush.radialGradient(
+                0.0f to coreColor,
+                0.78f to coreColor,
+                1.0f to limbColor,
+                center = center,
+                radius = sunRadius
+            ),
+            radius = sunRadius,
+            center = center
+        )
     }
 
     private fun drawCelestialSun(
@@ -105,13 +183,18 @@ object SunRenderer {
         drawScope: DrawScope,
         center: Offset,
         sunAltitudeDeg: Double,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        isObservatory: Boolean = false
     ) {
         val sunRadius = drawScope.run { 18.dp.toPx() }
         val isDay = sunAltitudeDeg > 0.0
 
-        // Adaptive contrast stroke (black on bright white daytime, white on dark night)
-        val baseColor = if (isDay) Color(0xFF18181B) else Color(0xFFFAFAFA)
+        // Adaptive contrast stroke (red in observatory night-vision mode; black on white day, white on dark night in monochrome)
+        val baseColor = when {
+            isObservatory -> Color(0xFFEF4444)
+            isDay -> Color(0xFF18181B)
+            else -> Color(0xFFFAFAFA)
+        }
 
         // Subtle opacity glow pulse
         val opacityGlow = 0.15f + 0.12f * sin(frameTimeMs * 0.002f).toFloat()
@@ -142,10 +225,14 @@ object SunRenderer {
             )
         }
 
-        // Fill during sunset: as altitude drops below 4deg, slowly fills with soft grey
+        // Fill during sunset: as altitude drops below 4deg, slowly fills with soft grey/crimson
         if (sunAltitudeDeg in -5.0..4.0) {
             val fillAlpha = ((4.0 - sunAltitudeDeg) / 9.0).coerceIn(0.0, 1.0).toFloat() * 0.45f
-            val fillColor = if (isDay) Color(0xFF71717A) else Color(0xFFA1A1AA)
+            val fillColor = when {
+                isObservatory -> Color(0xFF991B1B)
+                isDay -> Color(0xFF71717A)
+                else -> Color(0xFFA1A1AA)
+            }
             drawScope.drawCircle(
                 color = fillColor.copy(alpha = fillAlpha),
                 radius = sunRadius,

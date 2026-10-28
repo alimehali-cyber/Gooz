@@ -17,6 +17,9 @@ import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
+import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
+import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
+import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -27,14 +30,30 @@ import java.util.Locale
 data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
     val calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
-    val themeMode: ThemeMode = ThemeMode.DYNAMIC_SILK,
-    val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.PAPERCRAFT_DIORAMA,
+    val themeMode: ThemeMode = ThemeMode.DARK,
+    val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.REAL_SKY,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 4,
     val searchQuery: String = "",
     val selectedObjectForDetail: CelestialObject? = null,
     val isDetailFavorite: Boolean = false,
     val showFavoritesDialog: Boolean = false,
+    val showMoonWindow: Boolean = false,
+
+    /**
+     * The fullscreen sky viewer. This lives in the ViewModel rather than in HomeScreen's own state
+     * because opening it locks the activity to landscape, and the app declares no `configChanges`, so
+     * that rotation recreates the activity: composition-local state would be lost and the viewer would
+     * slam shut the moment it opened.
+     */
+    val showSkyViewer: Boolean = false,
+    /** The Eclipses screen. Opened by the eclipse tile on Home. */
+    val showEclipseWindow: Boolean = false,
+    /**
+     * Lunar day offset in days (-30..+30) driven by dragging the Moon render. The Home moon card and the
+     * Moon window read the same value, so scrubbing one moves the other.
+     */
+    val moonDayOffset: Float = 0f,
     val showSettingsDialog: Boolean = false,
     val showLocationSelector: Boolean = false,
     val showObservationLogDialog: Boolean = false,
@@ -49,7 +68,11 @@ data class MainUiState(
     val selectedTargetObject: CelestialObject? = null,
     val selectedSatelliteId: String? = null,
     val isLiquidGlassEnabled: Boolean = true,
-    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig()
+    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig(),
+    /** Live Sky app backdrop preference. Default OFF. Eligibility per screen is decided by [LiveSkyPolicy]. */
+    val liveSkyBackdropEnabled: Boolean = LiveSkyPolicy.DEFAULT_ENABLED,
+    /** Mutually exclusive full-window backdrop. [liveSkyBackdropEnabled] is true only for [AppBackdropMode.LIVE_SKY]. */
+    val appBackdropMode: AppBackdropMode = AppBackdropMode.NONE
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -57,9 +80,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AppRepository(AppDatabase.getDatabase(application))
     private val prefs = application.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE)
 
+    /** One live clock for the Home hero and the Live Sky backdrop. It runs only while something collects it. */
+    val skyLiveClock = SkyLiveClock(viewModelScope)
+
+    private val _skyDragOffsetHours = MutableStateFlow(0f)
+
+    /**
+     * The Home time-machine drag offset in hours (±12), including its animated return to zero. Home publishes it; the
+     * Live Sky backdrop reads it, so both scenes use the same effective instant. Home resets it to zero when it leaves.
+     */
+    val skyDragOffsetHours: StateFlow<Float> = _skyDragOffsetHours.asStateFlow()
+
+    fun setSkyDragOffsetHours(hours: Float) {
+        if (_skyDragOffsetHours.value != hours) _skyDragOffsetHours.value = hours
+    }
+
     private val _uiState = MutableStateFlow(
         MainUiState(
             isLiquidGlassEnabled = prefs.getBoolean("liquid_glass_enabled", true),
+            liveSkyBackdropEnabled = LiveSkyPolicy.loadEnabled(prefs),
+            appBackdropMode = AppBackdropMode.fromPrefs(prefs),
             liquidGlassConfig = LiquidGlassConfig(
                 enabled = prefs.getBoolean("liquid_glass_enabled", true),
                 clarity = prefs.getFloat("liquid_glass_clarity", 1.0f),
@@ -68,7 +108,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refractionAmountDp = prefs.getFloat("liquid_glass_refraction_amount", 28.0f),
                 chromaticAberration = prefs.getBoolean("liquid_glass_chromatic_aberration", true),
                 hasHighlight = prefs.getBoolean("liquid_glass_highlight", true),
-                hasShadow = prefs.getBoolean("liquid_glass_shadow", true)
+                hasShadow = prefs.getBoolean("liquid_glass_shadow", true),
+                tintAlpha = prefs.getFloat(
+                    "liquid_glass_tint_alpha",
+                    LiquidGlassConfig.DEFAULT_TINT_ALPHA
+                )
             ),
             language = try {
                 AppLanguage.valueOf(prefs.getString("app_language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name)
@@ -81,14 +125,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 CalendarSystem.SOLAR_HIJRI
             },
             skyCanvasTheme = try {
-                SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.PAPERCRAFT_DIORAMA.name) ?: SkyCanvasTheme.PAPERCRAFT_DIORAMA.name)
+                SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.REAL_SKY.name) ?: SkyCanvasTheme.REAL_SKY.name)
             } catch (e: Exception) {
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA
+                SkyCanvasTheme.REAL_SKY
             },
             themeMode = try {
-                ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DYNAMIC_SILK.name) ?: ThemeMode.DYNAMIC_SILK.name)
+                ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DARK.name) ?: ThemeMode.DARK.name)
             } catch (e: Exception) {
-                ThemeMode.DYNAMIC_SILK
+                ThemeMode.DARK
             },
             bortleClass = prefs.getInt("bortle_class", 3),
             userLocation = run {
@@ -210,6 +254,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(themeMode = themeMode) }
     }
 
+    fun setLiveSkyBackdropEnabled(enabled: Boolean) {
+        setAppBackdropMode(if (enabled) AppBackdropMode.LIVE_SKY else AppBackdropMode.NONE)
+    }
+
+    fun setAppBackdropMode(mode: AppBackdropMode) {
+        AppBackdropMode.save(prefs, mode)
+        _uiState.update {
+            it.copy(
+                appBackdropMode = mode,
+                liveSkyBackdropEnabled = mode == AppBackdropMode.LIVE_SKY
+            )
+        }
+    }
+
     fun setLiquidGlassEnabled(enabled: Boolean) {
         val updated = _uiState.value.liquidGlassConfig.copy(enabled = enabled)
         updateLiquidGlassConfig(updated)
@@ -225,6 +283,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putBoolean("liquid_glass_chromatic_aberration", config.chromaticAberration)
             .putBoolean("liquid_glass_highlight", config.hasHighlight)
             .putBoolean("liquid_glass_shadow", config.hasShadow)
+            .putFloat("liquid_glass_tint_alpha", config.tintAlpha)
             .apply()
         _uiState.update { it.copy(liquidGlassConfig = config, isLiquidGlassEnabled = config.enabled) }
     }
@@ -430,15 +489,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(searchQuery = query) }
     }
 
-    fun openObjectDetail(obj: CelestialObject) {
+    private fun effectiveTimestampMs(overrideMs: Long? = null): Long {
+        if (overrideMs != null) return overrideMs
+        val tm = _uiState.value.timeMachineState
+        return if (tm.mode == TimeMachineMode.SIMULATION) tm.simulationTimeMs else System.currentTimeMillis()
+    }
+
+    fun openObjectDetail(obj: CelestialObject, timestampMs: Long? = null) {
+        val evalTimeMs = effectiveTimestampMs(timestampMs)
         val canonicalId = CanonicalAstroCatalog.resolveCanonicalId(obj.id)
         val canonicalObj = CanonicalAstroCatalog.getCanonicalObject(canonicalId)
         val finalObj = if (canonicalObj != null) {
             val calc = AstroDispatchEngine.calculateState(
                 idOrAlias = canonicalObj.canonicalId,
-                timestampMs = System.currentTimeMillis(),
+                timestampMs = evalTimeMs,
                 userLatDeg = _uiState.value.userLocation.latitude,
-                userLonDeg = _uiState.value.userLocation.longitude
+                userLonDeg = _uiState.value.userLocation.longitude,
+                elevationM = _uiState.value.userLocation.elevationMeters
             )
             CanonicalAstroCatalog.toCelestialObject(
                 canonicalObj = canonicalObj,
@@ -458,15 +525,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun openObjectDetailById(idOrAlias: String) {
+    fun openObjectDetailById(idOrAlias: String, timestampMs: Long? = null) {
+        val evalTimeMs = effectiveTimestampMs(timestampMs)
         val canonicalId = CanonicalAstroCatalog.resolveCanonicalId(idOrAlias)
         val canonicalObj = CanonicalAstroCatalog.getCanonicalObject(canonicalId)
         if (canonicalObj != null) {
             val calc = AstroDispatchEngine.calculateState(
                 idOrAlias = canonicalObj.canonicalId,
-                timestampMs = System.currentTimeMillis(),
+                timestampMs = evalTimeMs,
                 userLatDeg = _uiState.value.userLocation.latitude,
-                userLonDeg = _uiState.value.userLocation.longitude
+                userLonDeg = _uiState.value.userLocation.longitude,
+                elevationM = _uiState.value.userLocation.elevationMeters
             )
             val celObj = CanonicalAstroCatalog.toCelestialObject(
                 canonicalObj = canonicalObj,
@@ -474,9 +543,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 dynamicDec = calc?.decDeg ?: 0.0,
                 dynamicMag = calc?.magnitude ?: canonicalObj.physicalProperties.magnitude
             )
-            openObjectDetail(celObj)
+            openObjectDetail(celObj, evalTimeMs)
         } else {
-            AstronomyCatalog.getById(idOrAlias)?.let { openObjectDetail(it) }
+            val jd = TimeEngine.getJulianDate(evalTimeMs)
+            AstronomyCatalog.getById(idOrAlias, jd)?.let { openObjectDetail(it, evalTimeMs) }
         }
     }
 
@@ -499,6 +569,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowFavoritesDialog(show: Boolean) {
         _uiState.update { it.copy(showFavoritesDialog = show) }
+    }
+
+    fun setShowMoonWindow(show: Boolean) {
+        _uiState.update { it.copy(showMoonWindow = show) }
+    }
+
+    /** Opens or closes the fullscreen sky viewer. */
+    fun setShowSkyViewer(show: Boolean) {
+        _uiState.update { if (it.showSkyViewer == show) it else it.copy(showSkyViewer = show) }
+    }
+
+    /**
+     * Opens or closes the Eclipses screen.
+     *
+     * It lives here rather than in the composition for the same reason the sky viewer does: it is a
+     * full-screen window, and configuration changes must not be able to close it.
+     */
+    fun setShowEclipseWindow(show: Boolean) {
+        _uiState.update { if (it.showEclipseWindow == show) it else it.copy(showEclipseWindow = show) }
+    }
+
+    /** Scrub the Moon in days. Clamped to the same +/-30 day window the Moon screen always used. */
+    fun setMoonDayOffset(offsetDays: Float) {
+        val clamped = offsetDays.coerceIn(-30f, 30f)
+        _uiState.update { if (it.moonDayOffset == clamped) it else it.copy(moonDayOffset = clamped) }
+    }
+
+    /**
+     * Relative scrub for drag gestures. The delta is applied to the state the store actually holds, not to
+     * the snapshot the last recomposition captured — drag events outpace frames, and stacking them on a
+     * stale base would swallow motion and make the Moon lag the finger.
+     */
+    fun nudgeMoonDayOffset(deltaDays: Float) {
+        _uiState.update {
+            val clamped = (it.moonDayOffset + deltaDays).coerceIn(-30f, 30f)
+            if (it.moonDayOffset == clamped) it else it.copy(moonDayOffset = clamped)
+        }
     }
 
     fun setShowSettingsDialog(show: Boolean) {

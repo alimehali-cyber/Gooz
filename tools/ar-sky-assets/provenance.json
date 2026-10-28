@@ -1,0 +1,125 @@
+{
+  "stars": {
+    "count": 8404,
+    "v_limit": 6.5,
+    "file_sha256": "243e78e85795cc28ee4edff21c4f500076e294ca29d0a6e4b397f7ac2ca0c545",
+    "source_sha1": "2b10ada8b71221a6c76b73752403c93f3291da73"
+  },
+  "star_names": {
+    "count": 338,
+    "file_sha256": "3771505871469e9b39d719f4b4cdd6d0f824834a3e3a6bc308f3187bbe2a2f5a"
+  },
+  "constellations": {
+    "count": 89,
+    "segments": 743,
+    "worst_vertex_snap_deg": 0.0084,
+    "file_sha256": "e3f69b748ab2b5d906a0b39415c72ef0d8b07209393e8f086b763aa7edffd7bf",
+    "lines_source_sha1": "ff2971e88bb66e997866215bf8f11a9031abf6ea",
+    "names_source_sha1": "cae949b30234ae6a7bce6a36075ec600bd9facee"
+  },
+  "textures": {
+    "mercury.jpg": {
+      "source": "Solar System Scope 2k_mercury.jpg, CC BY 4.0",
+      "source_sha1": "6f832f061a9c5689a0bd5bd68ff29f49ffc65d29",
+      "size": [
+        1024,
+        512
+      ],
+      "output_sha256": "ea492c0a0bbf73a6c19d018c50ecf84111235b31a1b3d55485df1a8a714ab5e1"
+    },
+    "venus.jpg": {
+      "source": "Solar System Scope 2k_venus_atmosphere.jpg, CC BY 4.0",
+      "source_sha1": "22cf75fcbbbf65433a8dcc9e04fb04cbf98c4369",
+      "size": [
+        1024,
+        512
+      ],
+      "output_sha256": "4571250d7027889d881a41e24a7fde5442cf50e72c4e4eb3133c04e7187bc06c"
+    },
+    "mars.jpg": {
+      "source": "NASA 3D Resources (github.com/nasa/NASA-3D-Resources) 'Images and Textures/Mars/Mars.jpg', NASA, no copyright",
+      "source_sha1": "8b028e13ab994e92b5c70ecf6a2a1daa822ccea8",
+      "size": [
+        1024,
+        512
+      ],
+      "output_sha256": "c515027fcd3720de11a298490474be86f9bbc3420b4c5d91038315cc9aa04b10"
+    },
+    "jupiter.jpg": {
+      "source": "Solar System Scope 2k_jupiter.jpg, CC BY 4.0",
+      "source_sha1": "11ebb1d50e85505005cd5f13309c0bd6ee16b268",
+      "size": [
+        1024,
+        512
+      ],
+      "output_sha256": "fe15d4aa66b5c7be18aac38404e1141dddf8895642eb12bfaf5af72b71257ce3"
+    },
+    "saturn.jpg": {
+      "source": "Solar System Scope 2k_saturn.jpg, CC BY 4.0",
+      "source_sha1": "26b1ded029fabdd7e98dc607ecc17abcc96dd03e",
+      "size": [
+        1024,
+        512
+      ],
+      "output_sha256": "ce8d1d174d479bf8b94b91d438b2a8ea8ca9f7a4d12eecf83c557081f739c5c0"
+    },
+    "uranus.jpg": {
+      "source": "Solar System Scope 2k_uranus.jpg, CC BY 4.0",
+      "source_sha1": "39fba155ca70e51da9224b9653cbc598b0c41be1",
+      "size": [
+        512,
+        256
+      ],
+      "output_sha256": "9ca43cd8ee51d87170af8cfe09cfa18d5c0ec098fe3f57ee7e720f8951fa7314"
+    },
+    "neptune.jpg": {
+      "source": "Solar System Scope 2k_neptune.jpg, CC BY 4.0",
+      "source_sha1": "4ff333c5cccc045dca033bdf1ae24719b26f053b",
+      "size": [
+        512,
+        256
+      ],
+      "output_sha256": "df5aef5028f61ab9ec3753df4ea52afef5f129e6b416e3ce0402a0aa77a5eee1"
+    },
+    "saturn_rings.png": {
+      "source": "Solar System Scope 2k_saturn_ring_alpha.png, CC BY 4.0",
+      "source_sha1": "50e43ed88548941eb8638c3ca995a8e7fa77af4d",
+      "size": [
+        1024,
+        4
+      ],
+      "output_sha256": "0500cc822f0eb0514428cbab734884f352d0f015b0a0ef8dd87dee4e168c6510"
+    },
+    "sources/moon_sss_1024x512.jpg": {
+      "source": "Solar System Scope 2k_moon.jpg, CC BY 4.0",
+      "source_sha1": "456ef7331c9230955de3b7c22346af6c613f7d3a",
+      "size": [
+        1024,
+        512
+      ],
+      "output_sha256": "eb4c2fbc45494c957a4a53e33445d1d81f61fb25b4b5a4fa3ae9eb8de5567333",
+      "note": "Not shipped since the Moon reference change: kept as tools/ar-sky-assets/sources/moon_sss_1024x512.jpg, the fill of moon_plate.jpg outside the plate."
+    },
+    "moon_plate.jpg": {
+      "source": "Home Moon card plate res/drawable/img_full_moon_photo_1785673146290.jpg (near side, orthographically re-projected) + Solar System Scope 2k_moon.jpg CC BY 4.0 (libration zones and far side, quantile tone-matched)",
+      "builder": "tools/ar-sky-assets/build_moon_plate_map.py",
+      "plate_sha1": "4fd8c6e9e26024e1ef167dfd01d164df60201f67",
+      "plate_registration": {
+        "sub_observer_lon_deg": -0.3,
+        "sub_observer_lat_deg": 1.0,
+        "north_position_angle_deg": -4.0375,
+        "radius_scale": 1.0027,
+        "centre_offset_px": [
+          -0.3125,
+          0.125
+        ],
+        "ncc_highpass_log_albedo": 0.784
+      },
+      "size": [
+        2048,
+        1024
+      ],
+      "output_sha256": "07acb3c570fb7bcbeb056845a7e15390fe3794bcf52dd51b70d1156b8e7997f8"
+    }
+  }
+}

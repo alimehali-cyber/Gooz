@@ -134,6 +134,10 @@ jobs:
               "com.alijafari.red.astronomy.ARSkyEarthExclusionTest",
               "com.alijafari.red.astronomy.ARSkyPointToShapeRenderingTest",
               "com.alijafari.red.astronomy.VazirmatnPersianTypographyTest",
+              "com.alijafari.red.astronomy.ArSkyOverlayDrawTest",
+              "com.alijafari.red.astronomy.LunarAppearanceTest",
+              "com.alijafari.red.astronomy.MoonRenderTest",
+              "com.alijafari.red.astronomy.MoonShowcaseRenderTest",
           ]
           stats = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name in required}
           files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))

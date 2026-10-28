@@ -39,49 +39,65 @@ object WhatsUpTonightEngine {
         isFa: Boolean
     ): List<TonightEvent> {
         val events = mutableListOf<TonightEvent>()
-        val nowMs = System.currentTimeMillis()
-        val cal = Calendar.getInstance().apply { timeInMillis = nowMs }
+        val nowMs = TimeEngine.getTimestampFromJulianDate(jd)
+        val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply { timeInMillis = nowMs }
         val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
-        val gmstDeg = TimeEngine.getGMST(jd) * 15.0
+        val gmstDeg = TimeEngine.getLAST(jd, userLonDeg)
 
         // 1. Check Solar/Lunar Eclipses TONIGHT (only if occurring today/tonight AND locally visible)
         try {
             val (solarEclipse, lunarEclipse) = EclipseEngine.getNextEclipses(nowMs, userLatDeg, userLonDeg)
-            val solarHoursDiff = kotlin.math.abs(solarEclipse.event.maximumMs - nowMs) / 3600000.0
-            if (solarHoursDiff <= 18.0 && solarEclipse.isLocallyVisible) {
+            val solarHoursDiff = kotlin.math.abs(solarEclipse.localPeakTimeMs - nowMs) / 3600000.0
+            val solarOngoing = nowMs in solarEclipse.localStartTimeMs..solarEclipse.localEndTimeMs
+            if ((solarHoursDiff <= 18.0 || solarOngoing) && solarEclipse.isLocallyVisible) {
                 events.add(
                     TonightEvent(
                         id = solarEclipse.event.id,
-                        icon = "☀️",
+                        icon = "sun",
                         titleEn = solarEclipse.localNameEn,
                         titleFa = solarEclipse.localNameFa,
                         explanationEn = solarEclipse.event.descriptionEn,
                         explanationFa = solarEclipse.event.descriptionFa,
-                        timeOrDateStrEn = solarEclipse.formattedDateEn,
+                        timeOrDateStrEn = TimeEngine.formatDate(
+                            solarEclipse.localPeakTimeMs,
+                            com.alijafari.red.astronomy.domain.CalendarSystem.GREGORIAN,
+                            isFa = false
+                        ),
                         timeOrDateStrFa = solarEclipse.formattedDateFa,
                         visibilityStatus = EventVisibilityStatus.OPTIMAL,
                         visibilityTextEn = solarEclipse.localVisibilityTextEn,
                         visibilityTextFa = solarEclipse.localVisibilityTextFa,
-                        importanceScore = 1000
+                        importanceScore = 1000,
+                        targetObject = CanonicalAstroCatalog.getCanonicalObject("sun")?.let {
+                            CanonicalAstroCatalog.toCelestialObject(it)
+                        }
                     )
                 )
             }
-            val lunarHoursDiff = kotlin.math.abs(lunarEclipse.event.maximumMs - nowMs) / 3600000.0
-            if (lunarHoursDiff <= 18.0 && lunarEclipse.isLocallyVisible) {
+            val lunarHoursDiff = kotlin.math.abs(lunarEclipse.localPeakTimeMs - nowMs) / 3600000.0
+            val lunarOngoing = nowMs in lunarEclipse.localStartTimeMs..lunarEclipse.localEndTimeMs
+            if ((lunarHoursDiff <= 18.0 || lunarOngoing) && lunarEclipse.isLocallyVisible) {
                 events.add(
                     TonightEvent(
                         id = lunarEclipse.event.id,
-                        icon = "🌕",
+                        icon = "moon",
                         titleEn = lunarEclipse.localNameEn,
                         titleFa = lunarEclipse.localNameFa,
                         explanationEn = lunarEclipse.event.descriptionEn,
                         explanationFa = lunarEclipse.event.descriptionFa,
-                        timeOrDateStrEn = lunarEclipse.formattedDateEn,
+                        timeOrDateStrEn = TimeEngine.formatDate(
+                            lunarEclipse.localPeakTimeMs,
+                            com.alijafari.red.astronomy.domain.CalendarSystem.GREGORIAN,
+                            isFa = false
+                        ),
                         timeOrDateStrFa = lunarEclipse.formattedDateFa,
                         visibilityStatus = EventVisibilityStatus.OPTIMAL,
                         visibilityTextEn = lunarEclipse.localVisibilityTextEn,
                         visibilityTextFa = lunarEclipse.localVisibilityTextFa,
-                        importanceScore = 980
+                        importanceScore = 980,
+                        targetObject = CanonicalAstroCatalog.getCanonicalObject("moon")?.let {
+                            CanonicalAstroCatalog.toCelestialObject(it)
+                        }
                     )
                 )
             }
@@ -106,7 +122,7 @@ object WhatsUpTonightEngine {
                     events.add(
                         TonightEvent(
                             id = shower.id,
-                            icon = "☄️",
+                            icon = "meteor",
                             titleEn = nameEn,
                             titleFa = nameFa,
                             explanationEn = "Peak activity tonight with high ZHR rate (~${shower.zhr} meteors/hr).",
@@ -136,7 +152,7 @@ object WhatsUpTonightEngine {
                 events.add(
                     TonightEvent(
                         id = "iss_pass_tonight",
-                        icon = "🛰️",
+                        icon = "satellite",
                         titleEn = "International Space Station (ISS) Pass",
                         titleFa = "گذر پرنور ایستگاه فضایی بین‌المللی (ISS)",
                         explanationEn = "Bright naked-eye pass reaching $elevInt° elevation above horizon.",
@@ -144,9 +160,12 @@ object WhatsUpTonightEngine {
                         timeOrDateStrEn = "Peak Time: $timeStr",
                         timeOrDateStrFa = "زمان اوج گذر: $timeStr",
                         visibilityStatus = EventVisibilityStatus.OPTIMAL,
-                        visibilityTextEn = "Mag ${String.format("%.1f", bestPass.estimatedMagnitude)} — Highly Visible",
-                        visibilityTextFa = "قدر ${String.format("%.1f", bestPass.estimatedMagnitude)} — کاملاً شفاف".toPersianDigits(),
-                        importanceScore = 850
+                        visibilityTextEn = "Mag ${String.format(java.util.Locale.US, "%.1f", bestPass.estimatedMagnitude)} — Highly Visible",
+                        visibilityTextFa = "قدر ${String.format(java.util.Locale.US, "%.1f", bestPass.estimatedMagnitude)} — کاملاً شفاف".toPersianDigits(),
+                        importanceScore = 850,
+                        targetObject = CanonicalAstroCatalog.getCanonicalObject("sat_25544")?.let {
+                            CanonicalAstroCatalog.toCelestialObject(it)
+                        }
                     )
                 )
             }
@@ -154,8 +173,14 @@ object WhatsUpTonightEngine {
 
         // 4. Moon Phase & Nightly Elevation
         val moonData = MoonEngine.calculateMoon(jd, userLatDeg, userLonDeg)
+        val moonTopo = CoordinateEngine.geocentricToTopocentric(
+            geocentric = CoordinateEngine.Equatorial(moonData.raDeg, moonData.decDeg),
+            geocentricDistanceKm = moonData.distanceKm,
+            lastDeg = gmstDeg,
+            latitudeDeg = userLatDeg
+        )
         val moonHoriz = CoordinateEngine.equatorialToHorizontal(
-            CoordinateEngine.Equatorial(moonData.raDeg, moonData.decDeg),
+            moonTopo,
             gmstDeg,
             userLatDeg
         )
@@ -168,17 +193,24 @@ object WhatsUpTonightEngine {
             events.add(
                 TonightEvent(
                     id = "moon_nightly_status",
-                    icon = "🌙",
+                    icon = "moon",
                     titleEn = "Moon: $phaseNameEn ($moonIllumInt% Illuminated)",
                     titleFa = "وضعیت ماه: $phaseNameFa ($moonIllumInt٪ درخشندگی)".toPersianDigits(),
-                    explanationEn = "Current distance: ${moonData.distanceKm.toInt()} km. Age: ${String.format("%.1f", moonData.ageDays)} days.",
-                    explanationFa = "فاصله تا زمین: ${moonData.distanceKm.toInt()} کیلومتر. سن ماه: ${String.format("%.1f", moonData.ageDays)} روز.".toPersianDigits(),
+                    explanationEn = "Current distance: ${moonData.distanceKm.toInt()} km. Age: ${String.format(java.util.Locale.US, "%.1f", moonData.ageDays)} days.",
+                    explanationFa = "فاصله تا زمین: ${moonData.distanceKm.toInt()} کیلومتر. سن ماه: ${String.format(java.util.Locale.US, "%.1f", moonData.ageDays)} روز.".toPersianDigits(),
                     timeOrDateStrEn = "Tonight's Sky",
                     timeOrDateStrFa = "آسمان امشب",
                     visibilityStatus = if (moonHoriz.altitudeDeg > 0) EventVisibilityStatus.OPTIMAL else EventVisibilityStatus.GOOD,
                     visibilityTextEn = if (moonHoriz.altitudeDeg > 0) "Visible now at ${moonHoriz.altitudeDeg.toInt()}° altitude" else "Rises later tonight",
                     visibilityTextFa = if (moonHoriz.altitudeDeg > 0) "هم‌اکنون در ارتفاع ${moonHoriz.altitudeDeg.toInt()} درجه".toPersianDigits() else "طلوع در ادامه امشب",
-                    importanceScore = moonScore
+                    importanceScore = moonScore,
+                    targetObject = CanonicalAstroCatalog.getCanonicalObject("moon")?.let {
+                        CanonicalAstroCatalog.toCelestialObject(
+                            canonicalObj = it,
+                            dynamicRa = moonTopo.raDeg,
+                            dynamicDec = moonTopo.decDeg
+                        )
+                    }
                 )
             )
         }
@@ -219,11 +251,11 @@ object WhatsUpTonightEngine {
                 events.add(
                     TonightEvent(
                         id = "event_$id",
-                        icon = if (id == "planet_saturn") "🪐" else "🌟",
+                        icon = if (id == "planet_saturn") "planet" else "star",
                         titleEn = "Planet ${names.first} Visible",
                         titleFa = "سیاره ${names.second} در آسمان امشب",
-                        explanationEn = "Shining brightly at magnitude ${String.format("%.1f", pos.magnitude)} in ${horiz.azimuthCompassNameEn}.",
-                        explanationFa = "درخشش با قدر ${String.format("%.1f", pos.magnitude)} در سمت ${horiz.azimuthCompassNameFa}.".toPersianDigits(),
+                        explanationEn = "Shining brightly at magnitude ${String.format(java.util.Locale.US, "%.1f", pos.magnitude)} in ${horiz.azimuthCompassNameEn}.",
+                        explanationFa = "درخشش با قدر ${String.format(java.util.Locale.US, "%.1f", pos.magnitude)} در سمت ${horiz.azimuthCompassNameFa}.".toPersianDigits(),
                         timeOrDateStrEn = "Evening / Night Sky",
                         timeOrDateStrFa = "آسمان شبانگاهی",
                         visibilityStatus = if (horiz.altitudeDeg > 15.0) EventVisibilityStatus.OPTIMAL else EventVisibilityStatus.GOOD,
@@ -247,15 +279,15 @@ object WhatsUpTonightEngine {
         for ((id, type, names) in planetList) {
             val pos = PlanetEngine.calculatePlanet(type, jd)
             val sepDeg = CoordinateEngine.calculateAngularSeparationDeg(
-                moonData.raDeg, moonData.decDeg,
+                moonTopo.raDeg, moonTopo.decDeg,
                 pos.raDeg, pos.decDeg
             )
             if (sepDeg < 5.0) {
-                val sepStr = String.format("%.1f", sepDeg)
+                val sepStr = String.format(java.util.Locale.US, "%.1f", sepDeg)
                 events.add(
                     TonightEvent(
                         id = "conj_moon_$id",
-                        icon = "✨",
+                        icon = "celestial",
                         titleEn = "Close Conjunction: Moon & ${names.first}",
                         titleFa = "مقارنه نزدیک ماه و ${names.second}",
                         explanationEn = "The Moon and ${names.first} appear just $sepStr° apart in tonight's sky.",
@@ -265,7 +297,15 @@ object WhatsUpTonightEngine {
                         visibilityStatus = EventVisibilityStatus.OPTIMAL,
                         visibilityTextEn = "Separation: $sepStr° — Beautiful Naked Eye View",
                         visibilityTextFa = "فاصله زاویه‌ای: $sepStr درجه — رصد جذاب با چشم غیرمسلح".toPersianDigits(),
-                        importanceScore = 920
+                        importanceScore = 920,
+                        targetObject = CanonicalAstroCatalog.getCanonicalObject(id)?.let {
+                            CanonicalAstroCatalog.toCelestialObject(
+                                canonicalObj = it,
+                                dynamicRa = pos.raDeg,
+                                dynamicDec = pos.decDeg,
+                                dynamicMag = pos.magnitude
+                            )
+                        }
                     )
                 )
             }

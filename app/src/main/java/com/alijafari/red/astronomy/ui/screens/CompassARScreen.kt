@@ -3,18 +3,21 @@ package com.alijafari.red.astronomy.ui.screens
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.provider.Settings
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.Settings
+import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,12 +35,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -47,22 +50,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -70,6 +78,8 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -77,28 +87,47 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.alijafari.red.astronomy.R
+import com.alijafari.red.astronomy.ar.android.ArAssets
+import com.alijafari.red.astronomy.ar.android.ArCameraBinder
+import com.alijafari.red.astronomy.ar.android.ArGlyphCache
+import com.alijafari.red.astronomy.ar.android.ArSkyGlFrame
+import com.alijafari.red.astronomy.ar.android.ArSkyGlView
+import com.alijafari.red.astronomy.ar.core.ArCameraIntrinsics
+import com.alijafari.red.astronomy.ar.core.ArCameraModel
+import com.alijafari.red.astronomy.ar.core.ArConstellation
+import com.alijafari.red.astronomy.ar.core.ArObserver
+import com.alijafari.red.astronomy.ar.core.ArPlaced
+import com.alijafari.red.astronomy.ar.core.ArSkyFrame
+import com.alijafari.red.astronomy.ar.core.ArSkyLighting
+import com.alijafari.red.astronomy.ar.core.ArSkySceneComputer
+import com.alijafari.red.astronomy.ar.core.ArSkySnapshot
+import com.alijafari.red.astronomy.ar.core.ArStarCatalog
+import com.alijafari.red.astronomy.ar.core.M3
+import com.alijafari.red.astronomy.ar.core.V3
 import com.alijafari.red.astronomy.astro_engine.*
-import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
-import com.alijafari.red.astronomy.data.catalog.SolarSystemCatalog
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.ARSensorCalibrationDialog
 import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
 import com.alijafari.red.astronomy.ui.rendering.*
+import com.alijafari.red.astronomy.ui.screens.ar.ArDrawnItem
+import com.alijafari.red.astronomy.ui.screens.ar.ArOverlayOptions
+import com.alijafari.red.astronomy.ui.screens.ar.ArOverlayState
+import com.alijafari.red.astronomy.ui.screens.ar.ArSatelliteInfo
+import com.alijafari.red.astronomy.ui.screens.ar.ArScreenSupport
+import com.alijafari.red.astronomy.ui.screens.ar.ArSkyOverlay
+import com.alijafari.red.astronomy.ui.screens.ar.SimulatedSkyFallback
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
+import java.util.Locale
+import kotlin.math.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.graphics.drawscope.rotate
-import com.alijafari.red.astronomy.R
-import java.util.Locale
-import kotlin.math.*
 
 enum class ArExpandedPanel {
     SEARCH, TIME_MACHINE, FILTERS, SENSORS
@@ -156,26 +185,12 @@ private fun ArSmartPill(
     }
 }
 
-private data class ArVisibleRenderItem(
-    val obj: CelestialObject,
-    val horiz: CoordinateEngine.Horizontal,
-    val px: Float,
-    val py: Float,
-    val plan: CelestialObjectSizes.ArRenderPlan
-)
-
 private data class ArEdgeIndicator(
     val obj: CelestialObject,
     val xPx: Float,
     val yPx: Float,
     val angleDeg: Float,
     val priority: Double
-)
-
-private data class ArLabelCluster(
-    val objects: List<CelestialObject>,
-    val centerX: Float,
-    val centerY: Float
 )
 
 private enum class ArHealthLevel { GREEN, AMBER, RED, GRAY }
@@ -204,15 +219,6 @@ private fun worstHealthLevel(levels: List<ArHealthLevel>): ArHealthLevel {
     }
 }
 
-private fun isDeepSkyType(type: ObjectType): Boolean {
-    return type == ObjectType.DEEP_SKY ||
-            type == ObjectType.GALAXY ||
-            type == ObjectType.NEBULA ||
-            type == ObjectType.STAR_CLUSTER ||
-            type == ObjectType.GLOBULAR_CLUSTER ||
-            type == ObjectType.BLACK_HOLE
-}
-
 private fun isVisibleByArFilter(
     obj: CelestialObject,
     filterStars: Boolean,
@@ -238,99 +244,91 @@ private fun isVisibleByArFilter(
     }
 }
 
-private fun normalizeDeltaDegrees(delta: Double): Double {
-    var d = delta
-    while (d > 180.0) d -= 360.0
-    while (d < -180.0) d += 360.0
-    return d
-}
+private const val AR_TAG = "CompassAR"
 
-private fun shouldShowArLabel(
-    obj: CelestialObject,
-    isSelected: Boolean,
-    isAimed: Boolean,
-    filterObjectNames: Boolean,
-    labelEligible: Boolean
-): Boolean {
-    // Tap / centre-reticle targeting behaves exactly as before, at any tier.
-    if (isSelected || isAimed) return true
-    // A dot-tier object has not been resolved into its shape yet, so it is never labelled
-    // ambiently at any zoom level; ambient labels start when the object crosses into shape tier.
-    if (!labelEligible) return false
-    return if (filterObjectNames) {
-        obj.magnitude <= CelestialObjectSizes.LABEL_SHOW_MAGNITUDE_THRESHOLD || obj.type != ObjectType.STAR
-    } else {
-        false
+/**
+ * The [Activity] hosting a view's composition. `LocalContext` cannot be used for this: the app
+ * replaces it with a locale-configured context (`createConfigurationContext`), which is neither an
+ * Activity nor a wrapper around one.
+ */
+private fun Context.findHostActivity(): Activity? {
+    var current: Context = this
+    while (true) {
+        if (current is Activity) return current
+        current = (current as? ContextWrapper)?.baseContext ?: return null
     }
 }
 
 /**
- * Dot-tier tint: a neutral point of light, nudged toward the colour the object's full glyph will
- * use once it resolves, so growth into the shape tier reads as the same object brightening rather
- * than as a different marker appearing. Intensity itself is handled by the plan's dot alpha.
+ * Runs background AR work, returning null (and logging) if it fails. Coroutine cancellation is
+ * re-thrown; every other failure is contained — including Errors such as OutOfMemoryError or
+ * ExceptionInInitializerError, which a `catch (e: Exception)` would let escape and crash the app.
  */
-private fun arDotColor(obj: CelestialObject): Color = when (obj.type) {
-    ObjectType.SUN -> Color(0xFFFFCC00)
-    ObjectType.MOON -> Color(0xFFF1FAEE)
-    ObjectType.PLANET, ObjectType.DWARF_PLANET -> when (obj.id) {
-        "planet_mars" -> Color(0xFFEF4444)
-        "planet_venus" -> Color(0xFFFEF08A)
-        "planet_uranus", "planet_neptune" -> Color(0xFF38BDF8)
-        else -> Color(0xFFFFD166)
-    }
-    ObjectType.SATELLITE -> Color(0xFF9BD5FE)
-    ObjectType.GALAXY, ObjectType.BLACK_HOLE -> Color(0xFFC084FC)
-    ObjectType.NEBULA -> Color(0xFFF472B6)
-    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> Color(0xFFE0AAFF)
-    ObjectType.DEEP_SKY -> when {
-        obj.category.contains("Nebula", ignoreCase = true) -> Color(0xFFF472B6)
-        obj.category.contains("Galaxy", ignoreCase = true) -> Color(0xFFC084FC)
-        else -> Color(0xFFE0AAFF)
-    }
-    else -> when {
-        obj.magnitude <= 0.5 -> Color(0xFFA5F3FC)
-        obj.magnitude <= 2.5 -> Color(0xFFE2E8F0)
-        else -> Color(0xFFCBD5E1)
-    }
+private inline fun <T> arBackground(what: String, block: () -> T): T? = try {
+    block()
+} catch (c: CancellationException) {
+    throw c
+} catch (t: Throwable) {
+    Log.e(AR_TAG, "$what failed", t)
+    null
 }
 
-private fun buildLabelClusters(
-    labelItems: List<ArVisibleRenderItem>,
-    minDistancePx: Float,
-    maxClusterRadiusPx: Float
-): List<ArLabelCluster> {
-    if (labelItems.size < 3) return emptyList()
-    val visited = BooleanArray(labelItems.size)
-    val clusters = mutableListOf<ArLabelCluster>()
-    for (i in labelItems.indices) {
-        if (visited[i]) continue
-        val seed = labelItems[i]
-        val members = mutableListOf(seed)
-        visited[i] = true
-        for (j in i + 1 until labelItems.size) {
-            if (visited[j]) continue
-            val other = labelItems[j]
-            val dist = hypot((other.px - seed.px).toDouble(), (other.py - seed.py).toDouble()).toFloat()
-            if (dist <= minDistancePx) {
-                members.add(other)
-                visited[j] = true
-            }
-        }
-        if (members.size >= 3) {
-            val cx = members.map { it.px }.average().toFloat()
-            val cy = members.map { it.py }.average().toFloat()
-            val tight = members.all { hypot((it.px - cx).toDouble(), (it.py - cy).toDouble()) <= maxClusterRadiusPx }
-            if (tight) {
-                clusters.add(ArLabelCluster(members.map { it.obj }, cx, cy))
-            } else {
-                members.drop(1).forEach { member ->
-                    val idx = labelItems.indexOf(member)
-                    if (idx >= 0) visited[idx] = false
-                }
-            }
-        }
+/** Inputs of one AR sky computation; the worker recomputes whenever these change. */
+private data class ArSkyInputs(
+    val timeMs: Long,
+    val observer: ArObserver,
+    val stars: ArStarCatalog?,
+    val figures: List<ArConstellation>,
+    val bortle: Int
+)
+
+private fun calibrationLabel(state: CalibrationState, isFa: Boolean): String = when (state) {
+    CalibrationState.EXCELLENT -> if (isFa) "عالی" else "Excellent"
+    CalibrationState.GOOD -> if (isFa) "خوب" else "Good"
+    CalibrationState.POOR -> if (isFa) "ضعیف" else "Poor"
+    CalibrationState.NEEDS_CALIBRATION -> if (isFa) "نیازمند کالیبراسیون" else "Needs calibration"
+    CalibrationState.UNCALIBRATED -> if (isFa) "در حال سنجش" else "Measuring"
+}
+
+/** Live sensor-fusion readouts for the Sensors & Telemetry panel. */
+@Composable
+private fun ArLiveSensorLines(status: ArSensorStatus, atmosphere: ArAtmosphereReading, isFa: Boolean) {
+    val f = status.fusion
+    fun n(v: Double, d: Int): String {
+        if (!v.isFinite()) return "—"
+        val t = String.format(Locale.US, "%.${d}f", v)
+        return if (isFa) TimeEngine.formatPersianNumbers(t) else t
     }
-    return clusters
+    fun sgn(v: Double, d: Int): String {
+        if (!v.isFinite()) return "—"
+        val t = String.format(Locale.US, "%+.${d}f", v)
+        return if (isFa) TimeEngine.formatPersianNumbers(t) else t
+    }
+    val mode = when (f.mode) {
+        com.alijafari.red.astronomy.ar.core.HeadingFusion.Mode.FUSED -> if (isFa) "ژیروسکوپ + قطب‌نمای کنترل‌شده با WMM" else "Gyro + WMM-gated compass"
+        com.alijafari.red.astronomy.ar.core.HeadingFusion.Mode.ROTATION_VECTOR -> if (isFa) "بردار چرخش اندروید" else "Android rotation vector"
+        com.alijafari.red.astronomy.ar.core.HeadingFusion.Mode.GYRO_ONLY -> if (isFa) "فقط ژیروسکوپ" else "Gyro only"
+        com.alijafari.red.astronomy.ar.core.HeadingFusion.Mode.ACCEL_MAG -> if (isFa) "شتاب‌سنج + قطب‌نما" else "Accelerometer + compass"
+        com.alijafari.red.astronomy.ar.core.HeadingFusion.Mode.NONE -> if (isFa) "در انتظار داده" else "Waiting for data"
+    }
+    val lines = if (isFa) listOf(
+        "• منبع جهت‌یابی: $mode",
+        "• عدم قطعیت جهت: ±${n(f.headingSigmaDeg, 1)}°",
+        "• انحراف مغناطیسی WMM2025: ${sgn(f.declinationDeg, 2)}° (±${n(f.declinationSigmaDeg, 2)}°)",
+        "• میدان: ${n(f.fieldMeasuredUt, 1)} / ${n(f.fieldExpectedUt, 1)} µT • شیب: ${n(f.dipMeasuredDeg, 1)}° / ${n(f.dipExpectedDeg, 1)}°",
+        "• فشار ${n(atmosphere.pressureHpa, 1)} hPa" + (if (atmosphere.pressureMeasured) " (فشارسنج)" else " (استاندارد)") +
+            " • دما ${n(atmosphere.temperatureC, 0)}°C"
+    ) else listOf(
+        "• Attitude source: $mode",
+        "• Heading uncertainty: ±${n(f.headingSigmaDeg, 1)}°",
+        "• WMM2025 declination: ${sgn(f.declinationDeg, 2)}° (±${n(f.declinationSigmaDeg, 2)}°)",
+        "• Field: ${n(f.fieldMeasuredUt, 1)} / ${n(f.fieldExpectedUt, 1)} µT • Dip: ${n(f.dipMeasuredDeg, 1)}° / ${n(f.dipExpectedDeg, 1)}°",
+        "• Pressure ${n(atmosphere.pressureHpa, 1)} hPa" + (if (atmosphere.pressureMeasured) " (barometer)" else " (standard)") +
+            " • Temp ${n(atmosphere.temperatureC, 0)}°C"
+    )
+    lines.forEach { line ->
+        Text(text = line, style = MaterialTheme.typography.labelSmall, color = RedTheme.colors.textPrimary)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -345,10 +343,11 @@ fun CompassARScreen(
     val canvasFontFamily = LocalAppFontFamily.current
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val textMeasurer = rememberTextMeasurer()
+    val textMeasurer = rememberTextMeasurer(cacheSize = 96)
 
     // Keep screen awake
-    val activity = context as? Activity
+    val hostView = LocalView.current
+    val activity = remember(hostView) { hostView.context.findHostActivity() }
     DisposableEffect(Unit) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
@@ -364,25 +363,33 @@ fun CompassARScreen(
     val skyOrientation by orientationProvider.orientation.collectAsState()
     val calibrationState by orientationProvider.calibrationState.collectAsState()
     val magneticInterferenceDetected by orientationProvider.magneticInterference.collectAsState()
+    val sensorStatus by orientationProvider.status.collectAsState()
+    val atmosphereReading by orientationProvider.atmosphere.collectAsState()
     val arCalibrationOffsets by ARCalibrationManager.calibrationFlow.collectAsState()
     val autoPromptEnabled by ARCalibrationManager.autoPromptEnabledFlow.collectAsState()
     var isAlignmentMode by remember { mutableStateOf(false) }
     var autoPromptDismissedThisSession by remember { mutableStateOf(false) }
     var showManualSensorPrompt by remember { mutableStateOf(false) }
     var alignmentConfirmationDeg by remember { mutableStateOf<Float?>(null) }
+    var alignmentRejected by remember { mutableStateOf(false) }
     var recalibrationPromptDismissedThisSession by remember { mutableStateOf(false) }
+    var autoCalibrationWindowOpen by remember { mutableStateOf(false) }
 
     // Auto-dismiss the "Aligned: offset applied" confirmation pill
-    LaunchedEffect(alignmentConfirmationDeg) {
-        if (alignmentConfirmationDeg != null) {
-            delay(2600L)
+    LaunchedEffect(alignmentConfirmationDeg, alignmentRejected) {
+        if (alignmentConfirmationDeg != null || alignmentRejected) {
+            delay(3200L)
             alignmentConfirmationDeg = null
+            alignmentRejected = false
         }
     }
 
-    // Camera Intrinsics & Geometry Engine (Hardware calibration, sensor size, active array)
-    val cameraIntrinsics = remember(context) { ARProjectionEngine.getCameraIntrinsics(context) }
+    // Camera optics: the intrinsics of the camera CameraX actually bound (Camera2CameraInfo), plus a
+    // documented typical-phone assumption until the camera is up.
+    var cameraIntrinsics by remember { mutableStateOf(ArCameraIntrinsics.defaultAssumption()) }
+    var boundCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     var previewViewInstance by remember { mutableStateOf<PreviewView?>(null) }
+    var cameraProviderRef by remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
     val displayRotationDegrees = remember(context) {
         try {
@@ -409,6 +416,7 @@ fun CompassARScreen(
     var isGpsActive by remember { mutableStateOf(true) }
     var gpsAccuracyMeters by remember { mutableStateOf<Float?>(null) }
     var lastFixTimestampMs by remember { mutableStateOf<Long?>(null) }
+    var lastFixElapsedNanos by remember { mutableStateOf<Long?>(null) }
     var isSensorActive by remember { mutableStateOf(true) }
     var cameraStreaming by remember { mutableStateOf(false) }
     var cameraBindFailed by remember { mutableStateOf(false) }
@@ -417,6 +425,13 @@ fun CompassARScreen(
     val cameraPrefs = remember { context.getSharedPreferences("ar_camera_permission_prefs", Context.MODE_PRIVATE) }
     var cameraPermissionAsked by remember { mutableStateOf(cameraPrefs.getBoolean("camera_permission_asked", false)) }
     var cameraBannerDismissed by remember { mutableStateOf(false) }
+    // Live observer from GPS (full rate); the app-wide location is only refreshed on real moves.
+    var liveLat by remember { mutableStateOf<Double?>(null) }
+    var liveLon by remember { mutableStateOf<Double?>(null) }
+    var liveAltM by remember { mutableStateOf<Double?>(null) }
+    var lastPushedLat by remember { mutableStateOf<Double?>(null) }
+    var lastPushedLon by remember { mutableStateOf<Double?>(null) }
+    val latestUserLocation by rememberUpdatedState(uiState.userLocation)
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -432,7 +447,7 @@ fun CompassARScreen(
     }
 
     fun isCameraPermanentlyDenied(): Boolean {
-        val activityContext = context as? Activity ?: return false
+        val activityContext = activity ?: return false
         return cameraPermissionAsked &&
                 !hasCameraPermission &&
                 !activityContext.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)
@@ -456,6 +471,10 @@ fun CompassARScreen(
     LaunchedEffect(hasCameraPermission, isCameraEnabled) {
         if (!hasCameraPermission || !isCameraEnabled) {
             cameraStreaming = false
+            boundCamera = null
+        } else {
+            // A fresh attempt each time the camera is (re-)enabled or permission is granted.
+            cameraBindFailed = false
         }
     }
 
@@ -486,28 +505,44 @@ fun CompassARScreen(
         }
     }
 
-    // Live GPS Listener for maximum precision and real sky alignment
+    // Live GPS: the AR sky uses every fix at full precision. The app-wide location (and with it the
+    // time zone, resolved by the view model from the offline city database) is only replaced when the
+    // user has really moved (> 1 km), never with a hard-coded zone.
+    fun acceptFix(location: Location) {
+        val alt = if (Build.VERSION.SDK_INT >= 34 && location.hasMslAltitude()) {
+            location.mslAltitudeMeters
+        } else if (location.hasAltitude()) {
+            location.altitude
+        } else {
+            null
+        }
+        liveLat = location.latitude
+        liveLon = location.longitude
+        if (alt != null) liveAltM = alt
+        gpsAccuracyMeters = if (location.hasAccuracy()) location.accuracy else null
+        lastFixTimestampMs = if (location.time > 0L) location.time else System.currentTimeMillis()
+        lastFixElapsedNanos = location.elapsedRealtimeNanos
+        val appLoc = latestUserLocation
+        val farFromApp = ARCalibrationManager.haversineDistanceKm(
+            appLoc.latitude, appLoc.longitude, location.latitude, location.longitude
+        ) > 1.0
+        val pLat = lastPushedLat
+        val pLon = lastPushedLon
+        val farFromLastPush = pLat == null || pLon == null ||
+            ARCalibrationManager.haversineDistanceKm(pLat, pLon, location.latitude, location.longitude) > 1.0
+        if (farFromApp && farFromLastPush) {
+            lastPushedLat = location.latitude
+            lastPushedLon = location.longitude
+            viewModel.setGpsLocation(location.latitude, location.longitude, alt)
+        }
+    }
+
     DisposableEffect(isGpsActive, hasLocationPermission) {
         if (isGpsActive && hasLocationPermission) {
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             val locationListener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
-                    val lat = location.latitude
-                    val lon = location.longitude
-                    val alt = location.altitude
-                    gpsAccuracyMeters = if (location.hasAccuracy()) location.accuracy else null
-                    lastFixTimestampMs = if (location.time > 0L) location.time else System.currentTimeMillis()
-
-                    viewModel.setLocation(
-                        cityEn = "Live GPS",
-                        cityFa = "GPS زنده",
-                        lat = lat,
-                        lon = lon,
-                        elevationMeters = alt
-                    )
-
-                    // Pass exact location + altitude to orientation provider for magnetic declination correction
-                    orientationProvider.updateLocation(lat, lon, alt)
+                    acceptFix(location)
                 }
 
                 @Deprecated("Deprecated in Java")
@@ -515,6 +550,7 @@ fun CompassARScreen(
                 override fun onProviderEnabled(provider: String) {}
                 override fun onProviderDisabled(provider: String) {
                     lastFixTimestampMs = null
+                    lastFixElapsedNanos = null
                 }
             }
 
@@ -522,27 +558,12 @@ fun CompassARScreen(
                 // Last known location for instant startup
                 val lastGps = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                     ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                lastGps?.let { loc ->
-                    gpsAccuracyMeters = if (loc.hasAccuracy()) loc.accuracy else null
-                    lastFixTimestampMs = if (loc.time > 0L) loc.time else System.currentTimeMillis()
-                    viewModel.setLocation("Live GPS", "GPS زنده", loc.latitude, loc.longitude, loc.altitude)
-                    orientationProvider.updateLocation(loc.latitude, loc.longitude, loc.altitude)
-                }
+                lastGps?.let { acceptFix(it) }
 
                 if (locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true) {
-                    locationManager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER,
-                        1000L,
-                        1.0f,
-                        locationListener
-                    )
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1.0f, locationListener)
                 } else if (locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true) {
-                    locationManager.requestLocationUpdates(
-                        LocationManager.NETWORK_PROVIDER,
-                        1000L,
-                        1.0f,
-                        locationListener
-                    )
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000L, 1.0f, locationListener)
                 }
             } catch (e: SecurityException) {
                 e.printStackTrace()
@@ -562,55 +583,82 @@ fun CompassARScreen(
         }
     }
 
+    // Observer used by every AR computation: live GPS when available, else the app location.
+    val observerLat = liveLat ?: uiState.userLocation.latitude
+    val observerLon = liveLon ?: uiState.userLocation.longitude
+    val observerHeightM = liveAltM ?: uiState.userLocation.elevationMeters
+    // ~1 km grid key for slow derived data (paths, rise/set) so GPS jitter does not recompute them.
+    val observerGridKey = (observerLat * 100.0).roundToInt() * 100_000 + (observerLon * 100.0).roundToInt()
+
     // Manual Drag Fallback when sensors paused
     var manualAzimuthOffset by remember { mutableStateOf(0.0) }
-    var manualPitchOffset by remember { mutableStateOf(0.0) }
+    var manualPitchOffset by remember { mutableStateOf(20.0) }
 
     val currentAzimuth = if (isSensorActive) skyOrientation.azimuth.toDouble() else manualAzimuthOffset
     val currentAltitude = if (isSensorActive) skyOrientation.pitch.toDouble() else manualPitchOffset
 
-    DisposableEffect(uiState.userLocation, isSensorActive) {
-        orientationProvider.updateLocation(
-            latitude = uiState.userLocation.latitude,
-            longitude = uiState.userLocation.longitude
-        )
-        if (isSensorActive) {
-            orientationProvider.start()
-        } else {
-            orientationProvider.stop()
+    // Automatic calibration window: opens only when poor compass accuracy persists for 2 s (Android
+    // reports transient low accuracy right after start-up), then stays open until the user closes it.
+    val needsCalibration = isSensorActive &&
+        (calibrationState == CalibrationState.NEEDS_CALIBRATION || calibrationState == CalibrationState.POOR)
+    LaunchedEffect(needsCalibration, autoPromptEnabled, autoPromptDismissedThisSession, isAlignmentMode) {
+        if (needsCalibration && autoPromptEnabled && !autoPromptDismissedThisSession && !isAlignmentMode && !autoCalibrationWindowOpen) {
+            delay(2000L)
+            autoCalibrationWindowOpen = true
         }
-        onDispose {
-            orientationProvider.stop()
-        }
+    }
+
+    // Sensors start/stop only with the user's toggle and the screen's lifetime; a GPS fix merely
+    // updates the geomagnetic model (no restart, so the fusion and interference state survive).
+    DisposableEffect(isSensorActive) {
+        if (isSensorActive) orientationProvider.start() else orientationProvider.stop()
+        onDispose { orientationProvider.stop() }
+    }
+    LaunchedEffect(observerLat, observerLon, observerHeightM) {
+        orientationProvider.updateLocation(observerLat, observerLon, observerHeightM)
     }
 
     // Time Machine State & Ticking Handlers
     val timeMachineState = uiState.timeMachineState
     val coroutineScope = rememberCoroutineScope()
+    val latestTimeMachineState by rememberUpdatedState(timeMachineState)
 
-    // Smooth playback ticking loop when simulation mode is active and playing
+    // Smooth playback: advances from the latest state every frame, so a jump made while playing
+    // (date picker, event shortcut) is adopted instead of being overwritten by a stale local clock.
     LaunchedEffect(timeMachineState.mode, timeMachineState.isPlaying, timeMachineState.speed, timeMachineState.isReverse) {
         if (timeMachineState.mode == TimeMachineMode.SIMULATION && timeMachineState.isPlaying) {
             var lastFrameNanos = 0L
+            var carryMs = 0.0
             var currentSimMs = timeMachineState.simulationTimeMs
+            var lastSeenStateMs = currentSimMs
+            val recentWrites = ArrayDeque<Long>()
             while (true) {
                 withFrameNanos { frameTimeNanos ->
+                    val st = latestTimeMachineState
+                    // A value we did not write ourselves is an external jump (date picker, event
+                    // shortcut, slider) made while playing: continue from there.
+                    if (st.simulationTimeMs != lastSeenStateMs && st.simulationTimeMs !in recentWrites) {
+                        currentSimMs = st.simulationTimeMs
+                        carryMs = 0.0
+                    }
+                    lastSeenStateMs = st.simulationTimeMs
                     if (lastFrameNanos == 0L) {
                         lastFrameNanos = frameTimeNanos
                     } else {
                         val deltaRealSec = (frameTimeNanos - lastFrameNanos) / 1_000_000_000.0
                         lastFrameNanos = frameTimeNanos
-
-                        val multiplier = timeMachineState.speed.multiplier
-                        val direction = if (timeMachineState.isReverse) -1.0 else 1.0
-                        val deltaSimMs = (deltaRealSec * multiplier * direction * 1000.0).toLong()
-
-                        if (deltaSimMs != 0L) {
-                            currentSimMs = (currentSimMs + deltaSimMs).coerceIn(
+                        val direction = if (st.isReverse) -1.0 else 1.0
+                        carryMs += deltaRealSec * st.speed.multiplier * direction * 1000.0
+                        val whole = carryMs.toLong()
+                        if (whole != 0L) {
+                            carryMs -= whole
+                            currentSimMs = (currentSimMs + whole).coerceIn(
                                 TimeMachineState.MIN_TIMESTAMP_MS,
                                 TimeMachineState.MAX_TIMESTAMP_MS
                             )
-                            viewModel.setSimulatedTime(currentSimMs, timeMachineState.eventName, timeMachineState.isBirthdayMode)
+                            recentWrites.addLast(currentSimMs)
+                            while (recentWrites.size > 16) recentWrites.removeFirst()
+                            viewModel.setSimulatedTime(currentSimMs, st.eventName, st.isBirthdayMode)
                         }
                     }
                 }
@@ -653,31 +701,7 @@ fun CompassARScreen(
     }
 
     val activeTimeMs = if (timeMachineState.mode == TimeMachineMode.LIVE) liveTimeMs else timeMachineState.simulationTimeMs
-
-    // Astronomy Calculations
     val jd = remember(activeTimeMs) { TimeEngine.getJulianDate(activeTimeMs) }
-    val lastDeg = remember(uiState.userLocation, jd) {
-        TimeEngine.getLAST(jd, uiState.userLocation.longitude)
-    }
-
-    val sunHoriz = remember(jd, uiState.userLocation) {
-        SunEngine.getSunAltAz(jd, uiState.userLocation.latitude, uiState.userLocation.longitude)
-    }
-
-    val moonData = remember(jd, uiState.userLocation) {
-        MoonEngine.calculateMoon(
-            jd = jd,
-            latitude = uiState.userLocation.latitude,
-            longitude = uiState.userLocation.longitude,
-            elevationM = uiState.userLocation.elevationMeters
-        )
-    }
-    val moonHoriz = remember(moonData) {
-        CoordinateEngine.Horizontal(
-            azimuthDeg = moonData.azimuthDeg,
-            altitudeDeg = moonData.altitudeDeg
-        )
-    }
 
     // Live TLE background fetch for ISS orbital precision
     LaunchedEffect(Unit) {
@@ -686,23 +710,92 @@ fun CompassARScreen(
         }
     }
 
-    // Real-Time Satellite Topocentric Positions for all catalog satellites
-    val satellitePositions = remember(activeTimeMs, uiState.userLocation) {
-        SatelliteEngine.calculateAllSatellitePositions(
-            timestampMs = activeTimeMs,
-            userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude,
-            userAltMeters = uiState.userLocation.elevationMeters
-        )
+    // ---------------------------------------------------------------------------------------------
+    // The AR sky model: apparent places of date for the observer, computed off the UI thread.
+    // ---------------------------------------------------------------------------------------------
+    val allCatalog = remember { ArScreenSupport.arCatalogue() }
+    val staticTargets = remember(allCatalog) { ArScreenSupport.staticTargets(allCatalog) }
+    var starCatalog by remember { mutableStateOf<ArStarCatalog?>(null) }
+    var constellationFigures by remember { mutableStateOf<List<ArConstellation>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        val loaded = withContext(Dispatchers.IO) {
+            arBackground("Loading the star catalogue") { ArAssets.stars(context) to ArAssets.constellations(context) }
+        }
+        if (loaded != null) {
+            starCatalog = loaded.first
+            constellationFigures = loaded.second
+        }
+    }
+    val glyphCache = remember { ArGlyphCache(context) }
+    DisposableEffect(glyphCache) { onDispose { glyphCache.release() } }
+    val overlayState = remember { ArOverlayState() }
+
+    var skySnapshot by remember { mutableStateOf<ArSkySnapshot?>(null) }
+    var skyLighting by remember { mutableStateOf<ArSkyLighting?>(null) }
+    var arSatellites by remember { mutableStateOf<List<ArSatelliteInfo>>(emptyList()) }
+    val observerForSky = ArObserver(
+        latitudeDeg = observerLat,
+        longitudeDeg = observerLon,
+        heightM = observerHeightM,
+        // Quantised so that barometer noise does not trigger recomputation (0.5 hPa ≈ 0.05 % of refraction).
+        pressureHpa = (atmosphereReading.pressureHpa * 2.0).roundToInt() / 2.0,
+        temperatureC = (atmosphereReading.temperatureC * 2.0).roundToInt() / 2.0
+    )
+    val latestSkyInputs by rememberUpdatedState(
+        ArSkyInputs(activeTimeMs, observerForSky, starCatalog, constellationFigures, uiState.bortleClass)
+    )
+    // One long-lived worker computes the sky from the latest inputs whenever they change. In-flight
+    // work is never cancelled, so fast time-machine playback still advances the sky continuously.
+    LaunchedEffect(Unit) {
+        var last: ArSkyInputs? = null
+        while (true) {
+            val inputs = latestSkyInputs
+            if (inputs == last) {
+                delay(16L)
+                continue
+            }
+            last = inputs
+            val result = withContext(Dispatchers.Default) {
+                arBackground("AR sky computation") {
+                    val obs = inputs.observer
+                    val sats = ArScreenSupport.satellites(inputs.timeMs, obs.latitudeDeg, obs.longitudeDeg, obs.heightM)
+                    val satMap = HashMap<String, Pair<Double, Double>>()
+                    sats.forEach { s -> satMap[s.id] = s.azimuthDeg to s.altitudeDeg }
+                    val builder = ArAssets.lightingBuilder()
+                    synchronized(builder) {
+                        val snap = ArSkySceneComputer.compute(
+                            inputs.timeMs, obs, inputs.stars, inputs.figures, staticTargets, satMap, builder.atmosphereModel
+                        )
+                        val light = builder.build(
+                            snap.sun.placed.enu, snap.moon.placed.enu,
+                            snap.moon.glyph?.phaseAngleDeg ?: 90.0, obs.heightM, inputs.bortle
+                        )
+                        Triple(snap, light, sats)
+                    }
+                }
+            }
+            if (result != null) {
+                skySnapshot = result.first
+                skyLighting = result.second
+                arSatellites = result.third
+            }
+        }
     }
 
-    // Single AR-facing view of the catalogue. Everything downstream of this val — the canvas render
-    // loop, the tap hit-test, the off-screen edge indicators and label clustering — reads the sky
-    // through it, so the AR-scoped exclusions (Earth) apply to all of them at once.
-    val allCatalog = remember(jd) { ARSkyCatalog.arSkyObjects(AstronomyCatalog.getAllObjects(jd)) }
+    fun placementOf(obj: CelestialObject): ArPlaced? {
+        val snap = skySnapshot ?: return null
+        snap.placementOf(obj.id)?.let { return it }
+        snap.placementOf(com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id))?.let { return it }
+        if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {
+            val sat = arSatellites.firstOrNull { s -> ArScreenSupport.satelliteIdsFor(s).contains(obj.id) }
+            if (sat != null) return snap.placementOf(sat.id)
+        }
+        return null
+    }
 
-    val gpsFixAgeMs = lastFixTimestampMs?.let { (System.currentTimeMillis() - it).coerceAtLeast(0L) }
-    val gpsHealth = remember(isGpsActive, hasLocationPermission, gpsAccuracyMeters, gpsFixAgeMs) {
+    val gpsFixAgeMs = lastFixElapsedNanos?.let { ((SystemClock.elapsedRealtimeNanos() - it) / 1_000_000L).coerceAtLeast(0L) }
+        ?: lastFixTimestampMs?.let { (System.currentTimeMillis() - it).coerceAtLeast(0L) }
+    val gpsHealth = remember(isGpsActive, hasLocationPermission, gpsAccuracyMeters, gpsFixAgeMs?.div(1000L)) {
         val acc = gpsAccuracyMeters
         val age = gpsFixAgeMs
         when {
@@ -737,22 +830,25 @@ fun CompassARScreen(
         }
     }
 
-    val sensorHealth = remember(isSensorActive, calibrationState) {
+    val sensorHealth = remember(isSensorActive, calibrationState, sensorStatus.fusion.headingSigmaDeg.toInt()) {
+        val sigma = sensorStatus.fusion.headingSigmaDeg
+        val sigmaEn = if (sigma.isFinite()) "±${String.format(Locale.US, "%.1f", sigma)}° heading" else calibrationLabel(calibrationState, false)
+        val sigmaFa = if (sigma.isFinite()) "جهت ±${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.1f", sigma))}°" else calibrationLabel(calibrationState, true)
         if (!isSensorActive) {
             ArSubsystemHealth(ArHealthLevel.GRAY, "Sensors off", "حسگرها خاموش", "Manual pointing mode", "حالت نشانه‌روی دستی")
         } else {
             when (calibrationState) {
-                CalibrationState.EXCELLENT, CalibrationState.GOOD -> ArSubsystemHealth(ArHealthLevel.GREEN, "Sensors calibrated", "حسگرها کالیبره", calibrationState.name, calibrationState.name)
-                CalibrationState.POOR -> ArSubsystemHealth(ArHealthLevel.AMBER, "Sensor accuracy low", "دقت حسگر متوسط", calibrationState.name, calibrationState.name)
-                CalibrationState.NEEDS_CALIBRATION, CalibrationState.UNCALIBRATED -> ArSubsystemHealth(ArHealthLevel.RED, "Sensors need calibration", "حسگرها نیازمند کالیبراسیون", calibrationState.name, calibrationState.name)
+                CalibrationState.EXCELLENT, CalibrationState.GOOD -> ArSubsystemHealth(ArHealthLevel.GREEN, "Sensors calibrated", "حسگرها کالیبره", sigmaEn, sigmaFa)
+                CalibrationState.POOR -> ArSubsystemHealth(ArHealthLevel.AMBER, "Sensor accuracy low", "دقت حسگر متوسط", sigmaEn, sigmaFa)
+                CalibrationState.NEEDS_CALIBRATION, CalibrationState.UNCALIBRATED -> ArSubsystemHealth(ArHealthLevel.RED, "Sensors need calibration", "حسگرها نیازمند کالیبراسیون", sigmaEn, sigmaFa)
             }
         }
     }
 
     val cameraHealth = remember(hasCameraPermission, isCameraEnabled, cameraStreaming, cameraBindFailed, userToggledCameraOff) {
         when {
-            userToggledCameraOff && !isCameraEnabled -> ArSubsystemHealth(ArHealthLevel.GRAY, "Camera off", "دوربین خاموش", "Catalogue sky on black", "آسمان دسته‌اجرام روی زمینه سیاه")
-            !hasCameraPermission -> ArSubsystemHealth(ArHealthLevel.RED, "Camera permission denied", "مجوز دوربین رد شده", "Showing catalogue sky on black", "نمایش آسمان دسته‌اجرام روی زمینه سیاه")
+            userToggledCameraOff && !isCameraEnabled -> ArSubsystemHealth(ArHealthLevel.GRAY, "Camera off", "دوربین خاموش", "Simulated sky", "آسمان شبیه‌سازی‌شده")
+            !hasCameraPermission -> ArSubsystemHealth(ArHealthLevel.RED, "Camera permission denied", "مجوز دوربین رد شده", "Showing the simulated sky", "نمایش آسمان شبیه‌سازی‌شده")
             cameraBindFailed -> ArSubsystemHealth(ArHealthLevel.RED, "Camera failed", "خطای دوربین", "CameraX binding failed", "اتصال CameraX ناموفق بود")
             cameraStreaming -> ArSubsystemHealth(ArHealthLevel.GREEN, "Camera streaming", "دوربین فعال", "Live preview active", "نمای زنده فعال است")
             else -> ArSubsystemHealth(ArHealthLevel.AMBER, "Camera starting", "دوربین در حال راه‌اندازی", "Waiting for preview stream", "در انتظار جریان تصویر")
@@ -767,23 +863,17 @@ fun CompassARScreen(
         ArSubsystemHealth(level, en, fa, en, fa)
     }
 
-    val recalibrationDecision = remember(arCalibrationOffsets, uiState.userLocation, lastFixTimestampMs) {
+    val recalibrationDecision = remember(arCalibrationOffsets, observerLat, observerLon, lastFixTimestampMs) {
         ARCalibrationManager.shouldSuggestRecalibration(
             currentTimeMs = System.currentTimeMillis(),
-            currentLatitude = uiState.userLocation.latitude,
-            currentLongitude = uiState.userLocation.longitude
+            currentLatitude = observerLat,
+            currentLongitude = observerLon
         )
     }
 
-    // Guided 1-Point Reference Alignment: dynamic bright-target recommendation.
-    // Recomputed whenever time/location change; default selection = brightest target.
-    val alignmentTargets = remember(jd, uiState.userLocation) {
-        ARCalibrationManager.computeAlignmentTargets(
-            jd = jd,
-            latitude = uiState.userLocation.latitude,
-            longitude = uiState.userLocation.longitude,
-            elevationM = uiState.userLocation.elevationMeters
-        )
+    // Guided 1-Point Reference Alignment: bright targets at their live apparent places.
+    val alignmentTargets = remember(skySnapshot) {
+        skySnapshot?.let { ArScreenSupport.alignmentTargets(it, allCatalog) } ?: emptyList()
     }
     var selectedAlignmentTargetId by remember { mutableStateOf<String?>(null) }
     val selectedAlignmentTarget = remember(alignmentTargets, selectedAlignmentTargetId) {
@@ -830,7 +920,6 @@ fun CompassARScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchFocused by remember { mutableStateOf(false) }
     var selectedTarget by remember { mutableStateOf<CelestialObject?>(null) }
-    var showArrivalDialog by remember { mutableStateOf(false) }
     var hasVibratedForArrival by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.selectedTargetObject) {
@@ -844,12 +933,12 @@ fun CompassARScreen(
         }
     }
 
-    val searchResults = remember(searchQuery, uiState.userLocation, jd) {
+    val searchResults = remember(searchQuery, observerLat, observerLon, jd) {
         if (searchQuery.isNotBlank()) {
             CelestialSearchEngine.search(
                 query = searchQuery,
-                userLat = uiState.userLocation.latitude,
-                userLon = uiState.userLocation.longitude,
+                userLat = observerLat,
+                userLon = observerLon,
                 jd = jd
             )
         } else {
@@ -857,44 +946,84 @@ fun CompassARScreen(
         }
     }
 
-    // Finder Guidance Calculations
-    val finderData = remember(selectedTarget, currentAzimuth, currentAltitude, uiState.userLocation, jd) {
-        selectedTarget?.let { target ->
-            FinderEngine.calculateFinderData(
-                target = target,
-                phoneAzimuthDeg = currentAzimuth,
-                phoneAltitudeDeg = currentAltitude,
-                userLat = uiState.userLocation.latitude,
-                userLon = uiState.userLocation.longitude,
-                userAltMeters = uiState.userLocation.elevationMeters,
-                jd = jd
-            )
-        }
-    }
+    // AR Sky Zoom State: physical camera zoom while the camera is live, virtual zoom otherwise.
+    var zoomFactor by remember { mutableFloatStateOf(1.0f) }
+    var showZoomIndicator by remember { mutableStateOf(false) }
+    var previousZoomFactor by remember { mutableFloatStateOf(zoomFactor) }
+    var lastZoomChangeMs by remember { mutableLongStateOf(0L) }
+    val cameraLive = hasCameraPermission && isCameraEnabled && cameraStreaming
 
-    // Handle Arrival Celebration & Vibration
-    LaunchedEffect(finderData?.isArrived) {
-        if (finderData?.isArrived == true && !hasVibratedForArrival) {
-            hasVibratedForArrival = true
-            showArrivalDialog = true
-
-            // Trigger Vibration
+    LaunchedEffect(zoomFactor, boundCamera) {
+        val cam = boundCamera
+        if (cam != null) {
+            val zs = cam.cameraInfo.zoomState.value
+            val target = if (zs != null) zoomFactor.coerceIn(zs.minZoomRatio, zs.maxZoomRatio) else zoomFactor
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                    vibratorManager?.defaultVibrator?.vibrate(
-                        VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE)
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                    @Suppress("DEPRECATION")
-                    vibrator?.vibrate(300)
-                }
+                cam.cameraControl.setZoomRatio(target)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-        } else if (finderData?.isArrived == false) {
+        }
+    }
+    LaunchedEffect(zoomFactor) {
+        if (zoomFactor != previousZoomFactor) {
+            previousZoomFactor = zoomFactor
+            lastZoomChangeMs = System.currentTimeMillis()
+        }
+    }
+    LaunchedEffect(lastZoomChangeMs) {
+        if (lastZoomChangeMs == 0L) return@LaunchedEffect
+        showZoomIndicator = true
+        delay(1500L)
+        showZoomIndicator = false
+    }
+
+    // Night vision (deep red, preserves dark adaptation); local to the AR screen.
+    val arPrefs = remember { context.getSharedPreferences("ar_filters_prefs", Context.MODE_PRIVATE) }
+    var nightVision by remember { mutableStateOf(arPrefs.getBoolean("ar_night_vision", false)) }
+
+    // Camera model of the current frame (exact CameraX/Camera2 pipeline, or the virtual camera).
+    fun currentAttitude(): DoubleArray {
+        val m = skyOrientation.rotationMatrix
+        return if (isSensorActive && ArScreenSupport.isValidRotation(m)) ArScreenSupport.toDouble(m)
+        else ArScreenSupport.manualAttitude(manualAzimuthOffset, manualPitchOffset)
+    }
+
+    fun buildCameraModel(width: Float, height: Float): ArCameraModel {
+        val model = if (cameraLive) {
+            val values = previewViewInstance?.sensorToViewTransform?.let { mtx ->
+                FloatArray(9).also { mtx.getValues(it) }
+            }
+            val ratio = boundCamera?.cameraInfo?.zoomState?.value?.zoomRatio?.toDouble() ?: zoomFactor.toDouble()
+            ArCameraModel.camera(width, height, displayRotationDegrees, cameraIntrinsics, values, ratio)
+        } else {
+            val vfov = ArCameraModel.cameraVerticalFovDeg(width, height, displayRotationDegrees, cameraIntrinsics).coerceIn(45.0, 80.0)
+            ArCameraModel.virtual(width, height, displayRotationDegrees, vfov, zoomFactor.toDouble().coerceIn(0.5, 12.0))
+        }
+        model.setAttitude(currentAttitude())
+        return model
+    }
+
+    val composeCameraModel = if (arViewportSize.width > 0 && arViewportSize.height > 0) {
+        buildCameraModel(arViewportSize.width.toFloat(), arViewportSize.height.toFloat())
+    } else null
+    val latestPixelsPerDegree by rememberUpdatedState(composeCameraModel?.pixelsPerDegree() ?: 30.0)
+
+    // Finder: live apparent place of the target, guidance through the projection (roll-correct).
+    var finderArrived by remember { mutableStateOf(false) }
+    val finderData = run {
+        val target = selectedTarget ?: return@run null
+        val cam = composeCameraModel ?: return@run null
+        val placed = placementOf(target) ?: return@run null
+        ArScreenSupport.finder(target, placed, cam, finderArrived)
+    }
+    LaunchedEffect(finderData?.isArrived) {
+        val arrived = finderData?.isArrived == true
+        finderArrived = arrived
+        if (arrived && !hasVibratedForArrival) {
+            hasVibratedForArrival = true
+            triggerAlignmentHaptic(300L)
+        } else if (!arrived) {
             hasVibratedForArrival = false
         }
     }
@@ -903,8 +1032,9 @@ fun CompassARScreen(
     var activeExpandedPanel by remember { mutableStateOf<ArExpandedPanel?>(null) }
 
     // AR Object Visibility Filters Persistence
-    val prefs = remember { context.getSharedPreferences("ar_filters_prefs", Context.MODE_PRIVATE) }
+    val prefs = arPrefs
     var filterStars by remember { mutableStateOf(prefs.getBoolean("filter_stars", true)) }
+    var filterUnnamedStars by remember { mutableStateOf(prefs.getBoolean("filter_unnamed_stars", true)) }
     var filterConstellations by remember { mutableStateOf(prefs.getBoolean("filter_constellations", true)) }
     var filterPlanets by remember { mutableStateOf(prefs.getBoolean("filter_planets", true)) }
     var filterMoons by remember { mutableStateOf(prefs.getBoolean("filter_moons", true)) }
@@ -921,6 +1051,7 @@ fun CompassARScreen(
 
     fun setAllFilters(value: Boolean) {
         filterStars = value
+        filterUnnamedStars = value
         filterConstellations = value
         filterPlanets = value
         filterMoons = value
@@ -931,6 +1062,7 @@ fun CompassARScreen(
         filterObjectNames = value
         prefs.edit()
             .putBoolean("filter_stars", value)
+            .putBoolean("filter_unnamed_stars", value)
             .putBoolean("filter_constellations", value)
             .putBoolean("filter_planets", value)
             .putBoolean("filter_moons", value)
@@ -942,47 +1074,7 @@ fun CompassARScreen(
             .apply()
     }
 
-    // AR Sky Zoom State
-    var zoomFactor by remember { mutableFloatStateOf(1.0f) }
-    var showZoomIndicator by remember { mutableStateOf(false) }
-
-    // Dot → shape tier memory, keyed by object id. The hysteresis band in
-    // CelestialObjectSizes.resolveArRenderPlan needs the previous tier to decide which side of the
-    // band a borderline object stays on. A plain map rather than snapshot state on purpose: it is
-    // written and consumed inside the draw pass, so it never schedules a recomposition by itself,
-    // while the zoom gesture that changed a tier already recomposes the canvas.
-    val arTierMemory = remember { mutableMapOf<String, Boolean>() }
-
-    LaunchedEffect(zoomFactor) {
-        if (zoomFactor != 1.0f) {
-            showZoomIndicator = true
-            delay(1500L)
-            showZoomIndicator = false
-        }
-    }
-
-    // Dynamic state wrappers for gesture detector inside pointerInput(Unit)
-    val curAzimuthState by rememberUpdatedState(currentAzimuth)
-    val curAltitudeState by rememberUpdatedState(currentAltitude)
-    val zoomFactorState by rememberUpdatedState(zoomFactor)
-    val skyOrientationState by rememberUpdatedState(skyOrientation)
     val currentDensity = LocalDensity.current.density
-    val densityState by rememberUpdatedState(currentDensity)
-    val filterStarsState by rememberUpdatedState(filterStars)
-    val filterSunState by rememberUpdatedState(filterSun)
-    val filterMoonsState by rememberUpdatedState(filterMoons)
-    val filterPlanetsState by rememberUpdatedState(filterPlanets)
-    val filterSatellitesState by rememberUpdatedState(filterSatellites)
-    val filterDeepSkyState by rememberUpdatedState(filterDeepSky)
-    val filterMeteorShowersState by rememberUpdatedState(filterMeteorShowers)
-    val filterObjectNamesState by rememberUpdatedState(filterObjectNames)
-    val sunHorizState by rememberUpdatedState(sunHoriz)
-    val moonHorizState by rememberUpdatedState(moonHoriz)
-    val satellitePositionsState by rememberUpdatedState(satellitePositions)
-    val lastDegState by rememberUpdatedState(lastDeg)
-    val userLatState by rememberUpdatedState(uiState.userLocation.latitude)
-    val allCatalogState by rememberUpdatedState(allCatalog)
-    val isSensorActiveState by rememberUpdatedState(isSensorActive)
     val isAlignmentModeState by rememberUpdatedState(isAlignmentMode)
 
     // AR Info Card Object State & Auto-Dismiss Timer
@@ -991,7 +1083,7 @@ fun CompassARScreen(
 
     LaunchedEffect(tappedObject) {
         if (tappedObject != null) {
-            delay(6000L)
+            delay(8000L)
             tappedObject = null
         }
     }
@@ -999,120 +1091,22 @@ fun CompassARScreen(
     // Active Orbit Object (Target or tapped object)
     val activeOrbitObject = selectedTarget ?: tappedObject
 
-    // Real-Time Trajectory Points for activeOrbitObject (hidden by default, shown when target or tap card active)
-    val (orbitPastPoints, orbitFuturePoints) = remember(
-        activeOrbitObject?.id,
-        activeTimeMs,
-        uiState.userLocation
-    ) {
-        val targetObj = activeOrbitObject ?: return@remember Pair(emptyList<CoordinateEngine.Horizontal>(), emptyList<CoordinateEngine.Horizontal>())
-        val pastList = mutableListOf<CoordinateEngine.Horizontal>()
-        val futureList = mutableListOf<CoordinateEngine.Horizontal>()
-
-        if (targetObj.type == ObjectType.SATELLITE || targetObj.id.startsWith("sat_")) {
-            val satItem = SatelliteEngine.resolveSatelliteItem(targetObj.id)
-            if (satItem != null) {
-                val (past, future) = SatelliteEngine.generateOrbitTrajectory(
-                    satellite = satItem,
-                    currentTimestampMs = activeTimeMs,
-                    userLatDeg = uiState.userLocation.latitude,
-                    userLonDeg = uiState.userLocation.longitude,
-                    userAltMeters = uiState.userLocation.elevationMeters,
-                    pastMinutes = 45,
-                    futureMinutes = 45,
-                    stepSeconds = 30
-                )
-                pastList.addAll(past)
-                futureList.addAll(future)
-            }
-        } else if (targetObj.id == "moon") {
-            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
-            for (step in -48..0) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
-                val hMoon = MoonEngine.calculateMoon(hJd)
-                val hHoriz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(hMoon.raDeg, hMoon.decDeg),
-                    hLast,
-                    uiState.userLocation.latitude
-                )
-                pastList.add(hHoriz)
-            }
-            for (step in 0..48) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
-                val hMoon = MoonEngine.calculateMoon(hJd)
-                val hHoriz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(hMoon.raDeg, hMoon.decDeg),
-                    hLast,
-                    uiState.userLocation.latitude
-                )
-                futureList.add(hHoriz)
-            }
-        } else if (targetObj.id.startsWith("galilean_moon_")) {
-            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
-            for (step in -48..0) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
-                val moons = SolarSystemCatalog.getGalileanMoons(hJd)
-                val mObj = moons.firstOrNull { it.id == targetObj.id } ?: targetObj
-                val hHoriz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(mObj.raDeg, mObj.decDeg),
-                    hLast,
-                    uiState.userLocation.latitude
-                )
-                pastList.add(hHoriz)
-            }
-            for (step in 0..48) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
-                val moons = SolarSystemCatalog.getGalileanMoons(hJd)
-                val mObj = moons.firstOrNull { it.id == targetObj.id } ?: targetObj
-                val hHoriz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(mObj.raDeg, mObj.decDeg),
-                    hLast,
-                    uiState.userLocation.latitude
-                )
-                futureList.add(hHoriz)
-            }
-        } else if (targetObj.type == ObjectType.SUN) {
-            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
-            for (step in -48..0) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hHoriz = SunEngine.getSunAltAz(hJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
-                pastList.add(hHoriz)
-            }
-            for (step in 0..48) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hHoriz = SunEngine.getSunAltAz(hJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
-                futureList.add(hHoriz)
-            }
-        } else if (targetObj.type != ObjectType.REFERENCE_POINT) {
-            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
-            for (step in -48..0) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
-                val hHoriz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(targetObj.raDeg, targetObj.decDeg),
-                    hLast,
-                    uiState.userLocation.latitude
-                )
-                pastList.add(hHoriz)
-            }
-            for (step in 0..48) {
-                val hJd = activeJd + (step * 0.25 / 24.0)
-                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
-                val hMoon = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(targetObj.raDeg, targetObj.decDeg),
-                    hLast,
-                    uiState.userLocation.latitude
-                )
-                futureList.add(hMoon)
-            }
+    // Path of the active object (apparent, for this observer), computed in the background.
+    var orbitPaths by remember { mutableStateOf(Pair(emptyList<CoordinateEngine.Horizontal>(), emptyList<CoordinateEngine.Horizontal>())) }
+    LaunchedEffect(activeOrbitObject?.id, activeTimeMs / 60_000L, observerGridKey) {
+        val target = activeOrbitObject
+        if (target == null) {
+            orbitPaths = Pair(emptyList(), emptyList())
+        } else {
+            val obs = observerForSky
+            val t = activeTimeMs
+            val stars = starCatalog
+            orbitPaths = withContext(Dispatchers.Default) {
+                arBackground("Path of ${target.id}") { ArScreenSupport.path(target, t, obs, stars) }
+            } ?: Pair(emptyList(), emptyList())
         }
-
-        Pair(pastList, futureList)
     }
+    val (orbitPastPoints, orbitFuturePoints) = orbitPaths
 
     // Auto-Hide AR UI State & 5-second Inactivity Timer
     var isControlsVisible by remember { mutableStateOf(true) }
@@ -1142,149 +1136,183 @@ fun CompassARScreen(
         label = "ControlsAlpha"
     )
 
-    val edgeIndicators = remember(
-        arViewportSize,
-        allCatalog,
-        currentAzimuth,
-        currentAltitude,
-        jd,
-        uiState.userLocation,
-        filterStars,
-        filterSun,
-        filterMoons,
-        filterPlanets,
-        filterSatellites,
-        filterDeepSky,
-        filterMeteorShowers,
-        selectedTarget,
-        zoomFactor,
-        isControlsVisible,
-        isAlignmentMode
-    ) {
+    // Off-screen indicators: notable objects outside the real field of view (from the exact camera
+    // model), in screen-space direction so they are right for any roll.
+    val edgeIndicators = run {
+        val cam = composeCameraModel
+        val snap = skySnapshot
         val width = arViewportSize.width.toFloat()
         val height = arViewportSize.height.toFloat()
-        if (width <= 0f || height <= 0f || !isControlsVisible || isAlignmentMode) {
+        val margin = 28f * currentDensity
+        if (cam == null || snap == null || width <= 2f * margin || height <= 2f * margin || !isControlsVisible || isAlignmentMode) {
             emptyList()
         } else {
-            val fovX = ARProjectionEngine.computeEffectiveFovXDeg(
-                screenWidthPx = width,
-                screenHeightPx = height,
-                intrinsics = cameraIntrinsics,
-                zoomFactor = zoomFactor
-            ).coerceAtLeast(1.0)
-            val fovY = (fovX * height / width).coerceAtLeast(1.0)
-            val margin = 28f * currentDensity
             val centerX = width / 2f
             val centerY = height / 2f
+            val bore = cam.boresightEnu()
+            val c = DoubleArray(2)
+            val p = FloatArray(2)
             allCatalog.mapNotNull { obj ->
                 if (selectedTarget?.id == obj.id) return@mapNotNull null
                 if (!isVisibleByArFilter(obj, filterStars, filterSun, filterMoons, filterPlanets, filterSatellites, filterDeepSky, filterMeteorShowers)) return@mapNotNull null
                 val interesting = when {
-                    obj.type == ObjectType.SUN || obj.type == ObjectType.MOON || obj.type == ObjectType.PLANET || obj.type == ObjectType.DWARF_PLANET -> true
-                    obj.type == ObjectType.SATELLITE -> obj.id == "sat_25544" || obj.id.contains("iss", ignoreCase = true) || obj.nameEn.contains("ISS", ignoreCase = true)
-                    obj.type == ObjectType.STAR -> obj.magnitude <= 2.0
-                    isDeepSkyType(obj.type) -> obj.magnitude <= 5.0
+                    obj.type == ObjectType.SUN || obj.id == "moon" || obj.type == ObjectType.PLANET -> true
+                    obj.type == ObjectType.SATELLITE -> obj.id == "sat_25544" || obj.id.contains("iss", ignoreCase = true)
+                    obj.type == ObjectType.STAR -> obj.magnitude <= 1.5
                     else -> false
                 }
                 if (!interesting) return@mapNotNull null
-                val horiz = if (obj.type == ObjectType.SUN) {
-                    sunHoriz
-                } else if (obj.id == "moon") {
-                    moonHoriz
-                } else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {
-                    satellitePositions[obj.id]
-                        ?: satellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)]
-                        ?: return@mapNotNull null
-                } else {
-                    CoordinateEngine.equatorialToHorizontal(
-                        CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
-                        lastDeg,
-                        uiState.userLocation.latitude
-                    )
-                }
-                if (horiz.altitudeDeg <= 0.0) return@mapNotNull null
-                val dAz = normalizeDeltaDegrees(horiz.azimuthDeg - currentAzimuth)
-                val dAlt = horiz.altitudeDeg - currentAltitude
-                val effectiveDAz = dAz * cos(Math.toRadians(horiz.altitudeDeg))
-                val separation = hypot(effectiveDAz, dAlt)
-                val insideFov = abs(effectiveDAz) <= fovX / 2.0 && abs(dAlt) <= fovY / 2.0
-                if (separation <= 0.01 || separation > 90.0 || insideFov) return@mapNotNull null
-
-                val vx = effectiveDAz.toFloat()
-                val vy = (-dAlt).toFloat()
-                val tX = if (vx > 0f) (centerX - margin) / vx else if (vx < 0f) -(centerX - margin) / vx else Float.POSITIVE_INFINITY
-                val tY = if (vy > 0f) (centerY - margin) / vy else if (vy < 0f) -(centerY - margin) / vy else Float.POSITIVE_INFINITY
+                val placed = placementOf(obj) ?: return@mapNotNull null
+                if (placed.altDeg <= 0.0) return@mapNotNull null
+                val sep = Math.toDegrees(V3.angleBetween(bore, placed.enu))
+                if (sep > 100.0) return@mapNotNull null
+                if (cam.project(placed.enu[0], placed.enu[1], placed.enu[2], p) &&
+                    p[0] in 0f..width && p[1] in 0f..height
+                ) return@mapNotNull null
+                if (!cam.screenDirection(placed.enu[0], placed.enu[1], placed.enu[2], c)) return@mapNotNull null
+                val vx = c[0].toFloat()
+                val vy = c[1].toFloat()
+                val norm = hypot(vx, vy).coerceAtLeast(1e-6f)
+                val ux = vx / norm
+                val uy = vy / norm
+                val tX = if (ux > 0f) (centerX - margin) / ux else if (ux < 0f) -(centerX - margin) / ux else Float.POSITIVE_INFINITY
+                val tY = if (uy > 0f) (centerY - margin) / uy else if (uy < 0f) -(centerY - margin) / uy else Float.POSITIVE_INFINITY
                 val t = min(tX, tY).takeIf { it.isFinite() && it > 0f } ?: 1f
-                val x = (centerX + vx * t).coerceIn(margin, width - margin)
-                val y = (centerY + vy * t).coerceIn(margin, height - margin)
-                val angle = Math.toDegrees(atan2(vy.toDouble(), vx.toDouble())).toFloat() + 90f
+                val x = (centerX + ux * t).coerceIn(margin, width - margin)
+                val y = (centerY + uy * t).coerceIn(margin, height - margin)
+                val angle = Math.toDegrees(atan2(uy.toDouble(), ux.toDouble())).toFloat() + 90f
+                val body = snap.bodies.firstOrNull { it.id == obj.id }
                 val priority = when {
-                    obj.type == ObjectType.SUN || obj.type == ObjectType.MOON -> 0.0
-                    obj.type == ObjectType.PLANET || obj.type == ObjectType.DWARF_PLANET -> 1.0 + obj.magnitude
-                    obj.type == ObjectType.SATELLITE -> 2.0
-                    obj.type == ObjectType.STAR -> 10.0 + obj.magnitude
-                    else -> 20.0 + obj.magnitude
+                    obj.type == ObjectType.SUN || obj.id == "moon" -> 0.0
+                    obj.type == ObjectType.PLANET -> 1.0 + (body?.magnitude ?: obj.magnitude) * 0.2
+                    obj.type == ObjectType.SATELLITE -> 1.5
+                    else -> 10.0 + obj.magnitude
                 }
                 ArEdgeIndicator(obj, x, y, angle, priority)
             }.sortedBy { it.priority }.take(8)
         }
     }
 
+    // The GL sky (camera off) and its availability.
+    var glSkyReady by remember { mutableStateOf(false) }
+    var glSkyFailed by remember { mutableStateOf(false) }
+    var glSkyView by remember { mutableStateOf<ArSkyGlView?>(null) }
+    val showSimulatedSky = !cameraLive
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Solid black when the camera is not showing a live feed: no procedural/starfield
-            // fallback layer, the catalogued objects drawn on this Canvas are the whole sky.
             .background(Color.Black)
             .onSizeChanged { arViewportSize = it }
-            .pointerInput(Unit) {
+            .drawWithContent {
+                drawContent()
+                if (nightVision) {
+                    // Night vision: everything (camera included) through a deep red filter.
+                    drawRect(color = Color(0xFFFF1E1E), blendMode = BlendMode.Multiply)
+                }
+            }
+            .pointerInput(cameraLive) {
                 detectTransformGestures { _, _, zoom, _ ->
                     if (zoom != 1.0f) {
-                        zoomFactor = (zoomFactor * zoom).coerceIn(0.75f, 4.0f)
+                        val range = if (cameraLive) {
+                            boundCamera?.cameraInfo?.zoomState?.value?.let { it.minZoomRatio to it.maxZoomRatio } ?: (1f to 4f)
+                        } else {
+                            0.5f to 12f
+                        }
+                        zoomFactor = (zoomFactor * zoom).coerceIn(range.first, range.second)
                     }
                 }
             }
             .pointerInput(isSensorActive) {
                 if (!isSensorActive) {
+                    // "Grab the sky": the drag moves the sky by exactly the angle under the finger.
                     detectDragGestures { change, dragAmount ->
                         change.consume()
-                        manualAzimuthOffset = (manualAzimuthOffset - dragAmount.x * 0.2) % 360.0
+                        val ppd = latestPixelsPerDegree.coerceAtLeast(1.0)
+                        val cosAlt = cos(Math.toRadians(manualPitchOffset)).coerceAtLeast(0.2)
+                        manualAzimuthOffset = (manualAzimuthOffset - dragAmount.x / ppd / cosAlt) % 360.0
                         if (manualAzimuthOffset < 0) manualAzimuthOffset += 360.0
-                        manualPitchOffset = (manualPitchOffset + dragAmount.y * 0.2).coerceIn(-90.0, 90.0)
+                        manualPitchOffset = (manualPitchOffset + dragAmount.y / ppd).coerceIn(-89.0, 89.0)
                     }
                 }
             }
             .testTag("compass_ar_screen")
     ) {
-        // Layer 1: Live Camera Feed
-        if (hasCameraPermission && isCameraEnabled) {
+        // Layer 0: simulated sky when the camera feed is not showing (physically based GL sky with the
+        // Milky Way; a Canvas gradient from the same model if GL is unavailable).
+        if (showSimulatedSky) {
+            val lighting = skyLighting
+            if (lighting != null && (!glSkyReady || glSkyFailed)) {
+                SimulatedSkyFallback(lighting = lighting, cameraModel = composeCameraModel)
+            }
+            if (!glSkyFailed) {
+                AndroidView(
+                    factory = { ctx ->
+                        ArSkyGlView(ctx).also { view ->
+                            view.onStatusChanged = { ok ->
+                                if (ok) glSkyReady = true else glSkyFailed = true
+                            }
+                            glSkyView = view
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    onRelease = { view ->
+                        view.release()
+                        if (glSkyView === view) glSkyView = null
+                        glSkyReady = false
+                    }
+                )
+            }
+        }
+
+        // Layer 1: Live Camera Feed (removed after a bind failure so the simulated sky shows instead of
+        // a black preview; switching the camera off and on retries).
+        if (hasCameraPermission && isCameraEnabled && !cameraBindFailed) {
             AndroidView(
                 factory = { ctx ->
                     val previewView = PreviewView(ctx).apply {
                         scaleType = PreviewView.ScaleType.FILL_CENTER
+                        // TextureView-backed so that the night-vision filter also tints the preview.
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                        // Transparent until the first camera frame: the simulated sky stays visible.
+                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     }
                     previewViewInstance = previewView
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                     cameraProviderFuture.addListener({
+                        // The view may already have left the composition (fast camera toggle).
+                        if (previewView.getTag(R.id.ar_camera_released_tag) == true) return@addListener
                         try {
                             val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder().build().also {
-                                it.setSurfaceProvider(previewView.surfaceProvider)
-                            }
-                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                            val bound = ArCameraBinder.bind(cameraProvider, lifecycleOwner, previewView)
+                            cameraProviderRef = cameraProvider
+                            cameraIntrinsics = bound.intrinsics
+                            boundCamera = bound.camera
                             cameraBindFailed = false
                             cameraStreaming = true
                         } catch (e: Exception) {
                             cameraBindFailed = true
                             cameraStreaming = false
+                            boundCamera = null
                             e.printStackTrace()
                         }
                     }, ContextCompat.getMainExecutor(ctx))
                     previewView
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                onRelease = { view ->
+                    // Close the camera when the feed is switched off or the screen is left.
+                    view.setTag(R.id.ar_camera_released_tag, true)
+                    try {
+                        cameraProviderRef?.unbindAll()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    cameraProviderRef = null
+                    boundCamera = null
+                    cameraStreaming = false
+                    if (previewViewInstance === view) previewViewInstance = null
+                }
             )
         }
 
@@ -1305,126 +1333,25 @@ fun CompassARScreen(
                             if (activeExpandedPanel != null) {
                                 activeExpandedPanel = null
                             }
-
-                            val activeAzimuth = curAzimuthState
-                            val activeAltitude = curAltitudeState
-                            val activeZoom = zoomFactorState
-                            val activeOrientation = skyOrientationState
-                            val activeDensity = densityState
-                            val activeCatalog = allCatalogState
-                            val activeSunHoriz = sunHorizState
-                            val activeMoonHoriz = moonHorizState
-                            val activeSatellitePositions = satellitePositionsState
-                            val activeLastDeg = lastDegState
-                            val activeUserLat = userLatState
-                            val activeIsSensor = isSensorActiveState
-                            val activeFilterObjectNames = filterObjectNamesState
-
-                            val canvasWidth = size.width.toFloat()
-                            val canvasHeight = size.height.toFloat()
-
-                            val fovForTap = ARProjectionEngine.computeEffectiveFovXDeg(
-                                screenWidthPx = canvasWidth,
-                                screenHeightPx = canvasHeight,
-                                intrinsics = cameraIntrinsics,
-                                zoomFactor = activeZoom
-                            ).coerceAtLeast(1.0)
-                            val pixelsPerDegreeForTap = canvasWidth / fovForTap
-
-                            // Fixed tap radius, independent of how big the object is drawn: a
-                            // dot-tier object is exactly as tappable as a resolved one.
-                            var bestMatch: CelestialObject? = null
-                            var bestDistPx = 70.0f * activeDensity
-                            val tapRenderItems = mutableListOf<ArVisibleRenderItem>()
-
-                            for (obj in activeCatalog) {
-                                val isVisibleByFilter = isVisibleByArFilter(
-                                    obj = obj,
-                                    filterStars = filterStarsState,
-                                    filterSun = filterSunState,
-                                    filterMoons = filterMoonsState,
-                                    filterPlanets = filterPlanetsState,
-                                    filterSatellites = filterSatellitesState,
-                                    filterDeepSky = filterDeepSkyState,
-                                    filterMeteorShowers = filterMeteorShowersState
-                                )
-                                if (!isVisibleByFilter) continue
-
-                                val horiz = if (obj.type == ObjectType.SUN) activeSunHoriz
-                                else if (obj.id == "moon") activeMoonHoriz
-                                else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) activeSatellitePositions[obj.id] ?: activeSatellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
-                                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), activeLastDeg, activeUserLat)
-
-                                val pt = ARProjectionEngine.projectAltAz(
-                                    azimuthDeg = horiz.azimuthDeg,
-                                    altitudeDeg = horiz.altitudeDeg,
-                                    rotationMatrix = if (activeIsSensor) activeOrientation.rotationMatrix else null,
-                                    currentAzimuth = activeAzimuth,
-                                    currentAltitude = activeAltitude,
-                                    currentRoll = activeOrientation.roll.toDouble(),
-                                    canvasWidth = canvasWidth,
-                                    canvasHeight = canvasHeight,
-                                    intrinsics = cameraIntrinsics,
-                                    zoomFactor = activeZoom,
-                                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                                    displayRotationDegrees = displayRotationDegrees
-                                ) ?: continue
-
-                                if (pt.x in -150f..(canvasWidth + 150f) && pt.y in -150f..(canvasHeight + 150f)) {
-                                    // Same shared tier rule as the draw pass (read-only here: the
-                                    // render pass owns the hysteresis memory).
-                                    val tapDeltaAz = normalizeDeltaDegrees(horiz.azimuthDeg - activeAzimuth)
-                                    val tapProximityScale = CelestialObjectSizes.calculateProximityScale(
-                                        deltaAzDeg = tapDeltaAz.toFloat(),
-                                        deltaAltDeg = (horiz.altitudeDeg - activeAltitude).toFloat()
-                                    )
-                                    val tapPlan = CelestialObjectSizes.resolveArRenderPlan(
-                                        obj = obj,
-                                        zoomFactor = activeZoom,
-                                        proximityScale = tapProximityScale,
-                                        density = activeDensity,
-                                        dpPerDegree = (pixelsPerDegreeForTap / activeDensity).toFloat(),
-                                        previouslyShapeTier = arTierMemory[obj.id] == true
-                                    )
-                                    tapRenderItems.add(
-                                        ArVisibleRenderItem(obj, horiz, pt.x, pt.y, tapPlan)
-                                    )
-                                }
-
-                                val dist = hypot(
-                                    (touchOffset.x - pt.x).toDouble(),
-                                    (touchOffset.y - pt.y).toDouble()
-                                ).toFloat()
-                                if (dist < bestDistPx) {
-                                    bestDistPx = dist
-                                    bestMatch = obj
-                                }
+                            // Hit-test exactly what was drawn in the last frame.
+                            val items = overlayState.items.toList()
+                            val tapRadius = 28f * currentDensity
+                            var best: ArDrawnItem? = null
+                            var bestScore = Double.MAX_VALUE
+                            for (item in items) {
+                                val d = hypot((touchOffset.x - item.x).toDouble(), (touchOffset.y - item.y).toDouble())
+                                if (d > tapRadius + item.radiusPx) continue
+                                val score = d + item.priority * 1.5
+                                if (score < bestScore) { bestScore = score; best = item }
                             }
-
-                            val tapClusters = buildLabelClusters(
-                                labelItems = tapRenderItems.filter { item ->
-                                    shouldShowArLabel(
-                                        obj = item.obj,
-                                        isSelected = item.obj.id == selectedTarget?.id,
-                                        isAimed = false,
-                                        filterObjectNames = activeFilterObjectNames,
-                                        labelEligible = item.plan.labelEligible
-                                    )
-                                },
-                                minDistancePx = max(24f * activeDensity, pixelsPerDegreeForTap.toFloat() * 0.35f),
-                                maxClusterRadiusPx = max(24f * activeDensity, pixelsPerDegreeForTap.toFloat() * 0.35f) * 1.4f
-                            )
-                            val tappedCluster = tapClusters.firstOrNull { cluster ->
-                                hypot(
-                                    (touchOffset.x - cluster.centerX).toDouble(),
-                                    (touchOffset.y - cluster.centerY).toDouble()
-                                ) <= (36f * activeDensity).toDouble()
+                            val crowd = items.filter {
+                                hypot((touchOffset.x - it.x).toDouble(), (touchOffset.y - it.y).toDouble()) <= tapRadius
                             }
-                            if (tappedCluster != null) {
-                                expandedLabelCluster = tappedCluster.objects
+                            if (crowd.size >= 3 && best != null && best.radiusPx < tapRadius) {
+                                expandedLabelCluster = crowd.sortedBy { it.priority }.map { it.obj }.distinctBy { it.id }
                                 tappedObject = null
                             } else {
-                                tappedObject = bestMatch
+                                tappedObject = best?.obj
                             }
                         }
                     )
@@ -1437,755 +1364,102 @@ fun CompassARScreen(
             val centerX = canvasWidth / 2f
             val centerY = canvasHeight / 2f
 
-            val fovX = ARProjectionEngine.computeEffectiveFovXDeg(
-                screenWidthPx = canvasWidth,
-                screenHeightPx = canvasHeight,
-                intrinsics = cameraIntrinsics,
-                zoomFactor = zoomFactor
-            ).coerceAtLeast(1.0)
-            val pixelsPerDegree = canvasWidth / fovX
-            // Used by label decluttering below to keep cluster thresholds tied to angular zoom.
-            // No synthetic starfield here: with the camera off (toggled, permission denied, or bind
-            // failure on a device without a usable camera) the Box background behind this Canvas is
-            // solid black, and the real catalogued objects projected below are the entire sky.
-
-            // Guided 1-Point Alignment: clear sightline — hide ALL projected sky
-            // graphics (horizon, orbits, grids, objects, labels, constellation lines)
-            // so the user sees only the raw camera feed + alignment reticle/HUD.
+            // Guided 1-Point Alignment: clear sightline — hide all projected sky graphics.
             if (isAlignmentMode) return@Canvas
 
-            // Draw Horizon Line
-            val horizonPath = Path()
-            var horizonFirst = true
-            val horizonSteps = 24
-            val horizonSpan = fovX * 2.0
-            for (i in 0..horizonSteps) {
-                val hAz = currentAzimuth - (horizonSpan / 2.0) + (i * horizonSpan / horizonSteps)
-                val pt = ARProjectionEngine.projectAltAz(
-                    azimuthDeg = (hAz % 360.0 + 360.0) % 360.0,
-                    altitudeDeg = 0.0,
-                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                    currentAzimuth = currentAzimuth,
-                    currentAltitude = currentAltitude,
-                    currentRoll = skyOrientation.roll.toDouble(),
-                    canvasWidth = canvasWidth,
-                    canvasHeight = canvasHeight,
-                    intrinsics = cameraIntrinsics,
-                    zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                    displayRotationDegrees = displayRotationDegrees
-                ) ?: continue
-                if (horizonFirst) {
-                    horizonPath.moveTo(pt.x, pt.y)
-                    horizonFirst = false
-                } else {
-                    horizonPath.lineTo(pt.x, pt.y)
-                }
-            }
-            if (!horizonFirst) {
-                drawPath(
-                    path = horizonPath,
-                    color = AccentPrimary.copy(alpha = 0.6f),
-                    style = Stroke(width = 2.5f)
-                )
-                val horizonCenterPt = ARProjectionEngine.projectAltAz(
-                    azimuthDeg = currentAzimuth,
-                    altitudeDeg = 0.0,
-                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                    currentAzimuth = currentAzimuth,
-                    currentAltitude = currentAltitude,
-                    currentRoll = skyOrientation.roll.toDouble(),
-                    canvasWidth = canvasWidth,
-                    canvasHeight = canvasHeight,
-                    intrinsics = cameraIntrinsics,
-                    zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                    displayRotationDegrees = displayRotationDegrees
-                )
-                if (horizonCenterPt != null && horizonCenterPt.x in 0f..canvasWidth && horizonCenterPt.y in 0f..canvasHeight) {
-                    val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
-                    val horizonTextLayout = textMeasurer.measure(
-                        text = horizonLabel,
-                        style = TextStyle(fontFamily = canvasFontFamily, color = AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                        maxLines = 1,
-                        softWrap = false
+            val snap = skySnapshot
+            val cam = buildCameraModel(canvasWidth, canvasHeight)
+
+            // Feed the GL sky with exactly the same virtual camera.
+            val glView = glSkyView
+            if (showSimulatedSky && glView != null && snap != null) {
+                val lighting = skyLighting
+                if (lighting != null) glView.updateLighting(lighting)
+                val c2e = cam.cameraToEnuMatrix()
+                val e2g = M3.transpose(snap.frame.enuFromGcrs)
+                glView.updateFrame(
+                    ArSkyGlFrame(
+                        camToEnu = FloatArray(9) { c2e[it].toFloat() },
+                        enuToGcrs = FloatArray(9) { e2g[it].toFloat() },
+                        focalPx = cam.focalLengthViewPx().toFloat(),
+                        viewWidth = canvasWidth.toInt(),
+                        viewHeight = canvasHeight.toInt(),
+                        refractionScale = ArScreenSupport.refractionScale(snap.frame.observer)
                     )
-                    val drawX = 20f
-                    val drawY = horizonCenterPt.y - 30f
-                    if (drawX.isFinite() && drawY.isFinite() && drawY in 0f..canvasHeight) {
-                        drawText(
-                            textLayoutResult = horizonTextLayout,
-                            topLeft = Offset(drawX, drawY)
-                        )
-                    }
-                }
+                )
             }
 
-            // Render Orbit Trajectory Line ONLY when an object is active (Target or Tap Card)
-            if (activeOrbitObject != null) {
-                // Solid line = orbital portion behind the object (past)
-                if (orbitPastPoints.size >= 2) {
-                    val pastPath = Path()
-                    var pastFirst = true
-                    for (pt in orbitPastPoints) {
-                        val projPt = ARProjectionEngine.projectAltAz(
-                            azimuthDeg = pt.azimuthDeg,
-                            altitudeDeg = pt.altitudeDeg,
-                            rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                            currentAzimuth = currentAzimuth,
-                            currentAltitude = currentAltitude,
-                            currentRoll = skyOrientation.roll.toDouble(),
-                            canvasWidth = canvasWidth,
-                            canvasHeight = canvasHeight,
-                            intrinsics = cameraIntrinsics,
-                            zoomFactor = zoomFactor,
-                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                            displayRotationDegrees = displayRotationDegrees
-                        ) ?: continue
-
-                        if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
-                            if (pastFirst) {
-                                pastPath.moveTo(projPt.x, projPt.y)
-                                pastFirst = false
-                            } else {
-                                pastPath.lineTo(projPt.x, projPt.y)
-                            }
-                        }
-                    }
-                    if (!pastFirst) {
-                        drawPath(
-                            path = pastPath,
-                            color = Color(0xFF38BDF8).copy(alpha = 0.85f),
-                            style = Stroke(width = 2.5f * density)
-                        )
-                    }
-                }
-
-                // Dotted line = orbital portion in front of the object / yet to be travelled (future)
-                if (orbitFuturePoints.size >= 2) {
-                    val futurePath = Path()
-                    var futureFirst = true
-                    for (pt in orbitFuturePoints) {
-                        val projPt = ARProjectionEngine.projectAltAz(
-                            azimuthDeg = pt.azimuthDeg,
-                            altitudeDeg = pt.altitudeDeg,
-                            rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                            currentAzimuth = currentAzimuth,
-                            currentAltitude = currentAltitude,
-                            currentRoll = skyOrientation.roll.toDouble(),
-                            canvasWidth = canvasWidth,
-                            canvasHeight = canvasHeight,
-                            intrinsics = cameraIntrinsics,
-                            zoomFactor = zoomFactor,
-                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                            displayRotationDegrees = displayRotationDegrees
-                        ) ?: continue
-
-                        if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
-                            if (futureFirst) {
-                                futurePath.moveTo(projPt.x, projPt.y)
-                                futureFirst = false
-                            } else {
-                                futurePath.lineTo(projPt.x, projPt.y)
-                            }
-                        }
-                    }
-                    if (!futureFirst) {
-                        drawPath(
-                            path = futurePath,
-                            color = Color(0xFF38BDF8).copy(alpha = 0.85f),
-                            style = Stroke(
-                                width = 2.5f * density,
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f * density, 8f * density), 0f)
-                            )
-                        )
-                    }
-                }
-            }
-
-            // Render Galactic Equator Plane / Constellation lines (if Constellations filter enabled)
-            if (filterConstellations) {
-                val galPoints = GalacticEngine.calculateGalacticPlanePoints(
-                    jd = jd,
-                    userLatDeg = uiState.userLocation.latitude,
-                    userLonDeg = uiState.userLocation.longitude
-                )
-                val galPath = Path()
-                var galFirst = true
-                for (gp in galPoints) {
-                    val projPt = ARProjectionEngine.projectAltAz(
-                        azimuthDeg = gp.azimuthDeg,
-                        altitudeDeg = gp.altitudeDeg,
-                        rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                        currentAzimuth = currentAzimuth,
-                        currentAltitude = currentAltitude,
-                        currentRoll = skyOrientation.roll.toDouble(),
-                        canvasWidth = canvasWidth,
-                        canvasHeight = canvasHeight,
-                        intrinsics = cameraIntrinsics,
-                        zoomFactor = zoomFactor,
-                        sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                        displayRotationDegrees = displayRotationDegrees
-                    ) ?: continue
-
-                    if (galFirst) {
-                        galPath.moveTo(projPt.x, projPt.y)
-                        galFirst = false
-                    } else {
-                        galPath.lineTo(projPt.x, projPt.y)
-                    }
-                }
-                if (!galFirst) {
-                    drawPath(
-                        path = galPath,
-                        color = Color(0xFFC084FC).copy(alpha = 0.4f),
-                        style = Stroke(width = 2.5f)
-                    )
-                }
-            }
-
-            // 2. Project All Visible Catalog Objects & Identify Aimed Object at Center Reticle
-            val visibleRenderItems = mutableListOf<ArVisibleRenderItem>()
-            var closestReticleObj: CelestialObject? = null
-            var minReticleDist = 70f * density
-
-            for (obj in allCatalog) {
-                val isVisibleByFilter = isVisibleByArFilter(
-                    obj = obj,
-                    filterStars = filterStars,
-                    filterSun = filterSun,
-                    filterMoons = filterMoons,
-                    filterPlanets = filterPlanets,
-                    filterSatellites = filterSatellites,
-                    filterDeepSky = filterDeepSky,
-                    filterMeteorShowers = filterMeteorShowers
-                )
-                if (!isVisibleByFilter) continue
-
-                val horiz = if (obj.type == ObjectType.SUN) {
-                    sunHoriz
-                } else if (obj.id == "moon") {
-                    moonHoriz
-                } else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {
-                    satellitePositions[obj.id] ?: satellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
-                } else {
-                    CoordinateEngine.equatorialToHorizontal(
-                        CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
-                        lastDeg,
-                        uiState.userLocation.latitude
-                    )
-                }
-
-                val projPt = ARProjectionEngine.projectAltAz(
-                    azimuthDeg = horiz.azimuthDeg,
-                    altitudeDeg = horiz.altitudeDeg,
-                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                    currentAzimuth = currentAzimuth,
-                    currentAltitude = currentAltitude,
-                    currentRoll = skyOrientation.roll.toDouble(),
-                    canvasWidth = canvasWidth,
-                    canvasHeight = canvasHeight,
-                    intrinsics = cameraIntrinsics,
-                    zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                    displayRotationDegrees = displayRotationDegrees
-                ) ?: continue
-
-                val px = projPt.x
-                val py = projPt.y
-
-                // Padding boundary check
-                if (px in -150f..(canvasWidth + 150f) && py in -150f..(canvasHeight + 150f)) {
-                    val distToCenter = hypot(
-                        (px - centerX).toDouble(),
-                        (py - centerY).toDouble()
-                    ).toFloat()
-                    if (distToCenter < minReticleDist) {
-                        minReticleDist = distToCenter
-                        closestReticleObj = obj
-                    }
-
-                    val deltaAzDeg = normalizeDeltaDegrees(horiz.azimuthDeg - currentAzimuth).toFloat()
-                    val deltaAltDeg = (horiz.altitudeDeg - currentAltitude).toFloat()
-                    // Centre-proximity magnification, shared by the tier decision and the glyph size.
-                    val proximityScale = CelestialObjectSizes.calculateProximityScale(
-                        deltaAzDeg = deltaAzDeg,
-                        deltaAltDeg = deltaAltDeg
-                    )
-                    val previousTierWasShape = arTierMemory[obj.id] == true
-                    val plan = CelestialObjectSizes.resolveArRenderPlan(
-                        obj = obj,
-                        zoomFactor = zoomFactor,
-                        proximityScale = proximityScale,
+            if (snap != null) {
+                ArSkyOverlay.draw(
+                    scope = this,
+                    state = overlayState,
+                    snapshot = snap,
+                    lighting = skyLighting,
+                    camera = cam,
+                    catalogue = allCatalog,
+                    satellites = arSatellites,
+                    glyphs = glyphCache,
+                    opts = ArOverlayOptions(
+                        cameraMode = cameraLive,
+                        zoom = if (cameraLive) (boundCamera?.cameraInfo?.zoomState?.value?.zoomRatio?.toDouble() ?: 1.0) else zoomFactor.toDouble(),
                         density = density,
-                        dpPerDegree = (pixelsPerDegree / density).toFloat(),
-                        previouslyShapeTier = previousTierWasShape
-                    )
-                    // Memory for next frame's hysteresis band; never pops within one frame because
-                    // the plan above is drawn from immediately.
-                    if (previousTierWasShape != (plan.tier == CelestialObjectSizes.ArRenderTier.SHAPE)) {
-                        arTierMemory[obj.id] = plan.tier == CelestialObjectSizes.ArRenderTier.SHAPE
-                    }
-
-                    visibleRenderItems.add(ArVisibleRenderItem(obj, horiz, px, py, plan))
-                }
-            }
-
-            val labelClusterCandidates = visibleRenderItems.filter { item ->
-                val selected = item.obj.id == selectedTarget?.id || (selectedTarget != null && com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(item.obj.id) == com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(selectedTarget?.id ?: ""))
-                val aimed = closestReticleObj != null && item.obj.id == closestReticleObj.id
-                shouldShowArLabel(item.obj, selected, aimed, filterObjectNames, item.plan.labelEligible) && !selected && !aimed
-            }
-            val declutterDistancePx = max(24f * density, pixelsPerDegree.toFloat() * 0.35f)
-            val labelClusters = buildLabelClusters(
-                labelItems = labelClusterCandidates,
-                minDistancePx = declutterDistancePx,
-                maxClusterRadiusPx = declutterDistancePx * 1.4f
-            )
-            val clusteredObjectIds = labelClusters.flatMap { it.objects.map { obj -> obj.id } }.toSet()
-
-            for (item in visibleRenderItems) {
-                val obj = item.obj
-                val px = item.px
-                val py = item.py
-
-                val isSelected = obj.id == selectedTarget?.id || (selectedTarget != null && com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id) == com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(selectedTarget?.id ?: ""))
-                val isAimed = (closestReticleObj != null && obj.id == closestReticleObj.id)
-
-                val plan = item.plan
-
-                // Dot → shape: the object is drawn at the plan's interpolated radius — the dot size
-                // at the start of the transition, its full type-glyph size once resolved — while the
-                // point of light is cross-faded out underneath it. Both are driven by the same
-                // centre-proximity magnification the glyph always used, so they cannot disagree.
-                val radiusPx = plan.drawnRadiusPx
-
-                if (plan.dotAlpha > 0f) {
-                    drawCircle(
-                        color = arDotColor(obj),
-                        radius = plan.dotRadiusPx,
-                        center = Offset(px, py),
-                        alpha = plan.dotAlpha
-                    )
-                }
-
-                // A pure dot (blend == 0) draws no glyph at all; "faint objects render as points".
-                if (plan.blend > 0f) when (obj.type) {
-                    ObjectType.SUN -> {
-                        // Solar Corona & Disk
-                        drawCircle(
-                            color = Color(0xFFFF8800).copy(alpha = 0.2f),
-                            radius = radiusPx * 2.2f,
-                            center = Offset(px, py)
-                        )
-                        drawCircle(
-                            color = Color(0xFFFFCC00).copy(alpha = 0.45f),
-                            radius = radiusPx * 1.5f,
-                            center = Offset(px, py)
-                        )
-                        drawCircle(
-                            color = Color(0xFFFFFBEB),
-                            radius = radiusPx,
-                            center = Offset(px, py)
-                        )
-                    }
-                    ObjectType.MOON -> {
-                        if (obj.id == "moon") {
-                            // Lunar Halo & Phase-aware Disc
-                            drawCircle(
-                                color = Color(0xFFE2E8F0).copy(alpha = 0.25f),
-                                radius = radiusPx * 1.7f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFF1FAEE),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                            val illumFrac = (moonData.illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
-                            if (illumFrac < 0.98f) {
-                                val limbScreenAngleDeg = ARProjectionEngine.calculateMoonLimbScreenAngleDeg(
-                                    moonAzimuthDeg = moonHoriz.azimuthDeg,
-                                    moonAltitudeDeg = moonHoriz.altitudeDeg,
-                                    sunAzimuthDeg = sunHoriz.azimuthDeg,
-                                    sunAltitudeDeg = sunHoriz.altitudeDeg,
-                                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                                    currentAzimuth = currentAzimuth,
-                                    currentAltitude = currentAltitude,
-                                    currentRoll = skyOrientation.roll.toDouble()
-                                ).toFloat()
-
-                                val shadowPath = Path()
-                                // Outer shadow arc around left edge (+90° bottom to -90° top)
-                                shadowPath.addArc(
-                                    Rect(px - radiusPx, py - radiusPx, px + radiusPx, py + radiusPx),
-                                    90f,
-                                    180f
-                                )
-                                val k = (2.0 * illumFrac - 1.0).toFloat()
-                                val stepInnerWidth = (abs(k) * radiusPx).coerceAtLeast(0f)
-                                val innerRect = Rect(px - stepInnerWidth, py - radiusPx, px + stepInnerWidth, py + radiusPx)
-
-                                // Inner terminator arc from -90° top to +90° bottom
-                                val innerSweep = if (k >= 0) -180f else 180f
-                                shadowPath.arcTo(innerRect, 270f, innerSweep, false)
-                                shadowPath.close()
-
-                                rotate(limbScreenAngleDeg, Offset(px, py)) {
-                                    drawPath(
-                                        path = shadowPath,
-                                        color = Color(0xFF0F172A).copy(alpha = 0.85f)
-                                    )
-                                }
-                            }
-                        } else {
-                            // Jovian Satellite / Galilean Moon Disk
-                            drawCircle(
-                                color = Color(0xFF818CF8).copy(alpha = 0.35f),
-                                radius = radiusPx * 1.6f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFC7D2FE),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                        }
-                    }
-                    ObjectType.PLANET, ObjectType.DWARF_PLANET -> {
-                        if (obj.id == "planet_jupiter") {
-                            // Jupiter: Cream disk with 2 horizontal bands
-                            drawCircle(
-                                color = Color(0xFFE2D1A6),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                            drawLine(
-                                color = Color(0xFFC0703B),
-                                start = Offset(px - radiusPx * 0.8f, py - radiusPx * 0.35f),
-                                end = Offset(px + radiusPx * 0.8f, py - radiusPx * 0.35f),
-                                strokeWidth = 2.5f * density
-                            )
-                            drawLine(
-                                color = Color(0xFFC0703B),
-                                start = Offset(px - radiusPx * 0.8f, py + radiusPx * 0.35f),
-                                end = Offset(px + radiusPx * 0.8f, py + radiusPx * 0.35f),
-                                strokeWidth = 2.5f * density
-                            )
-                        } else if (obj.id == "planet_saturn") {
-                            // Saturn: Golden disk + tiny ring system
-                            drawCircle(
-                                color = Color(0xFFFDE047),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                            drawOval(
-                                color = Color(0xFFFACC15).copy(alpha = 0.85f),
-                                topLeft = Offset(px - radiusPx * 2.2f, py - radiusPx * 0.7f),
-                                size = Size(radiusPx * 4.4f, radiusPx * 1.4f),
-                                style = Stroke(width = 2.5f * density)
-                            )
-                        } else if (obj.id == "planet_mars") {
-                            // Mars: Warm reddish-orange disk
-                            drawCircle(
-                                color = Color(0xFFEF4444).copy(alpha = 0.3f),
-                                radius = radiusPx * 1.8f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFEF4444),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                        } else if (obj.id == "planet_venus") {
-                            // Venus: Brilliant golden-white disk
-                            drawCircle(
-                                color = Color(0xFFFEF08A).copy(alpha = 0.4f),
-                                radius = radiusPx * 2.0f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFFEF08A),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                        } else if (obj.id == "planet_uranus" || obj.id == "planet_neptune") {
-                            // Blue-green disks
-                            drawCircle(
-                                color = Color(0xFF38BDF8),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                        } else {
-                            // Slate / default planet
-                            drawCircle(
-                                color = Color(0xFFFFD166).copy(alpha = 0.35f),
-                                radius = radiusPx * 1.8f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFFFD166),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                        }
-                    }
-                    ObjectType.SATELLITE -> {
-                        // Satellite minimal glyph: center body + 2 solar panel wings
-                        drawRect(
-                            color = Color(0xFF38BDF8),
-                            topLeft = Offset(px - radiusPx * 2.0f, py - radiusPx * 0.4f),
-                            size = Size(radiusPx * 4.0f, radiusPx * 0.8f)
-                        )
-                        drawRect(
-                            color = Color(0xFFF59E0B),
-                            topLeft = Offset(px - radiusPx * 0.6f, py - radiusPx * 0.6f),
-                            size = Size(radiusPx * 1.2f, radiusPx * 1.2f)
-                        )
-                    }
-                    ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
-                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> {
-                        if (obj.type == ObjectType.GALAXY || obj.id.contains("m31") || obj.category.contains("Galaxy", ignoreCase = true)) {
-                            // Galaxy: tiny elliptical glow + bright core
-                            drawOval(
-                                color = Color(0xFFC084FC).copy(alpha = 0.45f),
-                                topLeft = Offset(px - radiusPx * 1.8f, py - radiusPx * 0.9f),
-                                size = Size(radiusPx * 3.6f, radiusPx * 1.8f)
-                            )
-                            drawCircle(
-                                color = Color.White,
-                                radius = radiusPx * 0.4f,
-                                center = Offset(px, py)
-                            )
-                        } else if (obj.type == ObjectType.NEBULA || obj.category.contains("Nebula", ignoreCase = true)) {
-                            // Nebula: faint diffuse cloud
-                            drawCircle(
-                                color = Color(0xFFF472B6).copy(alpha = 0.35f),
-                                radius = radiusPx * 1.8f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFF38BDF8).copy(alpha = 0.3f),
-                                radius = radiusPx * 1.1f,
-                                center = Offset(px - radiusPx * 0.3f, py + radiusPx * 0.2f)
-                            )
-                        } else if (obj.type == ObjectType.GLOBULAR_CLUSTER) {
-                            // Globular cluster: compact soft glow
-                            drawCircle(
-                                color = Color(0xFFE2E8F0).copy(alpha = 0.5f),
-                                radius = radiusPx * 1.4f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color.White,
-                                radius = radiusPx * 0.3f,
-                                center = Offset(px, py)
-                            )
-                        } else {
-                            // Star cluster
-                            drawCircle(
-                                color = Color(0xFFC77DFF).copy(alpha = 0.4f),
-                                radius = radiusPx * 1.6f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFE0AAFF),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                        }
-                    }
-                    else -> {
-                        // Star (and every other point-like glyph). The radius comes from the shared
-                        // tier plan, which is the old (4 - magnitude) curve once the object is
-                        // resolved and the dot size while it is not.
-                        val starColor = if (obj.magnitude <= 0.5) Color(0xFFA5F3FC) else if (obj.magnitude <= 2.5) Color(0xFFE2E8F0) else Color(0xFF94A3B8)
-                        drawCircle(
-                            color = starColor,
-                            radius = radiusPx,
-                            center = Offset(px, py)
-                        )
-                        // Soft 4-point diffraction cross for brightest stars (mag <= 0.5)
-                        if (obj.magnitude <= 0.5) {
-                            val spikeLen = radiusPx * 2.5f
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.35f),
-                                start = Offset(px - spikeLen, py),
-                                end = Offset(px + spikeLen, py),
-                                strokeWidth = 1.5f
-                            )
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.35f),
-                                start = Offset(px, py - spikeLen),
-                                end = Offset(px, py + spikeLen),
-                                strokeWidth = 1.5f
-                            )
-                        }
-                    }
-                }
-
-                // Selected target ring or Aimed reticle highlight
-                if (isSelected) {
-                    drawCircle(
-                        color = AccentPrimary,
-                        radius = radiusPx + 14f,
-                        center = Offset(px, py),
-                        style = Stroke(width = 2.5f)
-                    )
-                } else if (isAimed && !filterObjectNames) {
-                    drawCircle(
-                        color = AccentPrimary.copy(alpha = 0.85f),
-                        radius = radiusPx + 10f,
-                        center = Offset(px, py),
-                        style = Stroke(width = 1.8f)
-                    )
-                }
-
-                // Label with dark backing pill. Ambient labels require shape tier; a tapped or
-                // aimed-at object keeps its existing label/info-card behaviour at any tier.
-                val shouldShowLabel = shouldShowArLabel(obj, isSelected, isAimed, filterObjectNames, plan.labelEligible) && obj.id !in clusteredObjectIds
-
-                if (shouldShowLabel) {
-                    val labelText = if (isFa) obj.nameFa else obj.nameEn
-                    val textLayout = textMeasurer.measure(
-                        text = labelText,
-                        style = TextStyle(
-                            fontFamily = canvasFontFamily,
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        maxLines = 1,
-                        softWrap = false
-                    )
-
-                    val pillWidth = textLayout.size.width + 20f
-                    val pillHeight = textLayout.size.height + 10f
-                    val pillLeft = px - pillWidth / 2f
-                    val pillTop = py + radiusPx + 8f
-
-                    if (
-                        pillLeft.isFinite() &&
-                        pillTop.isFinite() &&
-                        pillLeft < canvasWidth &&
-                        pillTop < canvasHeight &&
-                        pillLeft + pillWidth > 0f &&
-                        pillTop + pillHeight > 0f
-                    ) {
-                        drawRoundRect(
-                            color = Color.Black.copy(alpha = if (isAimed || isSelected) 0.85f else 0.65f),
-                            topLeft = Offset(pillLeft, pillTop),
-                            size = Size(pillWidth, pillHeight),
-                            cornerRadius = CornerRadius(12f, 12f)
-                        )
-                        if (isAimed || isSelected) {
-                            drawRoundRect(
-                                color = AccentPrimary,
-                                topLeft = Offset(pillLeft, pillTop),
-                                size = Size(pillWidth, pillHeight),
-                                cornerRadius = CornerRadius(12f, 12f),
-                                style = Stroke(width = 1.5f)
-                            )
-                        }
-
-                        val textDrawX = pillLeft + 10f
-                        val textDrawY = pillTop + 5f
-                        if (
-                            textDrawX.isFinite() &&
-                            textDrawY.isFinite() &&
-                            textDrawX < canvasWidth &&
-                            textDrawY < canvasHeight &&
-                            textDrawX + textLayout.size.width > 0f &&
-                            textDrawY + textLayout.size.height > 0f
-                        ) {
-                            drawText(
-                                textLayoutResult = textLayout,
-                                topLeft = Offset(textDrawX, textDrawY)
-                            )
-                        }
-                    }
-                }
-            }
-
-            for (cluster in labelClusters) {
-                val labelText = if (isFa) {
-                    "${TimeEngine.formatPersianNumbers(cluster.objects.size.toString())} جرم"
-                } else {
-                    "${cluster.objects.size} objects"
-                }
-                val textLayout = textMeasurer.measure(
-                    text = labelText,
-                    style = TextStyle(
-                        fontFamily = canvasFontFamily,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        showStars = filterStars,
+                        showUnnamedStars = filterUnnamedStars,
+                        showConstellations = filterConstellations,
+                        showPlanets = filterPlanets,
+                        showMoon = filterMoons,
+                        showSun = filterSun,
+                        showDeepSky = filterDeepSky,
+                        showSatellites = filterSatellites,
+                        showMeteors = filterMeteorShowers,
+                        showNames = filterObjectNames,
+                        isFa = isFa,
+                        timeMs = System.currentTimeMillis(),
+                        selectedId = selectedTarget?.id,
+                        accent = AccentPrimary
                     ),
-                    maxLines = 1,
-                    softWrap = false
+                    textMeasurer = textMeasurer,
+                    fontFamily = canvasFontFamily,
+                    aimRadiusPx = 24f * density
                 )
-                val pillWidth = textLayout.size.width + 22f
-                val pillHeight = textLayout.size.height + 12f
-                val pillLeft = (cluster.centerX - pillWidth / 2f).coerceIn(4f, canvasWidth - pillWidth - 4f)
-                val pillTop = (cluster.centerY - pillHeight / 2f).coerceIn(4f, canvasHeight - pillHeight - 4f)
-                drawRoundRect(
-                    color = AccentPrimary.copy(alpha = 0.82f),
-                    topLeft = Offset(pillLeft, pillTop),
-                    size = Size(pillWidth, pillHeight),
-                    cornerRadius = CornerRadius(14f, 14f)
-                )
-                drawRoundRect(
-                    color = Color.White.copy(alpha = 0.4f),
-                    topLeft = Offset(pillLeft, pillTop),
-                    size = Size(pillWidth, pillHeight),
-                    cornerRadius = CornerRadius(14f, 14f),
-                    style = Stroke(width = 1.2f)
-                )
-                drawText(
-                    textLayoutResult = textLayout,
-                    topLeft = Offset(pillLeft + 11f, pillTop + 6f)
-                )
+
+                // Path of the active object: solid = past, dashed = future.
+                if (activeOrbitObject != null) {
+                    fun pathOf(points: List<CoordinateEngine.Horizontal>): Path? {
+                        val path = Path()
+                        var first = true
+                        val p = FloatArray(2)
+                        for (pt in points) {
+                            val e = ArSkyFrame.enuFromAltAz(pt.altitudeDeg, pt.azimuthDeg)
+                            if (!cam.project(e[0], e[1], e[2], p)) { first = true; continue }
+                            if (p[0] !in -600f..(canvasWidth + 600f) || p[1] !in -600f..(canvasHeight + 600f)) { first = true; continue }
+                            if (first) { path.moveTo(p[0], p[1]); first = false } else path.lineTo(p[0], p[1])
+                        }
+                        return path
+                    }
+                    pathOf(orbitPastPoints)?.let {
+                        drawPath(path = it, color = Color(0xFF38BDF8).copy(alpha = 0.8f), style = Stroke(width = 2.2f * density))
+                    }
+                    pathOf(orbitFuturePoints)?.let {
+                        drawPath(
+                            path = it,
+                            color = Color(0xFF38BDF8).copy(alpha = 0.8f),
+                            style = Stroke(width = 2.2f * density, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f * density, 8f * density), 0f))
+                        )
+                    }
+                }
             }
 
-            // 3. Center Crosshair Aiming Reticle Frame
-            drawCircle(
-                color = AccentPrimary,
-                radius = 65f,
-                center = Offset(centerX, centerY),
-                style = Stroke(width = 2.5f)
-            )
-            drawCircle(
-                color = Color.White.copy(alpha = 0.35f),
-                radius = 110f,
-                center = Offset(centerX, centerY),
-                style = Stroke(width = 1.5f)
-            )
-
-            // Tick marks
-            drawLine(
-                color = Color.White,
-                start = Offset(centerX - 85f, centerY),
-                end = Offset(centerX - 50f, centerY),
-                strokeWidth = 2f
-            )
-            drawLine(
-                color = Color.White,
-                start = Offset(centerX + 50f, centerY),
-                end = Offset(centerX + 85f, centerY),
-                strokeWidth = 2f
-            )
-            drawLine(
-                color = Color.White,
-                start = Offset(centerX, centerY - 85f),
-                end = Offset(centerX, centerY - 50f),
-                strokeWidth = 2f
-            )
-            drawLine(
-                color = Color.White,
-                start = Offset(centerX, centerY + 50f),
-                end = Offset(centerX, centerY + 85f),
-                strokeWidth = 2f
-            )
+            // Centre reticle (its inner ring is also the aim radius used above).
+            val ring = 24f * density
+            drawCircle(color = AccentPrimary, radius = ring, center = Offset(centerX, centerY), style = Stroke(width = 1.8f * density))
+            drawCircle(color = Color.White.copy(alpha = 0.3f), radius = ring * 1.7f, center = Offset(centerX, centerY), style = Stroke(width = 1f * density))
+            val t0 = ring * 1.25f
+            val t1 = ring * 0.72f
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(centerX - t0, centerY), Offset(centerX - t1, centerY), strokeWidth = 1.4f * density)
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(centerX + t1, centerY), Offset(centerX + t0, centerY), strokeWidth = 1.4f * density)
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(centerX, centerY - t0), Offset(centerX, centerY - t1), strokeWidth = 1.4f * density)
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(centerX, centerY + t1), Offset(centerX, centerY + t0), strokeWidth = 1.4f * density)
         }
 
         // No GPS status is overlaid on the canvas any more: locator accuracy / staleness belongs to
@@ -2336,7 +1610,7 @@ fun CompassARScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = 60.dp),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = squircleShape(RedCornerRadius.window),
                     style = LiquidGlassDefaults.Card,
                     fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.95f),
                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border)
@@ -2351,7 +1625,7 @@ fun CompassARScreen(
                             fontWeight = FontWeight.Bold,
                             color = RedTheme.colors.textPrimary
                         )
-                        val distStr = String.format("%.1f°", finder.totalAngularDistanceDeg)
+                        val distStr = String.format(Locale.US, "%.1f°", finder.totalAngularDistanceDeg)
                         Text(
                             text = if (isFa) "فاصله تا هدف: ${TimeEngine.formatPersianNumbers(distStr)}" else "Distance: $distStr",
                             style = MaterialTheme.typography.labelSmall,
@@ -2374,7 +1648,7 @@ fun CompassARScreen(
                     selectedTarget = null
                     viewModel.clearTargetObject()
                 },
-                shape = RoundedCornerShape(20.dp),
+                shape = squircleShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Pill,
                 fallbackColor = Color(0xCC1A1F36),
                 fallbackBorder = BorderStroke(1.dp, Color(0x88FF5252)),
@@ -2479,7 +1753,7 @@ fun CompassARScreen(
                 }
 
                 // Right Floating Pill: Quick Tools (Night Vision + Calibrate)
-                val isNightVision = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY
+                val isNightVision = nightVision
                 LiquidGlassSurface(
                     shape = CircleShape,
                     style = LiquidGlassDefaults.Pill,
@@ -2494,15 +1768,15 @@ fun CompassARScreen(
                     ) {
                         IconButton(
                             onClick = {
-                                viewModel.setSkyCanvasTheme(
-                                    if (isNightVision) SkyCanvasTheme.ATMOSPHERIC_SKY else SkyCanvasTheme.OBSERVATORY
-                                )
+                                // AR-local red night vision (the app-wide theme is left untouched).
+                                nightVision = !nightVision
+                                arPrefs.edit().putBoolean("ar_night_vision", nightVision).apply()
                             },
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.NightsStay,
-                                contentDescription = "Night Mode",
+                                contentDescription = if (isFa) "دید در شب" else "Night vision",
                                 tint = if (isNightVision) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -2589,7 +1863,7 @@ fun CompassARScreen(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 LiquidGlassSurface(
-                    shape = RoundedCornerShape(RedCornerRadius.xl),
+                    shape = squircleShape(RedCornerRadius.xl),
                     style = LiquidGlassDefaults.Card,
                     fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
                     fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
@@ -2721,7 +1995,7 @@ fun CompassARScreen(
                                                     )
                                                 }
                                                 Surface(
-                                                    shape = RoundedCornerShape(12.dp),
+                                                    shape = squircleShape(12.dp),
                                                     color = if (result.isVisibleNow) StatusGood.copy(alpha = 0.2f) else RedTheme.colors.surfaceVariant,
                                                     border = BorderStroke(1.dp, if (result.isVisibleNow) StatusGood else RedTheme.colors.border)
                                                 ) {
@@ -2836,63 +2110,70 @@ fun CompassARScreen(
                                         FilterChip(
                                             selected = filterObjectNames,
                                             onClick = { updateFilter("filter_object_names", !filterObjectNames) { filterObjectNames = it } },
-                                            label = { Text(if (isFa) "🏷 نام اجرام" else "🏷 Object Names") }
+                                            label = { Text(if (isFa) "نام اجرام" else "Object Names") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterStars,
                                             onClick = { updateFilter("filter_stars", !filterStars) { filterStars = it } },
-                                            label = { Text(if (isFa) "⭐ ستارگان" else "⭐ Stars") }
+                                            label = { Text(if (isFa) "ستارگان" else "Stars") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterUnnamedStars,
+                                            onClick = { updateFilter("filter_unnamed_stars", !filterUnnamedStars) { filterUnnamedStars = it } },
+                                            label = { Text(if (isFa) "✦ ستارگان بی‌نام" else "✦ Unnamed Stars") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterConstellations,
                                             onClick = { updateFilter("filter_constellations", !filterConstellations) { filterConstellations = it } },
-                                            label = { Text(if (isFa) "✨ صور فلکی" else "✨ Constellations") }
+                                            label = { Text(if (isFa) "صور فلکی" else "Constellations") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterPlanets,
                                             onClick = { updateFilter("filter_planets", !filterPlanets) { filterPlanets = it } },
-                                            label = { Text(if (isFa) "🪐 سیارات" else "🪐 Planets") }
+                                            label = { Text(if (isFa) "سیارات" else "Planets") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterMoons,
                                             onClick = { updateFilter("filter_moons", !filterMoons) { filterMoons = it } },
-                                            label = { Text(if (isFa) "🌙 ماه" else "🌙 Moon") }
+                                            label = { Text(if (isFa) "ماه" else "Moon") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterSun,
                                             onClick = { updateFilter("filter_sun", !filterSun) { filterSun = it } },
-                                            label = { Text(if (isFa) "☀️ خورشید" else "☀️ Sun") }
+                                            label = { Text(if (isFa) "خورشید" else "Sun") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterDeepSky,
                                             onClick = { updateFilter("filter_deepsky", !filterDeepSky) { filterDeepSky = it } },
-                                            label = { Text(if (isFa) "🌌 اعماق فضا" else "🌌 Deep Sky") }
+                                            label = { Text(if (isFa) "اعماق فضا" else "Deep Sky") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterSatellites,
                                             onClick = { updateFilter("filter_satellites", !filterSatellites) { filterSatellites = it } },
-                                            label = { Text(if (isFa) "🛰 ماهواره‌ها" else "🛰 Satellites") }
+                                            label = { Text(if (isFa) "ماهواره‌ها" else "Satellites") }
                                         )
                                     }
                                     item {
                                         FilterChip(
                                             selected = filterMeteorShowers,
                                             onClick = { updateFilter("filter_meteor_showers", !filterMeteorShowers) { filterMeteorShowers = it } },
-                                            label = { Text(if (isFa) "☄️ بارش‌های شهابی" else "☄️ Meteor Showers") }
+                                            label = { Text(if (isFa) "بارش‌های شهابی" else "Meteor Showers") }
                                         )
                                     }
                                 }
@@ -2979,11 +2260,13 @@ fun CompassARScreen(
                                 var showDetailsAccordion by remember { mutableStateOf(false) }
                                 val overallColor = arHealthColor(overallHealth.level)
 
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = overallColor.copy(alpha = 0.12f),
-                                    border = BorderStroke(1.dp, overallColor.copy(alpha = 0.4f)),
-                                    modifier = Modifier.fillMaxWidth()
+                                LiquidGlassSurface(
+                                    shape = squircleShape(RedCornerRadius.window),
+                                    fallbackColor = overallColor.copy(alpha = 0.12f),
+                                    fallbackBorder = BorderStroke(1.dp, overallColor.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = LiquidGlassDefaults.Card,
+                                    fallbackShadowElevation = RedElevation.none,
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Row(
@@ -3050,18 +2333,19 @@ fun CompassARScreen(
                                                 TelemetryDetailRow(if (isFa) "حسگر" else "Sensors", sensorHealth, isFa)
                                                 TelemetryDetailRow(if (isFa) "دوربین" else "Camera", cameraHealth, isFa)
                                                 Text(
-                                                    text = if (isFa) "• موقعیت: ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.2f°", uiState.userLocation.latitude))}, ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.2f°", uiState.userLocation.longitude))}"
-                                                    else "• Location: ${String.format(Locale.US, "%.2f°", uiState.userLocation.latitude)}, ${String.format(Locale.US, "%.2f°", uiState.userLocation.longitude)}",
+                                                    text = if (isFa) "• موقعیت: ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.4f°", observerLat))}, ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.4f°", observerLon))} • ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.0f", observerHeightM))} متر"
+                                                    else "• Location: ${String.format(Locale.US, "%.4f°", observerLat)}, ${String.format(Locale.US, "%.4f°", observerLon)} • ${String.format(Locale.US, "%.0f", observerHeightM)} m",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = RedTheme.colors.textPrimary
                                                 )
+                                                ArLiveSensorLines(sensorStatus, atmosphereReading, isFa)
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.SpaceBetween,
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Text(
-                                                        text = if (isFa) "• وضعیت کالیبراسیون سنسور: ${calibrationState.name}" else "• Sensor Calibration: ${calibrationState.name}",
+                                                        text = if (isFa) "• وضعیت کالیبراسیون سنسور: ${calibrationLabel(calibrationState, true)}" else "• Sensor Calibration: ${calibrationLabel(calibrationState, false)}",
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = RedTheme.colors.textPrimary
                                                     )
@@ -3093,11 +2377,13 @@ fun CompassARScreen(
                                 }
 
                                 // Guided 1-Point Alignment Action Card
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = RedTheme.colors.surfaceElevated,
-                                    border = BorderStroke(1.dp, RedTheme.colors.border),
-                                    modifier = Modifier.fillMaxWidth()
+                                LiquidGlassSurface(
+                                    shape = squircleShape(RedCornerRadius.window),
+                                    fallbackColor = RedTheme.colors.surfaceElevated,
+                                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = LiquidGlassDefaults.Card,
+                                    fallbackShadowElevation = RedElevation.none,
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(12.dp),
@@ -3127,7 +2413,7 @@ fun CompassARScreen(
                                                     )
                                                     Text(
                                                         text = if (arCalibrationOffsets.isCalibrated) {
-                                                            val yawFmt = String.format("%+.1f°", arCalibrationOffsets.yawOffsetDeg)
+                                                            val yawFmt = String.format(Locale.US, "%+.1f°", arCalibrationOffsets.yawOffsetDeg)
                                                             if (isFa) "آفست فعال سمت: $yawFmt" else "Active yaw offset: $yawFmt"
                                                         } else {
                                                             if (isFa) "همترازی نشانگر با جرم درخشان واقعی" else "Align pointer with a bright reference object"
@@ -3141,7 +2427,7 @@ fun CompassARScreen(
                                             Button(
                                                 onClick = { isAlignmentMode = true },
                                                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
-                                                shape = RoundedCornerShape(10.dp),
+                                                shape = squircleShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                                 modifier = Modifier.testTag("open_alignment_btn")
                                             ) {
@@ -3200,15 +2486,60 @@ fun CompassARScreen(
         ) {
             val obj = activeTappedObj ?: return@AnimatedVisibility
 
-            val rs = remember(obj, jd) {
-                CoordinateEngine.calculateRiseSetTransit(
-                    raDeg = obj.raDeg,
-                    decDeg = obj.decDeg,
-                    latDeg = uiState.userLocation.latitude,
-                    lonDeg = uiState.userLocation.longitude,
-                    jd = jd,
-                    isFa = isFa
-                )
+            // Rise / set of the body's true (moving) apparent place for this observer, off the UI thread.
+            var riseSet by remember(obj.id) { mutableStateOf<ArScreenSupport.RiseSet?>(null) }
+            val riseSetHourKey = activeTimeMs / 3_600_000L
+            LaunchedEffect(obj.id, riseSetHourKey, observerGridKey, uiState.userLocation.timezoneId) {
+                val o = observerForSky
+                val t = activeTimeMs
+                val tz = uiState.userLocation.timezoneId
+                riseSet = withContext(Dispatchers.Default) {
+                    arBackground("Rise/set of ${obj.id}") { ArScreenSupport.riseSet(obj, t, o, tz) }
+                }
+            }
+            val satInfo = if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {
+                arSatellites.firstOrNull { ArScreenSupport.satelliteIdsFor(it).contains(obj.id) }
+            } else null
+            val cardTimeZone = TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
+            fun fmtTime(ms: Long?): String = if (ms == null) "—" else TimeEngine.formatTime24h(ms, isFa, cardTimeZone)
+            val riseText: String
+            val setText: String
+            val rsNow = riseSet
+            when {
+                satInfo != null -> {
+                    val tle = satInfo.tle
+                    val ageDays = tle?.epochAgeDays ?: Double.NaN
+                    val source = when (tle?.source) {
+                        TleDataSource.LIVE_NETWORK -> if (isFa) "زنده" else "live"
+                        TleDataSource.PERSISTED_CACHE, TleDataSource.MEMORY_CACHE -> if (isFa) "ذخیره" else "cached"
+                        TleDataSource.HARDCODED_FALLBACK -> if (isFa) "داخلی" else "built-in"
+                        null -> "—"
+                    }
+                    val ageStr = if (ageDays.isFinite()) String.format(Locale.US, "%.1f", abs(ageDays)) else "—"
+                    riseText = if (isFa) "TLE: ${TimeEngine.formatPersianNumbers(ageStr)} روز ($source)" else "TLE: $ageStr d old ($source)"
+                    setText = if (isFa) {
+                        "ارتفاع ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.0f", satInfo.altitudeDeg))}° · " +
+                            (if (satInfo.sunlit) "روشن" else "در سایه زمین")
+                    } else {
+                        "Alt ${String.format(Locale.US, "%.0f", satInfo.altitudeDeg)}° · " + (if (satInfo.sunlit) "sunlit" else "in Earth's shadow")
+                    }
+                }
+                rsNow == null -> {
+                    riseText = if (isFa) "طلوع: …" else "Rise: …"
+                    setText = if (isFa) "غروب: …" else "Set: …"
+                }
+                rsNow.alwaysUp -> {
+                    riseText = if (isFa) "همیشه بالای افق" else "Always above horizon"
+                    setText = ""
+                }
+                rsNow.neverUp -> {
+                    riseText = if (isFa) "امروز طلوع نمی‌کند" else "Does not rise today"
+                    setText = ""
+                }
+                else -> {
+                    riseText = if (isFa) "طلوع: ${fmtTime(rsNow.riseMs)}" else "Rise: ${fmtTime(rsNow.riseMs)}"
+                    setText = if (isFa) "غروب: ${fmtTime(rsNow.setMs)}" else "Set: ${fmtTime(rsNow.setMs)}"
+                }
             }
 
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -3220,28 +2551,18 @@ fun CompassARScreen(
                 val canvasWidth = screenWidthPx
                 val canvasHeight = screenHeightPx
 
-                val horiz = if (obj.type == ObjectType.SUN) sunHoriz
-                else if (obj.id == "moon") moonHoriz
-                else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) satellitePositions[obj.id] ?: satellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
-                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
-
-                val projPt = ARProjectionEngine.projectAltAz(
-                    azimuthDeg = horiz.azimuthDeg,
-                    altitudeDeg = horiz.altitudeDeg,
-                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
-                    currentAzimuth = currentAzimuth,
-                    currentAltitude = currentAltitude,
-                    currentRoll = skyOrientation.roll.toDouble(),
-                    canvasWidth = canvasWidth,
-                    canvasHeight = canvasHeight,
-                    intrinsics = cameraIntrinsics,
-                    zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
-                    displayRotationDegrees = displayRotationDegrees
-                )
-
-                val px = projPt?.x ?: (canvasWidth / 2f)
-                val py = projPt?.y ?: (canvasHeight / 2f)
+                // Anchor the card at the object exactly where the overlay drew it this frame.
+                val drawnItem = overlayState.items.firstOrNull { it.obj.id == obj.id }
+                val projected = drawnItem?.let { Offset(it.x, it.y) } ?: run {
+                    val pl = placementOf(obj)
+                    val cam = composeCameraModel
+                    if (pl != null && cam != null) {
+                        val out = FloatArray(2)
+                        if (cam.project(pl.enu[0], pl.enu[1], pl.enu[2], out)) Offset(out[0], out[1]) else null
+                    } else null
+                }
+                val px = projected?.x?.coerceIn(0f, canvasWidth) ?: (canvasWidth / 2f)
+                val py = projected?.y?.coerceIn(0f, canvasHeight) ?: (canvasHeight / 2f)
 
                 val cardWidthDp = 270.dp
                 val cardHeightDp = 190.dp
@@ -3271,7 +2592,7 @@ fun CompassARScreen(
                                 tappedObject = null
                                 viewModel.openObjectDetail(obj)
                             },
-                        shape = RoundedCornerShape(20.dp),
+                        shape = squircleShape(RedCornerRadius.window),
                         style = LiquidGlassDefaults.Card,
                         fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
                         fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.6f)),
@@ -3310,13 +2631,13 @@ fun CompassARScreen(
 
                             HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp)
 
-                            val cardCalculatedState = remember(obj.id, activeTimeMs, uiState.userLocation) {
+                            val cardCalculatedState = remember(obj.id, activeTimeMs / 1000L, observerLat, observerLon) {
                                 AstroDispatchEngine.calculateState(
                                     idOrAlias = obj.id,
                                     timestampMs = activeTimeMs,
-                                    userLatDeg = uiState.userLocation.latitude,
-                                    userLonDeg = uiState.userLocation.longitude,
-                                    elevationM = uiState.userLocation.elevationMeters
+                                    userLatDeg = observerLat,
+                                    userLonDeg = observerLon,
+                                    elevationM = observerHeightM
                                 )
                             }
                             val distStr = formatObjectDistance(obj, isFa, cardCalculatedState)
@@ -3331,12 +2652,12 @@ fun CompassARScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = if (isFa) "طلوع: ${rs.riseTimeStr}" else "Rise: ${rs.riseTimeStr}",
+                                    text = riseText,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = RedTheme.colors.textSecondary
                                 )
                                 Text(
-                                    text = if (isFa) "غروب: ${rs.setTimeStr}" else "Set: ${rs.setTimeStr}",
+                                    text = setText,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = RedTheme.colors.textSecondary
                                 )
@@ -3348,7 +2669,7 @@ fun CompassARScreen(
                                     viewModel.openObjectDetail(obj)
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = squircleShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp)
@@ -3389,14 +2710,16 @@ fun CompassARScreen(
 
         // Layer 7: Minimal "Object found" Confirmation Banner
         if (finderData?.isArrived == true && !isAlignmentMode) {
-            Surface(
+            LiquidGlassSurface(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(y = (-140).dp)
                     .testTag("ar_object_found_banner"),
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xDD0D1B2A),
-                border = BorderStroke(1.dp, Color(0xFF4CAF50))
+                shape = squircleShape(RedCornerRadius.window),
+                fallbackColor = Color(0xDD0D1B2A),
+                fallbackBorder = BorderStroke(1.dp, Color(0xFF4CAF50)),
+                style = LiquidGlassDefaults.Card,
+                fallbackShadowElevation = RedElevation.none,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -3430,13 +2753,14 @@ fun CompassARScreen(
                 .padding(top = 120.dp)
         ) {
             val applied = alignmentConfirmationDeg ?: 0f
-            val offStr = String.format("%+.1f°", applied)
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xDD0D1B2A),
-                border = BorderStroke(1.dp, StatusGood),
-                shadowElevation = 12.dp,
-                modifier = Modifier.testTag("alignment_confirmation_pill")
+            val offStr = String.format(Locale.US, "%+.1f°", applied)
+            LiquidGlassSurface(
+                shape = squircleShape(RedCornerRadius.window),
+                fallbackColor = Color(0xDD0D1B2A),
+                fallbackBorder = BorderStroke(1.dp, StatusGood),
+                fallbackShadowElevation = 12.dp,
+                modifier = Modifier.testTag("alignment_confirmation_pill"),
+                style = LiquidGlassDefaults.Card,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -3460,6 +2784,41 @@ fun CompassARScreen(
             }
         }
 
+        // Layer 7c: alignment rejected (implausibly large correction)
+        AnimatedVisibility(
+            visible = alignmentRejected,
+            enter = fadeIn(animationSpec = tween(200)),
+            exit = fadeOut(animationSpec = tween(250)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 120.dp, start = 16.dp, end = 16.dp)
+        ) {
+            LiquidGlassSurface(
+                shape = squircleShape(RedCornerRadius.window),
+                fallbackColor = Color(0xDD2A0D0D),
+                fallbackBorder = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                fallbackShadowElevation = 12.dp,
+                modifier = Modifier.testTag("alignment_rejected_pill"),
+                style = LiquidGlassDefaults.Card,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                    Text(
+                        text = if (isFa) "تصحیح بیش از ۴۵° است؛ هدف درست را در مرکز قرار دهید یا ابتدا قطب‌نما را کالیبره کنید."
+                        else "Correction over 45° — centre the right object, or calibrate the compass first.",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
         // Layer 8: Guided 1-Point Reference Alignment Mode
         if (isAlignmentMode) {
             AlignmentModeOverlay(
@@ -3474,16 +2833,24 @@ fun CompassARScreen(
                     val target = selectedAlignmentTarget
                     if (target != null) {
                         triggerAlignmentHaptic()
+                        // currentAzimuth is the displayed (already corrected) heading, so the manager
+                        // accumulates the residual onto the active offset.
                         val applied = ARCalibrationManager.applyOnePointAlignment(
                             targetAzimuthDeg = target.azimuthDeg,
                             currentAzimuthDeg = currentAzimuth,
                             referenceName = if (isFa) target.nameFa else target.nameEn,
                             context = context,
-                            latitude = uiState.userLocation.latitude,
-                            longitude = uiState.userLocation.longitude
+                            latitude = observerLat,
+                            longitude = observerLon
                         )
-                        alignmentConfirmationDeg = applied
-                        isAlignmentMode = false
+                        if (applied.isNaN()) {
+                            // Total correction would exceed the plausible compass error: not applied.
+                            alignmentRejected = true
+                            alignmentConfirmationDeg = null
+                        } else {
+                            alignmentConfirmationDeg = applied
+                            isAlignmentMode = false
+                        }
                     }
                 },
                 onCancel = { isAlignmentMode = false },
@@ -3491,8 +2858,9 @@ fun CompassARScreen(
             )
         }
 
-        // Layer 9: Automatic / Manual Figure-8 Sensor Calibration Prompt
-        if (showManualSensorPrompt || (autoPromptEnabled && !autoPromptDismissedThisSession && !isAlignmentMode && (calibrationState == CalibrationState.NEEDS_CALIBRATION || calibrationState == CalibrationState.POOR || calibrationState == CalibrationState.UNCALIBRATED))) {
+        // Layer 9: Automatic / Manual Figure-8 Sensor Calibration window. Once shown it stays open
+        // (latched) until the user closes it, whatever the live calibration state does meanwhile.
+        if (showManualSensorPrompt || autoCalibrationWindowOpen) {
             ARSensorCalibrationDialog(
                 calibrationState = calibrationState,
                 isFa = isFa,
@@ -3500,16 +2868,18 @@ fun CompassARScreen(
                     if (calibrationState == CalibrationState.GOOD || calibrationState == CalibrationState.EXCELLENT) {
                         ARCalibrationManager.noteCalibrationCompleted(
                             context = context,
-                            latitude = uiState.userLocation.latitude,
-                            longitude = uiState.userLocation.longitude
+                            latitude = observerLat,
+                            longitude = observerLon
                         )
                     }
                     autoPromptDismissedThisSession = true
+                    autoCalibrationWindowOpen = false
                     showManualSensorPrompt = false
                 },
                 onDisableAutoPrompt = {
                     ARCalibrationManager.setAutoPromptEnabled(false, context)
-                }
+                },
+                status = sensorStatus
             )
         }
     }
@@ -3590,12 +2960,13 @@ private fun PermissionBlockedBanner(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = Color(0xDD1A0B12),
-        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.7f)),
-        shadowElevation = 12.dp
+        shape = squircleShape(RedCornerRadius.window),
+        fallbackColor = Color(0xDD1A0B12),
+        fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.7f)),
+        fallbackShadowElevation = 12.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -3621,12 +2992,13 @@ private fun PermissionBlockedBanner(
 
 @Composable
 private fun MagneticInterferenceBanner(text: String, modifier: Modifier = Modifier) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = Color(0xDD2A1800),
-        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
-        shadowElevation = 12.dp
+        shape = squircleShape(RedCornerRadius.window),
+        fallbackColor = Color(0xDD2A1800),
+        fallbackBorder = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
+        fallbackShadowElevation = 12.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -3654,12 +3026,13 @@ private fun RecalibrationSuggestionBanner(
     onAction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = Color.Black.copy(alpha = 0.78f),
-        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.55f)),
-        shadowElevation = 10.dp
+        shape = squircleShape(RedCornerRadius.window),
+        fallbackColor = Color.Black.copy(alpha = 0.78f),
+        fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.55f)),
+        fallbackShadowElevation = 10.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -3685,7 +3058,7 @@ private fun RecalibrationSuggestionBanner(
 private fun TimeMachineWatermark(label: String, dateTime: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.testTag("ar_time_machine_watermark"),
-        shape = RoundedCornerShape(14.dp),
+        shape = squircleShape(14.dp),
         color = Color.Black.copy(alpha = 0.18f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
     ) {
@@ -3715,12 +3088,13 @@ private fun ClusterSelectionMenu(
     onSelect: (CelestialObject) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
-        border = BorderStroke(1.dp, RedTheme.colors.border),
-        shadowElevation = 12.dp
+        shape = squircleShape(RedCornerRadius.window),
+        fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
+        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+        fallbackShadowElevation = 12.dp,
+        style = LiquidGlassDefaults.Card,
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -3862,9 +3236,9 @@ private fun AlignmentModeOverlay(
                     drawPath(path = arrowPath, color = AccentPrimary)
                 }
                 // Live separation readout below the arrow
-                val sepStr = String.format("%.1f°", guidance.separationDeg)
+                val sepStr = String.format(Locale.US, "%.1f°", guidance.separationDeg)
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = squircleShape(14.dp),
                     color = Color.Black.copy(alpha = 0.75f),
                     border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.6f)),
                     modifier = Modifier.align(Alignment.BottomCenter)
@@ -3891,7 +3265,7 @@ private fun AlignmentModeOverlay(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             LiquidGlassSurface(
-                shape = RoundedCornerShape(20.dp),
+                shape = squircleShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Card,
                 fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.92f),
                 fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
@@ -3918,7 +3292,7 @@ private fun AlignmentModeOverlay(
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(targets) { target ->
                                 val label = if (isFa) target.nameFa else target.nameEn
-                                val altStr = String.format("%+.0f°", target.altitudeDeg)
+                                val altStr = String.format(Locale.US, "%+.0f°", target.altitudeDeg)
                                 FilterChip(
                                     selected = target.id == selectedTarget?.id,
                                     onClick = { onSelectTarget(target) },
@@ -3934,8 +3308,8 @@ private fun AlignmentModeOverlay(
                         }
                     }
                     selectedTarget?.let { target ->
-                        val azStr = String.format("%.0f°", target.azimuthDeg)
-                        val altStr = String.format("%+.0f°", target.altitudeDeg)
+                        val azStr = String.format(Locale.US, "%.0f°", target.azimuthDeg)
+                        val altStr = String.format(Locale.US, "%+.0f°", target.altitudeDeg)
                         Text(
                             text = if (isFa) "موقعیت واقعی: سمت ${TimeEngine.formatPersianNumbers(azStr)} | ارتفاع ${TimeEngine.formatPersianNumbers(altStr)}"
                             else "True position: Az $azStr | Alt $altStr",
@@ -3961,7 +3335,7 @@ private fun AlignmentModeOverlay(
             val targetName = selectedTarget?.let { if (isFa) it.nameFa else it.nameEn } ?: ""
             val arrowsOn = guidance?.arrowsVisible == true
             LiquidGlassSurface(
-                shape = RoundedCornerShape(16.dp),
+                shape = squircleShape(RedCornerRadius.window),
                 style = LiquidGlassDefaults.Pill,
                 fallbackColor = Color.Black.copy(alpha = 0.75f),
                 fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
@@ -4001,7 +3375,7 @@ private fun AlignmentModeOverlay(
                 Button(
                     onClick = onConfirm,
                     enabled = selectedTarget != null,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = squircleShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
                     modifier = Modifier
                         .weight(1f)
@@ -4024,7 +3398,7 @@ private fun AlignmentModeOverlay(
                 if (hasActiveOffset) {
                     OutlinedButton(
                         onClick = onReset,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = squircleShape(16.dp),
                         border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.7f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
                         modifier = Modifier.testTag("alignment_reset_button")
@@ -4039,7 +3413,7 @@ private fun AlignmentModeOverlay(
             }
 
             if (hasActiveOffset) {
-                val offStr = String.format("%+.1f°", activeOffsetDeg)
+                val offStr = String.format(Locale.US, "%+.1f°", activeOffsetDeg)
                 Text(
                     text = if (isFa) "آفست فعال: ${TimeEngine.formatPersianNumbers(offStr)}" else "Active offset: $offStr",
                     style = MaterialTheme.typography.labelSmall,

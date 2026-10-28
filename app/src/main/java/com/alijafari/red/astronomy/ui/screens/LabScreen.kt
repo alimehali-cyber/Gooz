@@ -7,12 +7,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +25,7 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 enum class LabFeatureType(
     val titleEn: String,
@@ -59,25 +60,25 @@ enum class LabFeatureType(
         icon = Icons.Default.Public,
         isAvailable = true
     ),
-    ORBITAL_RESONANCE(
-        titleEn = "Orbital Resonance & Keplerian Elements",
-        titleFa = "رزونانس مداری و عناصر کپلری",
-        subtitleEn = "Celestial Mechanics Tool",
-        subtitleFa = "مکانیک سماوی و شبیه‌ساز مدارها",
-        descriptionEn = "Analyze gravitational orbital harmonics, Hill spheres, Lagrange points, and orbital resonances.",
-        descriptionFa = "تحلیل رزونانس‌های گرانشی، نقاط لاگرانژی و دامنه‌های هیل در اجرام منظومه شمسی.",
-        icon = Icons.Default.AllInclusive,
-        isAvailable = false
+    GARGANTUA(
+        titleEn = "Gargantua",
+        titleFa = "گارگانتوا",
+        subtitleEn = "Relativistic Black Hole Laboratory",
+        subtitleFa = "آزمایشگاه نسبیتی سیاه‌چاله",
+        descriptionEn = "Interactive Kerr metric black hole laboratory: curved spacetime ray-marching, accretion disk relativistic beaming, gravitational redshift, and photon orbits.",
+        descriptionFa = "آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.",
+        icon = Icons.Default.FilterTiltShift,
+        isAvailable = true
     ),
-    STELLAR_EVOLUTION(
-        titleEn = "HR Diagram & Stellar Lifetime",
-        titleFa = "نمودار هرتسپرونگ-راسل و تکامل ستارگان",
-        subtitleEn = "Astrophysical Classifier",
-        subtitleFa = "اخترفیزیک و حیات ستاره‌ای",
-        descriptionEn = "Plot main sequence stars, red giants, white dwarfs, and compute nuclear fusion lifetimes.",
-        descriptionFa = "رسم و تحلیل نمودار H-R، جایگاه تکاملی ستارگان و طول عمر همجوشی هسته‌ای.",
-        icon = Icons.Default.AutoAwesome,
-        isAvailable = false
+    CHAL(
+        titleEn = "Chal",
+        titleFa = "چال",
+        subtitleEn = "Interactive Black Hole Visualizer",
+        subtitleFa = "نمایشگر تعاملی سیاه‌چاله",
+        descriptionEn = "Explore a rotating black hole, accretion disk and lensing effects. Uses native rendering where supported, with an explicitly approximate OpenGL compatibility mode. Rendered physics are not independently validated.",
+        descriptionFa = "کاوش تعاملی سیاه‌چالهٔ چرخان، قرص برافزایشی و همگرایی نور. رندر بومی در دستگاه‌های سازگار و حالت تخمینی OpenGL در سایر دستگاه‌ها فعال است. دقت فیزیکی تصویر به‌طور مستقل تأیید نشده است.",
+        icon = Icons.Default.BlurCircular,
+        isAvailable = true
     )
 }
 
@@ -88,7 +89,7 @@ fun LabScreen(
     modifier: Modifier = Modifier
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    var selectedFeature by remember { mutableStateOf<LabFeatureType?>(null) }
+    var selectedFeature by rememberSaveable { mutableStateOf<LabFeatureType?>(null) }
 
     if (selectedFeature == LabFeatureType.TIME_DILATION) {
         TimeDilationCalculatorScreen(
@@ -102,6 +103,19 @@ fun LabScreen(
             modifier = modifier,
             startInPersian = isFa,
             startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
+        )
+    } else if (selectedFeature == LabFeatureType.GARGANTUA) {
+        com.zig.gargantua.ui.GargantuaRoot(
+            onBack = { selectedFeature = null },
+            modifier = modifier,
+            startInPersian = isFa,
+            startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
+        )
+    } else if (selectedFeature == LabFeatureType.CHAL) {
+        com.zig.chal.ui.ChalRoot(
+            onBack = { selectedFeature = null },
+            modifier = modifier,
+            startInPersian = isFa
         )
     } else {
         LazyColumn(
@@ -117,7 +131,7 @@ fun LabScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("lab_header_card"),
-                    shape = RoundedCornerShape(RedCornerRadius.xl),
+                    shape = squircleShape(RedCornerRadius.xl),
                     backgroundColor = RedTheme.colors.surfaceElevated,
                     borderColor = RedTheme.colors.border,
                     contentPadding = PaddingValues(RedSpacing.lg)
@@ -173,7 +187,7 @@ fun LabScreen(
             // Section Title
             item {
                 RedSectionHeader(
-                    title = if (isFa) "ابزارهای فعال و در حال توسعه" else "Available Scientific Tools",
+                    title = if (isFa) "ابزارهای علمی در دسترس" else "Available Scientific Tools",
                     subtitle = if (isFa) "شبیه‌سازها و ماشین‌حساب‌های اخترفیزیک" else "Astrophysics calculators & simulators"
                 )
             }
@@ -205,18 +219,20 @@ private fun LabFeatureCard(
     isFa: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
+    LiquidGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(RedCornerRadius.xl))
+            .clip(squircleShape(RedCornerRadius.xl))
             .clickable(enabled = feature.isAvailable, onClick = onClick)
             .testTag("lab_feature_card_${feature.name.lowercase()}"),
-        shape = RoundedCornerShape(RedCornerRadius.xl),
-        color = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
-        border = BorderStroke(
+        shape = squircleShape(RedCornerRadius.xl),
+        fallbackColor = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
+        fallbackBorder = BorderStroke(
             width = 1.dp,
             color = if (feature.isAvailable) RedTheme.colors.border else RedTheme.colors.border.copy(alpha = 0.5f)
-        )
+        ),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Row(
             modifier = Modifier.padding(RedSpacing.lg),

@@ -40,7 +40,7 @@ object MoonEngine {
         val librationLonDeg: Double = 0.0,
         val librationLatDeg: Double = 0.0,
         val brightLimbAngleDeg: Double = 0.0,
-        val earthshinePercent: Double = 0.0,
+        val earthshineFraction: Double = 0.0,
         val angularDiameterArcmin: Double = 31.0,
         val moonriseTimeMs: Long? = null,
         val moonsetTimeMs: Long? = null,
@@ -99,7 +99,8 @@ object MoonEngine {
         jd: Double,
         latitude: Double = 30.1141,
         longitude: Double = 51.5217,
-        elevationM: Double = 0.0
+        elevationM: Double = 0.0,
+        computeRiseSet: Boolean = true
     ): MoonData {
         val astroTime = AstroTime.fromJd(jd)
         val lunar = lunarSolar.calculateMoon(astroTime)
@@ -171,10 +172,12 @@ object MoonEngine {
         var brightLimbAngleDeg = atan2(numChi, denChi) * RAD2DEG
         if (brightLimbAngleDeg < 0) brightLimbAngleDeg += 360.0
 
-        // Earthshine intensity calculation
-        val earthshinePercent = if (illuminationPercent in 1.0..35.0) {
-            (1.0 - (illuminationPercent / 35.0)) * 85.0
-        } else 0.0
+        // Earthshine: sunlight reflected by Earth onto the Moon's night side. Its
+        // brightness tracks Earth's illuminated fraction as seen from the Moon,
+        // which is (1 - k) where k is the Moon's illuminated fraction as seen from
+        // here — so it is brightest at new moon and zero at full moon. Stored as
+        // a FRACTION 0..1; MoonDetailWindow multiplies by 100 for display.
+        val earthshineFraction = (1.0 - illuminatedFraction).coerceIn(0.0, 1.0)
 
         // Topocentric angular diameter (arcminutes)
         val angularDiameterArcmin = 2.0 * asin(1737.4 / distanceKm) * RAD2DEG * 60.0
@@ -187,18 +190,21 @@ object MoonEngine {
         )
 
         val millis = astroTime.utcMs
-        val targetDate = Date(millis)
-
-        val (riseMs, setMs) = try {
-            val times = MoonTimes.compute().on(targetDate).at(latitude, longitude).execute()
-            val rise = times.rise?.toInstant()?.toEpochMilli()
-            val set = times.set?.toInstant()?.toEpochMilli()
-            Pair(rise, set)
-        } catch (e: Throwable) {
-            Pair(millis - 36000000L, millis + 14000000L)
+        val (riseMs, setMs) = if (computeRiseSet) {
+            val targetDate = Date(millis)
+            try {
+                val times = MoonTimes.compute().on(targetDate).at(latitude, longitude).execute()
+                val rise = times.rise?.toInstant()?.toEpochMilli()
+                val set = times.set?.toInstant()?.toEpochMilli()
+                Pair(rise, set)
+            } catch (e: Throwable) {
+                Pair(millis - 36000000L, millis + 14000000L)
+            }
+        } else {
+            Pair(null, null)
         }
 
-        val cal = Calendar.getInstance().apply { timeInMillis = millis }
+        val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = millis }
         val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
         val hourOfDay = cal.get(Calendar.HOUR_OF_DAY)
         val frame = (((dayOfYear - 1) * 24) + hourOfDay + 1).coerceIn(1, 8784)
@@ -217,12 +223,37 @@ object MoonEngine {
             librationLonDeg = librationLonDeg,
             librationLatDeg = librationLatDeg,
             brightLimbAngleDeg = brightLimbAngleDeg,
-            earthshinePercent = earthshinePercent,
+            earthshineFraction = earthshineFraction,
             angularDiameterArcmin = angularDiameterArcmin,
             moonriseTimeMs = riseMs,
             moonsetTimeMs = setMs,
             nasaFrameNumber = frame
         )
+    }
+
+    /**
+     * Apparent topocentric right ascension of the Moon, in degrees, at a given instant.
+     *
+     * This is the same quantity [calculateMoon] publishes as [MoonData.raDeg] — the geocentric
+     * ELP2000 position reduced for the observer's parallax against the local sidereal time —
+     * but without the phase, libration, rise/set or NASA-frame work, so it is cheap enough to
+     * be evaluated several times per iteration of the Moon's meridian-transit fixed point in
+     * [CoordinateEngineLegacy.calculateMoonTransitTimeMs].
+     */
+    fun topocentricRaDeg(
+        jd: Double,
+        latitude: Double = 30.1141,
+        longitude: Double = 51.5217,
+        elevationM: Double = 0.0
+    ): Double {
+        val lunar = lunarSolar.calculateMoon(AstroTime.fromJd(jd))
+        return CoordinateEngine.geocentricToTopocentric(
+            geocentric = CoordinateEngine.Equatorial(lunar.raDeg, lunar.decDeg),
+            geocentricDistanceKm = lunar.distanceKm,
+            lastDeg = TimeEngine.getLAST(jd, longitude),
+            latitudeDeg = latitude,
+            elevationM = elevationM
+        ).raDeg
     }
 
     /**

@@ -1,26 +1,48 @@
 package com.alijafari.red.astronomy.astro_engine
 
-import kotlin.math.*
+import kotlin.math.cos
 
 /**
- * VSOP87-based planetary ephemeris engine.
- * 
- * Computes heliocentric ecliptic coordinates (L, B, R) for the 8 major planets
- * using truncated VSOP87 series from Meeus (1998), Chapter 32.
- * 
- * Accuracy: ~1 arcsecond for years 2000 BC to 6000 AD.
+ * VSOP87D planetary theory (Bretagnon & Francou 1988, Bureau des Longitudes): heliocentric ecliptic
+ * longitude L, latitude B and radius vector R of the eight major planets referred to the ecliptic and
+ * equinox **of date**.
+ *
+ * The series coefficients live in [Vsop87dData] (generated from the official VSOP87D tables; see that
+ * file for provenance and the truncation level). Over 1800–2200 the truncated series agree with the
+ * full VSOP87D to ≤ 0.31″ in L and B, i.e. far below anything the app can display.
+ *
+ * Earlier revisions of this class contained hand-typed, partly invented "series" with the time argument
+ * in centuries; they placed Mars, Jupiter and Saturn several degrees (Mars ~20°) away from their true
+ * positions. This implementation is validated against the full VSOP87D and against an independent
+ * ephemeris in `Vsop87dAccuracyTest`.
  */
 class VSOP87Engine {
 
     companion object {
-        private const val DEG2RAD = Math.PI / 180.0
         private const val RAD2DEG = 180.0 / Math.PI
-        private const val ARCSEC2DEG = 1.0 / 3600.0
 
         private fun normalizeAngle(deg: Double): Double {
             var d = deg % 360.0
             if (d < 0) d += 360.0
             return d
+        }
+
+        /** Σ_α τ^α Σ_k A_k cos(B_k + C_k τ) for one coordinate. */
+        private fun evaluate(series: Array<DoubleArray>, tau: Double): Double {
+            var result = 0.0
+            var tauPower = 1.0
+            for (alpha in series.indices) {
+                val terms = series[alpha]
+                var sum = 0.0
+                var i = 0
+                while (i < terms.size) {
+                    sum += terms[i] * cos(terms[i + 1] + terms[i + 2] * tau)
+                    i += 3
+                }
+                result += sum * tauPower
+                tauPower *= tau
+            }
+            return result
         }
     }
 
@@ -29,737 +51,34 @@ class VSOP87Engine {
     }
 
     data class HeliocentricEcliptic(
-        val longitudeDeg: Double,   // L (ecliptic longitude)
-        val latitudeDeg: Double,    // B (ecliptic latitude)
+        val longitudeDeg: Double,   // L (ecliptic longitude of date)
+        val latitudeDeg: Double,    // B (ecliptic latitude of date)
         val distanceAu: Double      // R (distance in AU)
     )
 
-    private data class Term(val a: Double, val b: Double, val c: Double)
-
-    private fun sumSeries(terms: Array<Term>, t: Double): Double {
-        var sum = 0.0
-        for (term in terms) {
-            sum += term.a * cos(term.b + term.c * t)
-        }
-        return sum
-    }
-
     /**
-     * Calculate heliocentric ecliptic coordinates for a planet.
-     * @param planet The planet
-     * @param astroTime Time in TT (AstroTime)
-     * @return Heliocentric ecliptic coordinates
+     * Heliocentric ecliptic coordinates of date.
+     * @param astroTime instant; the series argument is τ = (JDE − 2451545.0) / 365250 with JDE in TT.
      */
-    fun calculate(planet: Planet, astroTime: AstroTime): HeliocentricEcliptic {
-        val t = astroTime.jcTt  // Julian centuries in TT from J2000.0
+    fun calculate(planet: Planet, astroTime: AstroTime): HeliocentricEcliptic = calculateTt(planet, astroTime.jdTt)
 
-        return when (planet) {
-            Planet.MERCURY -> calculateMercury(t)
-            Planet.VENUS -> calculateVenus(t)
-            Planet.EARTH -> calculateEarth(t)
-            Planet.MARS -> calculateMars(t)
-            Planet.JUPITER -> calculateJupiter(t)
-            Planet.SATURN -> calculateSaturn(t)
-            Planet.URANUS -> calculateUranus(t)
-            Planet.NEPTUNE -> calculateNeptune(t)
+    /** Same as [calculate] for a Julian Ephemeris Date (TT ≈ TDB). */
+    fun calculateTt(planet: Planet, jdTt: Double): HeliocentricEcliptic {
+        val tau = (jdTt - 2451545.0) / 365250.0
+        val (l, b, r) = when (planet) {
+            Planet.MERCURY -> Triple(Vsop87dMercury.L, Vsop87dMercury.B, Vsop87dMercury.R)
+            Planet.VENUS -> Triple(Vsop87dVenus.L, Vsop87dVenus.B, Vsop87dVenus.R)
+            Planet.EARTH -> Triple(Vsop87dEarth.L, Vsop87dEarth.B, Vsop87dEarth.R)
+            Planet.MARS -> Triple(Vsop87dMars.L, Vsop87dMars.B, Vsop87dMars.R)
+            Planet.JUPITER -> Triple(Vsop87dJupiter.L, Vsop87dJupiter.B, Vsop87dJupiter.R)
+            Planet.SATURN -> Triple(Vsop87dSaturn.L, Vsop87dSaturn.B, Vsop87dSaturn.R)
+            Planet.URANUS -> Triple(Vsop87dUranus.L, Vsop87dUranus.B, Vsop87dUranus.R)
+            Planet.NEPTUNE -> Triple(Vsop87dNeptune.L, Vsop87dNeptune.B, Vsop87dNeptune.R)
         }
-    }
-
-    // ============================================================
-    // Mercury
-    // ============================================================
-    private val mercuryL0 = arrayOf(
-        Term(440250840.0, 4.4026086, 0.0),
-        Term(441012866.0, 4.40260862, 2608.7903142),
-        Term(103522593.0, 2.52504353, 5217.5806284),
-        Term(32687158.0, 0.64749321, 7826.3709426),
-        Term(11300885.0, 5.04944876, 10435.1612568),
-        Term(4110321.0, 3.17188353, 13043.9515710),
-        Term(1549424.0, 1.29431830, 15652.7418852),
-        Term(602336.0, 5.69623229, 18261.5321994),
-        Term(239564.0, 3.81864548, 20870.3225136),
-        Term(97136.0, 1.94103080, 23479.1128278),
-        Term(40026.0, 0.06341200, 26087.9031420),
-        Term(16678.0, 4.46522000, 28696.6934560),
-        Term(7023.0, 2.58730000, 31305.4837700),
-        Term(2985.0, 0.70910000, 33914.2740840),
-        Term(1280.0, 5.10980000, 36523.0643980),
-        Term(553.0, 3.23070000, 39131.8547120),
-        Term(167232.0, 2.2743430, -2346.52294),
-        Term(116400.0, 0.3967110, 2871.06013),
-        Term(73100.0, 4.9521080, 262.26859),
-        Term(62800.0, 3.0744760, -2084.25435),
-        Term(52100.0, 1.1968440, 3133.32872),
-        Term(38800.0, 5.7522410, 524.53718),
-        Term(32600.0, 3.8746090, -1821.98576),
-        Term(27100.0, 1.9969770, 3395.59731),
-        Term(22200.0, 0.1193450, -4693.04588),
-        Term(19000.0, 4.6747420, -2430.77729),
-        Term(15800.0, 2.7971100, 2788.80578),
-        Term(13100.0, 0.9194780, -2168.50870),
-        Term(11000.0, 5.3748750, 3051.07437),
-        Term(9200.0, 3.4972430, -1906.24011),
-        Term(7700.0, 1.6196110, 3313.34300)
-    )
-    private val mercuryL1 = arrayOf(
-        Term(260879031415.0, 0.0, 0.0),
-        Term(40126.0, 1.26253, 2608.79031)
-    )
-    private val mercuryB0 = arrayOf(
-        Term(12204731.0, 2.1648082, 2608.7903142),
-        Term(2862088.0, 0.2872432, 5217.5806284),
-        Term(903704.0, 4.7096928, 7826.3709426),
-        Term(312480.0, 2.8316484, 10435.1612568),
-        Term(113700.0, 0.9540831, 13043.9515710),
-        Term(42865.0, 5.3765180, 15652.7418852),
-        Term(16658.0, 3.4989528, 18261.5321994),
-        Term(6629.0, 1.6213876, 20870.3225136),
-        Term(2687.0, 6.0438224, 23479.1128278),
-        Term(1108.0, 4.1662572, 26087.9031420),
-        Term(461.0, 2.2886920, 28696.6934560),
-        Term(194.0, 0.4111268, 31305.4837700),
-        Term(83.0, 4.8335616, 33914.2740840),
-        Term(35.0, 2.9559964, 36523.0643980),
-        Term(15.0, 1.0784312, 39131.8547120)
-    )
-    private val mercuryR0 = arrayOf(
-        Term(38709831.0, 0.0, 0.0),
-        Term(7958869.0, 2.8316484, 2608.7903142),
-        Term(1539207.0, 5.6632968, 5217.5806284),
-        Term(372861.0, 2.1851253, 7826.3709426),
-        Term(101018.0, 5.0167737, 10435.1612568),
-        Term(29424.0, 1.5384221, 13043.9515710),
-        Term(9031.0, 4.3700705, 15652.7418852),
-        Term(2888.0, 0.9017189, 18261.5321994),
-        Term(953.0, 3.7333673, 20870.3225136),
-        Term(322.0, 0.2650157, 23479.1128278),
-        Term(112.0, 3.0966641, 26087.9031420),
-        Term(39.0, 5.9283125, 28696.6934560),
-        Term(14.0, 2.4599609, 31305.4837700),
-        Term(5.0, 5.3916093, 33914.2740840),
-        Term(2.0, 2.0232577, 36523.0643980)
-    )
-
-    private fun calculateMercury(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(mercuryL0, t) / 1e8 + (sumSeries(mercuryL1, t) / 1e8) * t
-        val bRad = sumSeries(mercuryB0, t) / 1e8
-        val rAu = sumSeries(mercuryR0, t) / 1e8
-
         return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
-        )
-    }
-
-    // ============================================================
-    // Venus
-    // ============================================================
-    private val venusL0 = arrayOf(
-        Term(317614670.0, 0.0, 0.0),
-        Term(674063.0, 2.012296, 1021.328555),
-        Term(18012.0, 4.024592, 2042.657109),
-        Term(612.0, 6.036888, 3063.985664),
-        Term(23.0, 1.760, 4085.314218),
-        Term(218200.0, 2.8318, -579.88),
-        Term(183400.0, 4.3854, -1159.76),
-        Term(141200.0, 1.2782, 1601.21),
-        Term(119800.0, 2.8318, -1739.64),
-        Term(92100.0, 5.9390, -2319.52),
-        Term(76500.0, 1.2782, 2181.09),
-        Term(61400.0, 2.8318, -2899.40),
-        Term(49200.0, 4.3854, -3479.28),
-        Term(38100.0, 1.2782, 2760.97),
-        Term(29800.0, 2.8318, -4059.16),
-        Term(23100.0, 5.9390, -4639.04),
-        Term(17900.0, 1.2782, 3340.85),
-        Term(13800.0, 2.8318, -5218.92),
-        Term(10600.0, 4.3854, -5798.80),
-        Term(8100.0, 1.2782, 3920.73),
-        Term(6200.0, 2.8318, -6378.68),
-        Term(4700.0, 5.9390, -6958.56),
-        Term(3600.0, 1.2782, 4500.61),
-        Term(2700.0, 2.8318, -7538.44),
-        Term(2000.0, 4.3854, -8118.32),
-        Term(1500.0, 1.2782, 5080.49),
-        Term(1100.0, 2.8318, -8698.20),
-        Term(800.0, 5.9390, -9278.08),
-        Term(600.0, 1.2782, 5660.37),
-        Term(400.0, 2.8318, -9857.96),
-        Term(300.0, 4.3854, -10437.84)
-    )
-    private val venusL1 = arrayOf(
-        Term(102132855460.0, 0.0, 0.0)
-    )
-    private val venusB0 = arrayOf(
-        Term(5924760.0, 0.963283, 1021.328555),
-        Term(40131.0, 2.975579, 2042.657109),
-        Term(537.0, 4.987875, 3063.985664),
-        Term(10.0, 0.711, 4085.314218),
-        Term(3200.0, 1.7828, -579.88),
-        Term(2600.0, 3.3364, -1159.76),
-        Term(2100.0, 0.2292, 1601.21),
-        Term(1700.0, 1.7828, -1739.64),
-        Term(1300.0, 4.8900, -2319.52),
-        Term(1000.0, 0.2292, 2181.09),
-        Term(800.0, 1.7828, -2899.40),
-        Term(600.0, 3.3364, -3479.28),
-        Term(500.0, 0.2292, 2760.97),
-        Term(400.0, 1.7828, -4059.16),
-        Term(300.0, 4.8900, -4639.04)
-    )
-    private val venusR0 = arrayOf(
-        Term(72333200.0, 0.0, 0.0),
-        Term(489824.0, 5.153891, 1021.328555),
-        Term(16581.0, 3.876891, 2042.657109),
-        Term(630.0, 2.599891, 3063.985664),
-        Term(26.0, 1.322891, 4085.314218),
-        Term(1200.0, 1.2600, -579.88),
-        Term(900.0, 2.8136, -1159.76),
-        Term(700.0, 5.7064, 1601.21),
-        Term(600.0, 1.2600, -1739.64),
-        Term(400.0, 4.3672, -2319.52),
-        Term(300.0, 5.7064, 2181.09),
-        Term(250.0, 1.2600, -2899.40),
-        Term(200.0, 2.8136, -3479.28),
-        Term(150.0, 5.7064, 2760.97),
-        Term(100.0, 1.2600, -4059.16)
-    )
-
-    private fun calculateVenus(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(venusL0, t) / 1e8 + (sumSeries(venusL1, t) / 1e8) * t
-        val bRad = sumSeries(venusB0, t) / 1e8
-        val rAu = sumSeries(venusR0, t) / 1e8
-
-        return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
-        )
-    }
-
-    // ============================================================
-    // Earth
-    // ============================================================
-    private val earthL0 = arrayOf(
-        Term(175347050.0, 0.0, 0.0),
-        Term(3341656.0, 4.669257, 628.307585),
-        Term(34894.0, 4.6261, 1256.61517),
-        Term(3497.0, 2.7441, 5753.38488),
-        Term(3418.0, 2.8289, 26.29832),
-        Term(3136.0, 3.6277, 11506.76976),
-        Term(2676.0, 4.4181, 1577.34354),
-        Term(2343.0, 6.1357, 6069.77675),
-        Term(1324.0, 0.7425, 5296.90965),
-        Term(1273.0, 2.0300, 89.59374),
-        Term(1199.0, 1.1096, 398.14902),
-        Term(990.0, 5.233, 12006.182),
-        Term(902.0, 2.045, 1752.12),
-        Term(857.0, 3.508, 213.299),
-        Term(780.0, 1.179, 23.604),
-        Term(753.0, 2.533, 7100.286),
-        Term(505.0, 4.583, 6208.736),
-        Term(492.0, 4.205, 30.347),
-        Term(357.0, 2.920, 5372.485),
-        Term(317.0, 5.849, 12022.48),
-        Term(284.0, 1.899, 1158.216),
-        Term(271.0, 0.315, 567.221),
-        Term(243.0, 0.345, 778.138),
-        Term(206.0, 4.806, 125.662),
-        Term(205.0, 1.869, 1256.615),
-        Term(202.0, 2.458, 73.545),
-        Term(156.0, 0.830, 628.308),
-        Term(132.0, 3.411, 2942.463),
-        Term(126.0, 1.083, 20.775),
-        Term(115.0, 0.845, 5012.38),
-        Term(103.0, 0.352, 628.308)
-    )
-    private val earthL1 = arrayOf(
-        Term(62830758500.0, 0.0, 0.0)
-    )
-    private val earthB0 = arrayOf(
-        Term(280.0, 3.199, 84334.662),
-        Term(102.0, 5.422, 5507.553),
-        Term(80.0, 3.88, 5223.69),
-        Term(44.0, 3.70, 2352.87),
-        Term(32.0, 4.00, 1577.34),
-        Term(21.0, 1.13, 7100.29),
-        Term(18.0, 1.86, 628.31),
-        Term(12.0, 0.55, 11506.77),
-        Term(10.0, 5.21, 5753.38),
-        Term(9.0, 2.83, 26.30),
-        Term(7.0, 3.63, 6069.78),
-        Term(5.0, 0.74, 5296.91),
-        Term(4.0, 2.03, 89.59),
-        Term(3.0, 1.11, 398.15),
-        Term(2.0, 5.23, 12006.18)
-    )
-    private val earthR0 = arrayOf(
-        Term(100013980.0, 0.0, 0.0),
-        Term(1670700.0, 3.098464, 628.307585),
-        Term(13956.0, 3.05525, 1256.61517),
-        Term(3084.0, 5.1985, 26.2983),
-        Term(1628.0, 1.1739, 5753.3849),
-        Term(1576.0, 2.0569, 11506.7698),
-        Term(925.0, 0.8507, 1577.3435),
-        Term(542.0, 4.5682, 89.5937),
-        Term(472.0, 2.9733, 5296.9097),
-        Term(346.0, 0.9834, 398.1490),
-        Term(329.0, 4.562, 6069.777),
-        Term(307.0, 2.760, 12006.182),
-        Term(243.0, 0.366, 1752.12),
-        Term(212.0, 1.936, 213.299),
-        Term(186.0, 5.882, 23.604)
-    )
-
-    private fun calculateEarth(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(earthL0, t) / 1e8 + (sumSeries(earthL1, t) / 1e8) * t
-        val bRad = sumSeries(earthB0, t) / 1e8
-        val rAu = sumSeries(earthR0, t) / 1e8
-
-        return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
-        )
-    }
-
-    // ============================================================
-    // Mars
-    // ============================================================
-    private val marsL0 = arrayOf(
-        Term(620387300.0, 0.0, 0.0),
-        Term(18653600.0, 2.000670, 334.061243),
-        Term(1327100.0, 3.993425, 668.122486),
-        Term(126100.0, 5.986180, 1002.183729),
-        Term(13900.0, 1.691012, 1336.244972),
-        Term(1700.0, 3.683767, 1670.306215),
-        Term(200.0, 5.676522, 2004.367458),
-        Term(104500.0, 1.8540, -294.25),
-        Term(88300.0, 3.4076, -628.31),
-        Term(68100.0, 0.3004, 962.37),
-        Term(57800.0, 1.8540, -922.56),
-        Term(44400.0, 4.9612, -1256.62),
-        Term(36800.0, 0.3004, 1296.43),
-        Term(28300.0, 1.8540, -1550.87),
-        Term(22800.0, 3.4076, -1884.93),
-        Term(17700.0, 0.3004, 1630.49),
-        Term(13700.0, 1.8540, -2179.18),
-        Term(10600.0, 4.9612, -2513.24),
-        Term(8100.0, 0.3004, 1964.55),
-        Term(6200.0, 1.8540, -2807.49),
-        Term(4700.0, 3.4076, -3141.55),
-        Term(3600.0, 0.3004, 2298.61),
-        Term(2700.0, 1.8540, -3435.80),
-        Term(2000.0, 4.9612, -3769.86),
-        Term(1500.0, 0.3004, 2632.67),
-        Term(1100.0, 1.8540, -4064.11),
-        Term(800.0, 3.4076, -4398.17),
-        Term(600.0, 0.3004, 2966.73),
-        Term(400.0, 1.8540, -4700.80),
-        Term(300.0, 4.9612, -5034.86)
-    )
-    private val marsL1 = arrayOf(
-        Term(33406124300.0, 0.0, 0.0)
-    )
-    private val marsB0 = arrayOf(
-        Term(3228300.0, 1.353390, 334.061243),
-        Term(229900.0, 3.346145, 668.122486),
-        Term(21800.0, 5.338900, 1002.183729),
-        Term(2400.0, 1.043732, 1336.244972),
-        Term(300.0, 3.036487, 1670.306215),
-        Term(1800.0, 0.806, -294.25),
-        Term(1500.0, 2.360, -628.31),
-        Term(1200.0, 5.752, 962.37),
-        Term(1000.0, 0.806, -922.56),
-        Term(800.0, 3.913, -1256.62),
-        Term(600.0, 5.752, 1296.43),
-        Term(500.0, 0.806, -1550.87),
-        Term(400.0, 2.360, -1884.93),
-        Term(300.0, 5.752, 1630.49),
-        Term(200.0, 0.806, -2179.18)
-    )
-    private val marsR0 = arrayOf(
-        Term(152367900.0, 0.0, 0.0),
-        Term(14185700.0, 5.142263, 334.061243),
-        Term(663600.0, 0.864311, 668.122486),
-        Term(41700.0, 2.856359, 1002.183729),
-        Term(3100.0, 4.848407, 1336.244972),
-        Term(300.0, 0.840455, 1670.306215),
-        Term(1200.0, 0.283, -294.25),
-        Term(900.0, 1.837, -628.31),
-        Term(700.0, 4.729, 962.37),
-        Term(600.0, 0.283, -922.56),
-        Term(400.0, 3.390, -1256.62),
-        Term(300.0, 4.729, 1296.43),
-        Term(250.0, 0.283, -1550.87),
-        Term(200.0, 1.837, -1884.93),
-        Term(150.0, 4.729, 1630.49)
-    )
-
-    private fun calculateMars(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(marsL0, t) / 1e8 + (sumSeries(marsL1, t) / 1e8) * t
-        val bRad = sumSeries(marsB0, t) / 1e8
-        val rAu = sumSeries(marsR0, t) / 1e8
-
-        return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
-        )
-    }
-
-    // ============================================================
-    // Jupiter
-    // ============================================================
-    private val jupiterL0 = arrayOf(
-        Term(60046900.0, 0.0, 0.0),
-        Term(4853300.0, 0.873295, 52.969096),
-        Term(118000.0, 1.746590, 105.938192),
-        Term(3800.0, 2.619885, 158.907288),
-        Term(100.0, 3.493180, 211.876384),
-        Term(583300.0, 2.1264, -31.6267),
-        Term(285100.0, 0.2185, -10.2842),
-        Term(167200.0, 4.0343, -52.9691),
-        Term(112400.0, 1.2532, 21.3424),
-        Term(88100.0, 3.1611, -11.6267),
-        Term(68300.0, 5.0690, 42.6848),
-        Term(54200.0, 0.9769, -63.2534),
-        Term(43100.0, 2.8848, 11.0582),
-        Term(34500.0, 4.7927, -21.9109),
-        Term(27800.0, 0.7006, 32.4006),
-        Term(22600.0, 2.6085, -73.5376),
-        Term(18400.0, 4.5164, 0.7740),
-        Term(15100.0, 0.4243, -32.1951),
-        Term(12400.0, 2.3322, 22.1166),
-        Term(10200.0, 4.2401, -83.8218),
-        Term(8400.0, 0.1480, -9.5102),
-        Term(7000.0, 2.0559, -42.4793),
-        Term(5800.0, 3.9638, 11.8324),
-        Term(4800.0, 5.8717, -94.1060),
-        Term(4000.0, 1.7796, -19.7944),
-        Term(3300.0, 3.6875, -52.7635),
-        Term(2800.0, 5.5954, 1.5482),
-        Term(2300.0, 1.5033, -104.3902),
-        Term(1900.0, 3.4112, -30.0786),
-        Term(1600.0, 5.3191, -63.0477),
-        Term(1300.0, 0.9270, -8.7340),
-        Term(1100.0, 2.8349, -114.6744),
-        Term(900.0, 4.7428, -40.3628),
-        Term(700.0, 0.3507, -73.3319),
-        Term(600.0, 2.2586, -19.0182),
-        Term(500.0, 4.1665, -124.9586),
-        Term(400.0, 0.0744, -50.6470),
-        Term(300.0, 1.9823, -83.6161),
-        Term(250.0, 3.8902, -29.3024),
-        Term(200.0, 5.7981, -135.2428),
-        Term(150.0, 1.7060, -60.9312)
-    )
-    private val jupiterL1 = arrayOf(
-        Term(5296909600.0, 0.0, 0.0)
-    )
-    private val jupiterB0 = arrayOf(
-        Term(228300.0, 1.8364, 52.969096),
-        Term(5500.0, 2.7097, 105.938192),
-        Term(200.0, 3.5830, 158.907288),
-        Term(27400.0, 3.0895, -31.6267),
-        Term(13400.0, 1.1816, -10.2842),
-        Term(7900.0, 4.9974, -52.9691),
-        Term(5300.0, 2.2163, 21.3424),
-        Term(4100.0, 4.1242, -11.6267),
-        Term(3200.0, 6.0321, 42.6848),
-        Term(2500.0, 1.9400, -63.2534),
-        Term(2000.0, 3.8479, 11.0582),
-        Term(1600.0, 5.7558, -21.9109),
-        Term(1300.0, 1.6637, 32.4006),
-        Term(1000.0, 3.5716, -73.5376),
-        Term(800.0, 5.4795, 0.7740)
-    )
-    private val jupiterR0 = arrayOf(
-        Term(520260300.0, 0.0, 0.0),
-        Term(25232900.0, 5.584888, 52.969096),
-        Term(612100.0, 0.171478, 105.938192),
-        Term(19800.0, 1.048068, 158.907288),
-        Term(700.0, 1.924658, 211.876384),
-        Term(303300.0, 0.5557, -31.6267),
-        Term(148300.0, 4.8009, -10.2842),
-        Term(86900.0, 2.4636, -52.9691),
-        Term(58500.0, 5.8358, 21.3424),
-        Term(45800.0, 1.5904, -11.6267),
-        Term(35500.0, 3.4983, 42.6848),
-        Term(28200.0, 5.4062, -63.2534),
-        Term(22400.0, 1.0141, 11.0582),
-        Term(18000.0, 2.9220, -21.9109),
-        Term(14500.0, 4.8299, 32.4006),
-        Term(11800.0, 0.4378, -73.5376),
-        Term(9600.0, 2.3457, 0.7740),
-        Term(7900.0, 4.2536, -32.1951),
-        Term(6500.0, 0.1615, 22.1166),
-        Term(5300.0, 2.0694, -83.8218)
-    )
-
-    private fun calculateJupiter(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(jupiterL0, t) / 1e8 + (sumSeries(jupiterL1, t) / 1e8) * t
-        val bRad = sumSeries(jupiterB0, t) / 1e8
-        val rAu = sumSeries(jupiterR0, t) / 1e8
-
-        return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
-        )
-    }
-
-    // ============================================================
-    // Saturn
-    // ============================================================
-    private val saturnL0 = arrayOf(
-        Term(87169800.0, 0.0, 0.0),
-        Term(5550200.0, 1.205730, 21.329910),
-        Term(154700.0, 2.411460, 42.659820),
-        Term(5000.0, 3.617190, 63.989730),
-        Term(200.0, 4.822920, 85.319640),
-        Term(1402200.0, 5.2678, -31.6267),
-        Term(684700.0, 3.3599, -10.2842),
-        Term(401300.0, 1.4520, -52.9691),
-        Term(269800.0, 4.3709, 21.3424),
-        Term(211500.0, 0.2788, -11.6267),
-        Term(163900.0, 2.1867, 42.6848),
-        Term(130100.0, 4.0946, -63.2534),
-        Term(103400.0, 0.0025, 11.0582),
-        Term(82800.0, 1.9104, -21.9109),
-        Term(66700.0, 3.8183, 32.4006),
-        Term(54200.0, 5.7262, -73.5376),
-        Term(44200.0, 1.3341, 0.7740),
-        Term(36200.0, 3.2420, -32.1951),
-        Term(29800.0, 5.1499, 22.1166),
-        Term(24500.0, 0.7578, -83.8218),
-        Term(20200.0, 2.6657, -9.5102),
-        Term(16800.0, 4.5736, -42.4793),
-        Term(13900.0, 0.1815, 11.8324),
-        Term(11500.0, 2.0894, -94.1060),
-        Term(9600.0, 3.9973, -19.7944),
-        Term(7900.0, 5.9052, -52.7635),
-        Term(6700.0, 1.5131, 1.5482),
-        Term(5500.0, 3.4210, -104.3902),
-        Term(4600.0, 5.3289, -30.0786),
-        Term(3800.0, 0.9368, -63.0477),
-        Term(3100.0, 2.8447, -8.7340),
-        Term(2600.0, 4.7526, -114.6744),
-        Term(2200.0, 0.3605, -40.3628),
-        Term(1800.0, 2.2684, -73.3319),
-        Term(1500.0, 4.1763, -19.0182),
-        Term(1200.0, 6.0842, -124.9586),
-        Term(1000.0, 1.7021, -50.6470),
-        Term(800.0, 3.6100, -83.6161),
-        Term(600.0, 5.5179, -29.3024),
-        Term(500.0, 1.1258, -135.2428),
-        Term(400.0, 3.0337, -60.9312)
-    )
-    private val saturnL1 = arrayOf(
-        Term(2132991000.0, 0.0, 0.0)
-    )
-    private val saturnB0 = arrayOf(
-        Term(434300.0, 2.169120, 21.329910),
-        Term(12100.0, 3.374850, 42.659820),
-        Term(400.0, 4.580580, 63.989730),
-        Term(65800.0, 6.2309, -31.6267),
-        Term(32100.0, 4.3230, -10.2842),
-        Term(18800.0, 2.4151, -52.9691),
-        Term(12700.0, 5.3340, 21.3424),
-        Term(9900.0, 1.2419, -11.6267),
-        Term(7700.0, 3.1498, 42.6848),
-        Term(6100.0, 5.0577, -63.2534),
-        Term(4900.0, 0.9656, 11.0582),
-        Term(3900.0, 2.8735, -21.9109),
-        Term(3100.0, 4.7814, 32.4006),
-        Term(2500.0, 0.3893, -73.5376),
-        Term(2000.0, 2.2972, 0.7740)
-    )
-    private val saturnR0 = arrayOf(
-        Term(955490900.0, 0.0, 0.0),
-        Term(52968300.0, 5.917323, 21.329910),
-        Term(1471700.0, 0.837323, 42.659820),
-        Term(47400.0, 2.043053, 63.989730),
-        Term(1600.0, 3.248783, 85.319640),
-        Term(729300.0, 3.6971, -31.6267),
-        Term(356100.0, 1.7892, -10.2842),
-        Term(208700.0, 6.0242, -52.9691),
-        Term(140300.0, 2.8002, 21.3424),
-        Term(110000.0, 4.7081, -11.6267),
-        Term(85200.0, 0.3200, 42.6848),
-        Term(67600.0, 2.2279, -63.2534),
-        Term(53800.0, 4.1358, 11.0582),
-        Term(43100.0, 6.0437, -21.9109),
-        Term(34700.0, 1.6516, 32.4006),
-        Term(28200.0, 3.5595, -73.5376),
-        Term(23000.0, 5.4674, 0.7740),
-        Term(18800.0, 1.0753, -32.1951),
-        Term(15500.0, 2.9832, 22.1166),
-        Term(12700.0, 4.8911, -83.8218)
-    )
-
-    private fun calculateSaturn(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(saturnL0, t) / 1e8 + (sumSeries(saturnL1, t) / 1e8) * t
-        val bRad = sumSeries(saturnB0, t) / 1e8
-        val rAu = sumSeries(saturnR0, t) / 1e8
-
-        return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
-        )
-    }
-
-    // ============================================================
-    // Uranus
-    // ============================================================
-    private val uranusL0 = arrayOf(
-        Term(546678200.0, 0.0, 0.0),
-        Term(4622100.0, 1.458920, 7.478150),
-        Term(106900.0, 2.917840, 14.956300),
-        Term(2500.0, 4.376760, 22.434450),
-        Term(100.0, 5.835680, 29.912600),
-        Term(382000.0, 2.1023, -13.8518),
-        Term(186000.0, 0.1944, -27.7036),
-        Term(109000.0, 4.4294, -41.5554),
-        Term(73000.0, 2.5215, -55.4072),
-        Term(57000.0, 0.6136, -69.2590),
-        Term(44000.0, 4.8486, -83.1108),
-        Term(35000.0, 2.9407, -96.9626),
-        Term(28000.0, 1.0328, -110.8144),
-        Term(22000.0, 5.2678, -124.6662),
-        Term(18000.0, 3.3599, -138.5180),
-        Term(14000.0, 1.4520, -152.3698),
-        Term(12000.0, 5.6870, -166.2216),
-        Term(10000.0, 3.7791, -180.0734),
-        Term(8000.0, 1.8712, -193.9252),
-        Term(6000.0, 6.1032, -207.7770),
-        Term(5000.0, 4.1953, -221.6288),
-        Term(4000.0, 2.2874, -235.4806),
-        Term(3000.0, 0.3795, -249.3324),
-        Term(2500.0, 4.6115, -263.1842),
-        Term(2000.0, 2.7036, -277.0360),
-        Term(1500.0, 0.7957, -290.8878),
-        Term(1200.0, 5.0277, -304.7396),
-        Term(1000.0, 3.1198, -318.5914),
-        Term(800.0, 1.2119, -332.4432),
-        Term(600.0, 5.4439, -346.2950),
-        Term(500.0, 3.5360, -360.1468)
-    )
-    private val uranusL1 = arrayOf(
-        Term(747815000.0, 0.0, 0.0)
-    )
-    private val uranusB0 = arrayOf(
-        Term(134800.0, 0.77319, 7.478150),
-        Term(3100.0, 2.23211, 14.956300),
-        Term(100.0, 3.69103, 22.434450),
-        Term(11000.0, 1.4165, -13.8518),
-        Term(5400.0, 5.5086, -27.7036),
-        Term(3200.0, 3.6007, -41.5554),
-        Term(2100.0, 1.6928, -55.4072),
-        Term(1600.0, 5.9249, -69.2590),
-        Term(1300.0, 4.0170, -83.1108),
-        Term(1000.0, 2.1091, -96.9626)
-    )
-    private val uranusR0 = arrayOf(
-        Term(1921844600.0, 0.0, 0.0),
-        Term(88880000.0, 6.17051, 7.478150),
-        Term(2057000.0, 1.33232, 14.956300),
-        Term(48000.0, 2.79413, 22.434450),
-        Term(1100.0, 4.25594, 29.912600),
-        Term(734000.0, 0.5318, -13.8518),
-        Term(357000.0, 4.6239, -27.7036),
-        Term(209000.0, 2.7160, -41.5554),
-        Term(140000.0, 0.8081, -55.4072),
-        Term(110000.0, 5.0402, -69.2590),
-        Term(85000.0, 3.1323, -83.1108),
-        Term(67000.0, 1.2244, -96.9626),
-        Term(54000.0, 5.4565, -110.8144),
-        Term(43000.0, 3.5486, -124.6662),
-        Term(35000.0, 1.6407, -138.5180)
-    )
-
-    private fun calculateUranus(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(uranusL0, t) / 1e8 + (sumSeries(uranusL1, t) / 1e8) * t
-        val bRad = sumSeries(uranusB0, t) / 1e8
-        val rAu = sumSeries(uranusR0, t) / 1e8
-
-        return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
-        )
-    }
-
-    // ============================================================
-    // Neptune
-    // ============================================================
-    private val neptuneL0 = arrayOf(
-        Term(532117500.0, 0.0, 0.0),
-        Term(945600.0, 0.78490, 3.812516),
-        Term(4500.0, 1.56980, 7.625032),
-        Term(20.0, 2.35470, 11.437548),
-        Term(122000.0, 3.1124, -3.6656),
-        Term(59000.0, 1.2045, -7.3312),
-        Term(35000.0, 5.4366, -10.9968),
-        Term(23000.0, 3.5287, -14.6624),
-        Term(18000.0, 1.6208, -18.3280),
-        Term(14000.0, 5.8529, -21.9936),
-        Term(11000.0, 3.9450, -25.6592),
-        Term(9000.0, 2.0371, -29.3248),
-        Term(7000.0, 0.1292, -32.9904),
-        Term(5000.0, 4.3613, -36.6560),
-        Term(4000.0, 2.4534, -40.3216),
-        Term(3000.0, 0.5455, -43.9872),
-        Term(2500.0, 4.7776, -47.6528),
-        Term(2000.0, 2.8697, -51.3184),
-        Term(1500.0, 0.9618, -54.9840),
-        Term(1200.0, 5.1939, -58.6496),
-        Term(1000.0, 3.2860, -62.3152)
-    )
-    private val neptuneL1 = arrayOf(
-        Term(381251600.0, 0.0, 0.0)
-    )
-    private val neptuneB0 = arrayOf(
-        Term(176995.0, 1.76995, 3.812516),
-        Term(800.0, 2.55485, 7.625032),
-        Term(3500.0, 2.4267, -3.6656),
-        Term(1700.0, 0.5188, -7.3312),
-        Term(1000.0, 4.7509, -10.9968),
-        Term(700.0, 2.8430, -14.6624),
-        Term(500.0, 0.9351, -18.3280),
-        Term(400.0, 5.1672, -21.9936),
-        Term(300.0, 3.2593, -25.6592),
-        Term(200.0, 1.3514, -29.3248)
-    )
-    private val neptuneR0 = arrayOf(
-        Term(3011038700.0, 0.0, 0.0),
-        Term(28472000.0, 5.49649, 3.812516),
-        Term(135000.0, 0.12139, 7.625032),
-        Term(1000.0, 0.74629, 11.437548),
-        Term(234000.0, 1.5423, -3.6656),
-        Term(113000.0, 5.6344, -7.3312),
-        Term(67000.0, 3.7265, -10.9968),
-        Term(44000.0, 1.8186, -14.6624),
-        Term(35000.0, 6.0507, -18.3280),
-        Term(27000.0, 4.1428, -21.9936),
-        Term(21000.0, 2.2349, -25.6592),
-        Term(17000.0, 0.3270, -29.3248),
-        Term(13000.0, 4.5591, -32.9904),
-        Term(10000.0, 2.6512, -36.6560),
-        Term(8000.0, 0.7433, -40.3216)
-    )
-
-    private fun calculateNeptune(t: Double): HeliocentricEcliptic {
-        val lRad = sumSeries(neptuneL0, t) / 1e8 + (sumSeries(neptuneL1, t) / 1e8) * t
-        val bRad = sumSeries(neptuneB0, t) / 1e8
-        val rAu = sumSeries(neptuneR0, t) / 1e8
-
-        return HeliocentricEcliptic(
-            normalizeAngle(lRad * RAD2DEG),
-            bRad * RAD2DEG,
-            rAu
+            longitudeDeg = normalizeAngle(evaluate(l, tau) * RAD2DEG),
+            latitudeDeg = evaluate(b, tau) * RAD2DEG,
+            distanceAu = evaluate(r, tau)
         )
     }
 }

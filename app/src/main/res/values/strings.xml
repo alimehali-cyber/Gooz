@@ -7,7 +7,6 @@
     <string name="nav_home">Home</string>
     <string name="nav_compass">AR Sky</string>
     <string name="nav_skymap">Sky Map</string>
-    <string name="nav_moon">Moon</string>
     <string name="nav_iss">Satellites</string>
     <string name="nav_lab">Lab</string>
     <string name="nav_satellites">Satellites</string>
@@ -84,6 +83,14 @@
     <string name="select_city">Select Iran Provincial Capital</string>
     <string name="liquid_glass_setting">Liquid Glass (Optical Surface)</string>
     <string name="liquid_glass_desc">Physical optical refraction and ambient blur on floating UI (Android 13+)</string>
+    <string name="app_backdrop_title">App Backdrop</string>
+    <string name="live_sky_setting">Live Sky</string>
+    <string name="live_sky_desc">Use your local sky as the app background.</string>
+    <string name="backdrop_ngc1929_setting">NGC 1929</string>
+    <string name="backdrop_ngc1929_desc">Spitzer / Chandra / ESO photograph of NGC 1929, cropped to fill the screen at full resolution.</string>
+    <string name="backdrop_cepheus_setting">Cepheus</string>
+    <string name="backdrop_cepheus_desc">Spitzer infrared photograph of Cepheus B and C, cropped to fill the screen at full resolution.</string>
+    <string name="backdrop_off_desc">Solid theme background. Choose Live Sky or a photograph as a full-screen backdrop.</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
@@ -109,4 +116,14 @@
     <!-- Gravity Sandbox -->
     <string name="gravity_sandbox_title">Gravity Sandbox</string>
     <string name="gravity_sandbox_subtitle">N-Body Newton-Kepler Simulator</string>
+
+    <!-- Gargantua Laboratory -->
+    <string name="gargantua_title">Gargantua</string>
+    <string name="gargantua_subtitle">Relativistic Black Hole Laboratory</string>
+    <string name="gargantua_description">Interactive Kerr metric black hole laboratory: curved spacetime ray-marching, accretion disk relativistic beaming, gravitational redshift, and photon orbits.</string>
+
+    <!-- Chal Kerr Ray-Marching Engine -->
+    <string name="chal_title">Chal</string>
+    <string name="chal_subtitle">Real-Time Kerr Ray-Marching Engine</string>
+    <string name="chal_description">Scientifically accurate, real-time relativistic ray-marching of a rotating Kerr black hole: geodesic gravitational lensing, Novikov-Thorne accretion disk, relativistic Doppler beaming, photon-ring glow and a spectral starfield.</string>
 </resources>

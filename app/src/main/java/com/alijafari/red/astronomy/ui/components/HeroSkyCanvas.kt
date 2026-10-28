@@ -1,17 +1,25 @@
 package com.alijafari.red.astronomy.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.FitScreen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,29 +28,64 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
-import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.ObjectType
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+import com.alijafari.red.astronomy.domain.TimeMachineMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
+import com.alijafari.red.astronomy.ui.persepolis.PersepolisLandscape
 import com.alijafari.red.astronomy.ui.rendering.*
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaStatus
+import androidx.compose.ui.graphics.Brush
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.liquidGlass
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.math.*
 import kotlin.random.Random
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/**
+ * Idle frame interval of the full-bleed scene: ~24 fps. Slow cloud drift and a breathing figure need no
+ * more, and the sky itself is not repainted on this clock (see the three drawing layers below).
+ */
+private const val SCENE_MOTION_FRAME_MS = 42L
+
+/**
+ * Quantum of the instant the sky MODEL is computed for, in live mode.
+ *
+ * Home used to recompute the whole scene — Moon ELP2000, every planet, every drawn star, the galactic
+ * plane — once per second on the main thread. The sky rotates 15°/hour, so fifteen seconds is 0.06°:
+ * well under a pixel on the Home scene at any latitude. Keying the model on a 15 s bucket instead of the
+ * 1 Hz clock cuts that work by 15x with no visible change. The visible clock, the motion layer and the
+ * frame counters keep their own, finer clocks.
+ */
+private const val SKY_MODEL_QUANTUM_MS = 15_000L
 
 data class StardustParticle(
     var x: Float,
@@ -61,253 +104,303 @@ data class SelectedCelestialInfo(
     val typeName: String? = null
 )
 
+/** How the sky canvas is presented. The rendering is identical; the framing and the chrome change. */
+enum class SkyCanvasPresentation {
+
+    /**
+     * The full-bleed Home scene: edge to edge, no rounded corners, a low horizon, the ground band, the
+     * cloud veils, the observer and the typographic readout on the sky. This is the surface that reads
+     * like a weather app's hero, with the sky drawn by ZIG's own astronomy.
+     */
+    SCENE,
+
+    /** The fullscreen landscape sky viewer: the same sky, edge to edge, with its time and date pills. */
+    VIEWER
+}
+
+/**
+ * The interactive sky canvas: the shared sky renderer, tap-to-identify and finger time travel.
+ *
+ * The caller owns the size. [presentation] decides the framing: the full-bleed Home scene, or the
+ * landscape viewer. [onExpand] adds the small expand affordance that opens the fullscreen viewer.
+ *
+ * The drawing is split into three layers so the moving parts never repaint the astronomy:
+ *  1. the sky, on the clock tick (or per frame while the finger scrubs time);
+ *  2. the scene motion — drifting cloud veils and the breathing observer — on a faster tick, scene only;
+ *  3. the interaction layer — selection ring and stardust — only while the user is touching it.
+ *
+ * Between layers 1 and 2, the scene on the photographic themes also carries the combined
+ * Persepolis + Mil-e Azhdaha relief (see [PersepolisLandscape]): a transparent GL surface standing
+ * in layer 1's ground band, lit by the
+ * same ephemeris, rendering one frame per sky-model change. It is a peer of the sky clock, not of the
+ * motion clock, so it is not numbered with the repaint layers above.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeroSkyCanvas(
     uiState: MainUiState,
     viewModel: MainViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    presentation: SkyCanvasPresentation = SkyCanvasPresentation.VIEWER,
+    onExpand: (() -> Unit)? = null,
+    // Scene presentation only: how far the ground's dissolved tail reaches *below* the
+    // canvas's own bottom edge (see the SCENE TAIL layer below). Home passes the height
+    // of the card row that follows the canvas, so the tail passes underneath the cards;
+    // every other caller leaves it at zero and the canvas ends at its own edge.
+    bottomTailHeight: Dp = 0.dp
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
     val coroutineScope = rememberCoroutineScope()
-    val density = LocalDensity.current
 
-    // Dynamic Astronomical Julian Date (Tracks real system time continuously in live mode, plus simulation offset)
-    var currentSystemTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val isScene = presentation == SkyCanvasPresentation.SCENE
+    // The scene puts the horizon low so the sky owns the frame; the viewer keeps the old 0.85.
+    val horizonFraction = if (isScene) SkySceneLayout.HORIZON_FRACTION else HeroSkyProjection.HORIZON_FRACTION
+    val renderTarget = if (isScene) SkyRenderTarget.HOME_SCENE else SkyRenderTarget.HOME_HERO
+
+    // Live clock shared with the Live Sky backdrop (one timer, owned by MainViewModel, running only while collected).
+    val currentSystemTimeMs by viewModel.skyLiveClock.timeMs.collectAsState()
 
     // Direct Finger Time Travel state
     val simulatedOffsetHoursAnim = remember { Animatable(0f) }
     var isDragging by remember { mutableStateOf(false) }
-    var touchPos by remember { mutableStateOf(Offset.Zero) }
 
-    // Floating Time Bubble position spring animation
-    val bubbleX by animateFloatAsState(
-        targetValue = touchPos.x,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioLowBouncy),
-        label = "BubbleX"
-    )
-    val bubbleY by animateFloatAsState(
-        targetValue = touchPos.y,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioLowBouncy),
-        label = "BubbleY"
-    )
+    // Publish the drag offset (including the animated return) so the Live Sky backdrop follows the same instant.
+    // It is reset when Home leaves, exactly as this local offset is.
+    LaunchedEffect(Unit) {
+        snapshotFlow { simulatedOffsetHoursAnim.value }.collect { viewModel.setSkyDragOffsetHours(it) }
+    }
+    DisposableEffect(Unit) {
+        onDispose { viewModel.setSkyDragOffsetHours(0f) }
+    }
 
     // Stardust Particles list
     val stardustParticles = remember { mutableStateListOf<StardustParticle>() }
 
-    // Steady state real-time clock update (every 1 second instead of every frame)
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = System.currentTimeMillis()
-            currentSystemTimeMs = now
-            delay(1000L)
+    // Selected Tapped Celestial Object
+    var selectedCelestial by remember { mutableStateOf<SelectedCelestialInfo?>(null) }
+
+    // Two clocks. The sky clock moves on the shared 1 Hz tick (and per frame while time is being scrubbed);
+    // the motion clock runs the cloud drift and the observer at a capped frame rate. Keeping them apart is
+    // what lets the cheap layer animate without repainting the stars, the Moon sprite and the Milky Way.
+    var skyTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var motionTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val hasParticles by remember { derivedStateOf { stardustParticles.isNotEmpty() } }
+    val isAnimatingReturn = simulatedOffsetHoursAnim.isRunning
+    val hasSelection = selectedCelestial != null
+
+    // Steady state real-time clock: one tick per second from the shared clock, instead of every frame when idle
+    LaunchedEffect(currentSystemTimeMs) {
+        if (!isDragging && !simulatedOffsetHoursAnim.isRunning) {
+            skyTimeMs = currentSystemTimeMs
         }
     }
 
-    // Active particle & interactive animation loop (only active when interacting or particles exist)
-    var frameTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(isDragging, stardustParticles.size) {
-        if (isDragging || stardustParticles.isNotEmpty() || simulatedOffsetHoursAnim.isRunning) {
-            while (isDragging || stardustParticles.isNotEmpty() || simulatedOffsetHoursAnim.isRunning) {
-                withFrameMillis { ms ->
-                    frameTimeMs = ms
-                    // Update stardust particles
-                    val iter = stardustParticles.iterator()
-                    while (iter.hasNext()) {
-                        val p = iter.next()
-                        p.x += p.vx
-                        p.y += p.vy
-                        p.alpha -= 0.025f
-                        if (p.alpha <= 0f) {
-                            iter.remove()
-                        }
-                    }
+    LaunchedEffect(isDragging, hasParticles, isAnimatingReturn, hasSelection, isScene) {
+        // The keys above are exactly the inputs of this flag, so it is always fresh at launch: a change
+        // restarts the effect.
+        val interactive = isDragging || hasParticles || isAnimatingReturn || hasSelection
+
+        fun stepParticles() {
+            if (stardustParticles.isEmpty()) return
+            val iter = stardustParticles.iterator()
+            while (iter.hasNext()) {
+                val p = iter.next()
+                p.x += p.vx
+                p.y += p.vy
+                p.alpha -= 0.025f
+                if (p.alpha <= 0f) {
+                    iter.remove()
                 }
+            }
+        }
+
+        while (interactive || isScene) {
+            if (interactive) {
+                // Anything the finger drives runs at the display rate, sky included.
+                withFrameMillis { ms ->
+                    motionTimeMs = ms
+                    skyTimeMs = ms
+                    stepParticles()
+                }
+            } else {
+                // The idle scene wakes at ~24 Hz rather than on every vsync, and never touches the sky
+                // clock: drifting veils and a breathing figure need no more, and the astronomy keeps its
+                // own slow tick.
+                delay(SCENE_MOTION_FRAME_MS)
+                motionTimeMs = System.currentTimeMillis()
             }
         }
     }
 
-    // Moon Glow Pulsing Infinite Transition
-    val infiniteTransition = rememberInfiniteTransition(label = "MoonGlowTransition")
-    val moonPulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.88f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "MoonPulse"
-    )
-
-    // Current Simulated Julian Date (Real system time JD in live mode, plus any finger time travel offset)
+    // Current Simulated Julian Date (Honours TimeMachineState in simulation mode, plus any finger time travel offset)
     val currentOffsetHours = simulatedOffsetHoursAnim.value
-    val currentBaseJd = TimeEngine.getJulianDate(currentSystemTimeMs)
-    val simulatedJd = currentBaseJd + (currentOffsetHours / 24.0)
-    val simulatedTimeMs = ((simulatedJd - 2440587.5) * 86400000.0).toLong()
+    val isSimulationMode = uiState.timeMachineState.mode == TimeMachineMode.SIMULATION
+    val baseTimeMs = SkyTimeModel.baseTimeMs(
+        isSimulation = isSimulationMode,
+        simulationTimeMs = uiState.timeMachineState.simulationTimeMs,
+        liveTimeMs = currentSystemTimeMs
+    )
+    // The model instant is bucketed in live mode (see SKY_MODEL_QUANTUM_MS) and exact in simulation mode,
+    // where it only moves when the user moves the time machine. The drag offset is never bucketed: the
+    // finger has to move the sky as it moves.
+    val modelBaseTimeMs = if (isSimulationMode) {
+        baseTimeMs
+    } else {
+        baseTimeMs - Math.floorMod(baseTimeMs, SKY_MODEL_QUANTUM_MS)
+    }
+    // Same effective instant the Live Sky backdrop uses (see SkyTimeModel)
+    val simulatedJd = SkyTimeModel.effectiveJd(modelBaseTimeMs, currentOffsetHours)
+    // The instant the READOUT shows is exact, not bucketed: the clock must never lag its own minute. Only
+    // the sky model above is quantised, and 15 s of sky rotation is far below one pixel.
+    val simulatedTimeMs = TimeEngine.getTimestampFromJulianDate(
+        SkyTimeModel.effectiveJd(baseTimeMs, currentOffsetHours)
+    )
 
     // Astro computations
     val userLat = uiState.userLocation.latitude
     val userLon = uiState.userLocation.longitude
-    val lastDeg = remember(simulatedJd, userLon) { TimeEngine.getLAST(simulatedJd, userLon) }
-
-    // Sun position
-    val sunPos = remember(simulatedJd) { SunEngine.calculatePosition(simulatedJd) }
-    val sunHoriz = remember(sunPos, lastDeg, userLat) {
-        CoordinateEngine.equatorialToHorizontal(
-            CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg),
-            lastDeg,
-            userLat
-        )
+    val userElev = uiState.userLocation.elevationMeters
+    val userTimeZone = remember(uiState.userLocation.timezoneId) {
+        TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
     }
-
-    // Moon calculation
-    val moonData = remember(simulatedJd, userLat, userLon) {
-        MoonEngine.calculateMoon(simulatedJd, userLat, userLon)
+    // Astro computations: one shared scene model (also used by the Live Sky app backdrop)
+    val skyFrame = remember(simulatedJd, userLat, userLon, userElev) {
+        SkySceneModel.compute(simulatedJd, userLat, userLon, userElev)
     }
-
-    // Planets calculation
-    val planetPositions = remember(simulatedJd, lastDeg, userLat) {
-        PlanetEngine.PlanetType.values().mapNotNull { pType ->
-            if (pType == PlanetEngine.PlanetType.PLUTO) null
-            else {
-                val pPos = PlanetEngine.calculatePlanet(pType, simulatedJd)
-                val horiz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(pPos.raDeg, pPos.decDeg),
-                    lastDeg,
-                    userLat
-                )
-                if (horiz.altitudeDeg > -2.0) Triple(pType, pPos, horiz) else null
-            }
-        }
-    }
-
-    // Galactic plane points
-    val galacticPlanePoints = remember(simulatedJd, userLat, userLon) {
-        GalacticEngine.calculateGalacticPlanePoints(simulatedJd, userLat, userLon)
-            .filter { it.altitudeDeg > -5.0 }
-    }
-
-    // Catalog Stars & Deep Sky Objects (Stars, Galaxies, Nebulae)
-    val catalogStars = remember(simulatedJd, lastDeg, userLat) {
-        AstronomyCatalog.getAllObjects(simulatedJd)
-            .filter { (it.type == ObjectType.STAR || it.type == ObjectType.DEEP_SKY) && it.magnitude <= 4.5 }
-            .mapNotNull { celestialObj ->
-                val horiz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(celestialObj.raDeg, celestialObj.decDeg),
-                    lastDeg,
-                    userLat
-                )
-                if (horiz.altitudeDeg > 0.0) Pair(celestialObj, horiz) else null
-            }
-    }
-
-    // Eclipse detection
-    val isSolarEclipse = remember(sunHoriz, moonData) {
-        val dAz = abs(sunHoriz.azimuthDeg - moonData.azimuthDeg)
-        val dAlt = abs(sunHoriz.altitudeDeg - moonData.altitudeDeg)
-        val angDist = sqrt(dAz * dAz + dAlt * dAlt)
-        sunHoriz.altitudeDeg > 0.0 && angDist < 1.2
-    }
-
-    val isLunarEclipse = remember(moonData, sunHoriz) {
-        moonData.illuminationPercent > 95.0 && abs(sunHoriz.altitudeDeg + moonData.altitudeDeg) < 2.0
-    }
-
-    // Lighting state engine
-    val lightingState = remember(sunHoriz.altitudeDeg, moonData.altitudeDeg, moonData.illuminationPercent) {
-        LightingEngine.computeLightingState(
-            sunAltDeg = sunHoriz.altitudeDeg,
-            moonAltDeg = moonData.altitudeDeg,
-            moonIlluminationPercent = moonData.illuminationPercent
-        )
-    }
+    val lastDeg = skyFrame.lastDeg
+    val sunHoriz = skyFrame.sunHoriz
+    val moonData = skyFrame.moonData
+    val planetPositions = skyFrame.planetPositions
+    val galacticPlanePoints = skyFrame.galacticPlanePoints
+    val catalogStars = skyFrame.catalogStars
+    val isSolarEclipse = skyFrame.isSolarEclipse
+    val isLunarEclipse = skyFrame.isLunarEclipse
+    val lightingState = skyFrame.lightingState
 
     // Auto-return job
     var autoReturnJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
-    // Selected Tapped Celestial Object
-    var selectedCelestial by remember { mutableStateOf<SelectedCelestialInfo?>(null) }
-
-    // 5-second automatic dismiss timer for the selected celestial object pill
+    // Keep the identification visible long enough to read and open its detail card.
     LaunchedEffect(selectedCelestial) {
         if (selectedCelestial != null) {
-            delay(5000)
+            delay(4_000)
             selectedCelestial = null
         }
     }
 
+    // A fresh radial bloom accompanies each selection; the continuous scene clock then carries its gentle pulse.
+    val selectionBloom = remember { Animatable(1f) }
+    LaunchedEffect(selectedCelestial?.id) {
+        if (selectedCelestial != null) {
+            selectionBloom.snapTo(0f)
+            selectionBloom.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 560, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
+    // Fresh state holders for pointerInput handlers so gestures are never cancelled mid-tap or stuck with stale captures
+    val currentIsFa by rememberUpdatedState(isFa)
+    val currentCatalogStars by rememberUpdatedState(catalogStars)
+    val currentPlanetPositions by rememberUpdatedState(planetPositions)
+    val currentSunHoriz by rememberUpdatedState(sunHoriz)
+    val currentMoonData by rememberUpdatedState(moonData)
+    val currentUserLat by rememberUpdatedState(userLat)
+    val currentSkyTheme by rememberUpdatedState(uiState.skyCanvasTheme)
+
+    // The photographic Moon: the Home Moon card's look with the true phase, libration and visibility.
+    val moonSprites = rememberSkyMoonSprites()
+
+    // Photographic panorama (Phase 1). Only active behind the internal SkyPanoramaFeature switch.
+    // Until the panorama reports READY, the legacy atmosphere and procedural Milky Way below stay
+    // visible as the fallback, so there is no black or empty flash. Its state is derived only when
+    // the feature is enabled (see the SkyPanoramaLayer call below).
+    var panoramaReady by remember { mutableStateOf(false) }
+    // The panorama replaces the Real Sky background only for that theme; other themes keep their look.
+    val panoramaEnabled = SkyPanoramaFeature.isEnabledFor(uiState.skyCanvasTheme)
+    val panoramaActive = SkyPanoramaFeature.isPresented(uiState.skyCanvasTheme, panoramaReady)
+
     BoxWithConstraints(
         modifier = modifier
-            .fillMaxWidth()
-            .height(320.dp)
-            .clip(RoundedCornerShape(28.dp))
+            // The scene is full-bleed and its tail (see SCENE TAIL below) deliberately
+            // paints past the bottom edge, so the scene must not be clipped to its own
+            // bounds. The card and viewer keep their squircle.
+            .then(if (isScene) Modifier else Modifier.clip(squircleShape(RedCornerRadius.window)))
             .testTag("hero_sky_canvas_container")
-            .pointerInput(isFa, catalogStars, planetPositions, sunHoriz, moonData, userLat) {
+            .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
                     val canvasW = size.width.toFloat()
                     val canvasH = size.height.toFloat()
-                    val touchRadius = 48.dp.toPx()
+                    val touchRadius = 36.dp.toPx()
+
+                    val fa = currentIsFa
+                    val lat = currentUserLat
+                    val sun = currentSunHoriz
+                    val moon = currentMoonData
+                    val planets = currentPlanetPositions
+                    val stars = currentCatalogStars
 
                     var closestObj: SelectedCelestialInfo? = null
                     var minDistance = Float.MAX_VALUE
 
                     // Check Sun
-                    if (sunHoriz.altitudeDeg > -12.0) {
-                        val sunPos = HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
-                        val dist = HeroSkyProjection.screenDistance(tapOffset, sunPos, canvasW)
+                    if (sun.altitudeDeg > -12.0) {
+                        val sunScreenPos = HeroSkyProjection.project(sun.azimuthDeg, sun.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, sunScreenPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
                                 id = "sun",
-                                name = if (isFa) "خورشید" else "Sun",
-                                position = sunPos,
-                                typeName = if (isFa) "ستاره مرکزی منظومه شمسی" else "Central Star"
+                                name = if (fa) "خورشید" else "Sun",
+                                position = sunScreenPos,
+                                typeName = if (fa) "ستاره مرکزی منظومه شمسی" else "Central Star"
                             )
                         }
                     }
 
                     // Check Moon
-                    if (moonData.altitudeDeg > -12.0) {
-                        val moonPos = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
-                        val dist = HeroSkyProjection.screenDistance(tapOffset, moonPos, canvasW)
+                    if (moon.altitudeDeg > -12.0) {
+                        val moonScreenPos = HeroSkyProjection.project(moon.azimuthDeg, moon.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, moonScreenPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
                                 id = "moon",
-                                name = if (isFa) "ماه" else "Moon",
-                                position = moonPos,
-                                typeName = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn
+                                name = if (fa) "ماه" else "Moon",
+                                position = moonScreenPos,
+                                typeName = if (fa) moon.phaseNameFa else moon.phaseNameEn
                             )
                         }
                     }
 
                     // Check Planets
-                    planetPositions.forEach { (pType, _, horiz) ->
-                        val pPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, userLat)
+                    planets.forEach { (pType, _, horiz) ->
+                        val pPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
                         val dist = HeroSkyProjection.screenDistance(tapOffset, pPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             val planetId = "planet_${pType.name.lowercase()}"
                             closestObj = SelectedCelestialInfo(
                                 id = planetId,
-                                name = if (isFa) pType.nameFa else pType.nameEn,
+                                name = if (fa) pType.nameFa else pType.nameEn,
                                 position = pPos,
-                                typeName = if (isFa) "سیاره" else "Planet"
+                                typeName = if (fa) "سیاره" else "Planet"
                             )
                         }
                     }
 
-                    // Check Catalog Stars / Deep Sky
-                    catalogStars.forEach { (celestialObj, horiz) ->
-                        val sPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, userLat)
+                    // Check Catalog Stars
+                    stars.forEach { (celestialObj, horiz) ->
+                        val sPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
                         val dist = HeroSkyProjection.screenDistance(tapOffset, sPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
                                 id = celestialObj.id,
-                                name = if (isFa) celestialObj.nameFa else celestialObj.nameEn,
+                                name = if (fa) celestialObj.nameFa else celestialObj.nameEn,
                                 position = sPos,
-                                typeName = if (isFa) celestialObj.type.nameFa else celestialObj.type.nameEn
+                                typeName = if (fa) celestialObj.type.nameFa else celestialObj.type.nameEn
                             )
                         }
                     }
@@ -317,9 +410,8 @@ fun HeroSkyCanvas(
             }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
-                    onDragStart = { offset ->
+                    onDragStart = {
                         isDragging = true
-                        touchPos = offset
                         autoReturnJob?.cancel()
                     },
                     onDragEnd = {
@@ -344,8 +436,7 @@ fun HeroSkyCanvas(
                     },
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        touchPos = change.position
-                        val canvasWidthPx = size.width.toFloat()
+                        val canvasWidthPx = size.width.toFloat().coerceAtLeast(1f)
                         val deltaHours = -(dragAmount / canvasWidthPx) * 24.0f
                         val newOffset = (simulatedOffsetHoursAnim.value + deltaHours).coerceIn(-12.0f, 12.0f)
 
@@ -354,9 +445,10 @@ fun HeroSkyCanvas(
                         }
 
                         // Emit Stardust particles along finger path styled by active theme
-                        val particleColor = when (uiState.skyCanvasTheme) {
+                        val particleColor = when (currentSkyTheme) {
+                            SkyCanvasTheme.REAL_SKY -> if (Random.nextBoolean()) Color(0xFFFFF8EB) else Color(0xFF93C5FD)
                             SkyCanvasTheme.ATMOSPHERIC_SKY -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
-                            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+                            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (currentSunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                             SkyCanvasTheme.KIDS_WATERCOLOR -> if (Random.nextBoolean()) Color(0xFFFF85A1) else Color(0xFF70D6FF)
                             SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
                             SkyCanvasTheme.PAPERCRAFT_DIORAMA -> if (Random.nextBoolean()) Color(0xFFE07A5F) else Color(0xFF81B29A)
@@ -378,133 +470,133 @@ fun HeroSkyCanvas(
                 )
             }
     ) {
-        // --- GPU CANVAS RENDERING PIPELINE ---
+        if (panoramaEnabled) {
+            val skyPanoramaState = remember(skyFrame) { SkyPanoramaState.fromSceneFrame(skyFrame) }
+            SkyPanoramaLayer(
+                state = skyPanoramaState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(if (isScene) RectangleShape else squircleShape(RedCornerRadius.window)),
+                onStatusChanged = { status -> panoramaReady = status == SkyPanoramaStatus.READY }
+            )
+        }
+
+        // Combined-landscape framing for this exact scene size (see PersepolisFraming): Persepolis
+        // at half the first integration's linear size, the whole group placed left and farther
+        // back in the ground plane. The sky pass recomputes the same result for its
+        // footprint-local grounding paint, so the stone and painted ground meet at the same toe,
+        // platform edges and tower-slope front. Null unless this is the full-bleed scene on a
+        // photographic theme.
+        val persepolisFraming = if (isScene && PersepolisFeature.isEnabledFor(uiState.skyCanvasTheme)) {
+            val density = LocalDensity.current
+            val widthPx = with(density) { maxWidth.toPx() }
+            val heightPx = with(density) { maxHeight.toPx() }
+            PersepolisFraming.forScene(
+                widthPx = widthPx,
+                heightPx = heightPx,
+                horizonYPx = heightPx * horizonFraction,
+                readoutBottomPx = heightPx * horizonFraction -
+                    with(density) { PersepolisFraming.READOUT_INSET_DP.dp.toPx() },
+                readoutRightPx = with(density) { PersepolisFraming.READOUT_RIGHT_DP.dp.toPx() },
+                readoutClearancePx = with(density) { PersepolisFraming.READOUT_CLEARANCE_DP.dp.toPx() }
+            )
+        } else null
+
+        // --- LAYER 1: THE SKY ---
+        // Atmosphere, Milky Way, stars, Sun, Moon, planets, ground. The expensive pass: it repaints on the
+        // clock tick, not on every animation frame.
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            SkySceneRenderer.drawSky(
+                drawScope = this,
+                frame = skyFrame,
+                theme = uiState.skyCanvasTheme,
+                frameTimeMs = skyTimeMs,
+                panoramaActive = panoramaActive,
+                target = renderTarget,
+                moonSprites = moonSprites,
+                bortle = uiState.bortleClass
+            )
+        }
+
+        // --- COMBINED LANDSCAPE: THE GROUND'S SUBJECTS ---
+        // Persepolis in the left distance and Mil-e Azhdaha on its limestone hillside, as one
+        // transparent GL relief set into layer 1's ground band: the ranges behind
+        // them are their backdrop, the deeper field below their feet is the foreground, and the
+        // localized earthwork the sky pass paints around both footprints seats them in the
+        // terrain. They are lit by
+        // this frame's real Sun and Moon and render on demand (per sky-model change), never on the
+        // motion clock. Photographic themes only — PersepolisFeature is the gate. The relief is
+        // hosted on a TextureView (see PersepolisTextureView), so it is ordinary window content:
+        // layers composed after it — motion veils, the readout, in-window overlays such as the
+        // sky search — cover and dim it like the painted layers, and it scrolls with the feed.
+        if (persepolisFraming != null) {
+            PersepolisLandscape(
+                frame = skyFrame,
+                framing = persepolisFraming,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("persepolis_landscape")
+            )
+        }
+
+        // --- LAYER 2: SCENE MOTION ---
+        // Drifting cloud veils and the observer on the grass line. Full-bleed scene only, and cheap enough
+        // to run continuously.
+        if (isScene) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                SkySceneRenderer.drawSceneMotion(
+                    drawScope = this,
+                    frame = skyFrame,
+                    theme = uiState.skyCanvasTheme,
+                    frameTimeMs = motionTimeMs
+                )
+            }
+        }
+
+        // --- LAYER 3: INTERACTION ---
+        // Selection ring, tapped-object pill anchor and stardust: live only while the user is touching.
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasW = size.width
             val canvasH = size.height
 
-            val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
-                HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
-            } else null
-
-            // 1. Atmosphere Renderer
-            AtmosphereRenderer.drawAtmosphere(
-                drawScope = this,
-                lightingState = lightingState,
-                sunPosPx = sunPosPx,
-                theme = uiState.skyCanvasTheme
-            )
-
-            // 2. Milky Way Renderer
-            MilkyWayRenderer.drawMilkyWay(
-                drawScope = this,
-                galacticPoints = galacticPlanePoints,
-                lightingState = lightingState,
-                frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat
-            )
-
-            // 3. Star Renderer
-            StarRenderer.drawStars(
-                drawScope = this,
-                objects = catalogStars,
-                starVisibility = lightingState.starVisibility,
-                frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat
-            )
-
-            // 4. Sun Renderer
-            if (sunPosPx != null) {
-                SunRenderer.drawSun(
-                    drawScope = this,
-                    center = sunPosPx,
-                    sunAltitudeDeg = sunHoriz.altitudeDeg,
-                    frameTimeMs = frameTimeMs,
-                    theme = uiState.skyCanvasTheme
-                )
-            }
-
-            // 5. Moon Renderer
-            if (moonData.altitudeDeg > -12.0) {
-                val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
-                val baseMoonRadius = 26.dp.toPx()
-
-                val limbScreenAngleDeg = CoordinateEngine.calculateMoonLimbScreenAngleDeg(
-                    moonAzimuthDeg = moonData.azimuthDeg,
-                    moonAltitudeDeg = moonData.altitudeDeg,
-                    sunAzimuthDeg = sunHoriz.azimuthDeg,
-                    sunAltitudeDeg = sunHoriz.altitudeDeg
-                )
-
-                MoonRenderer.drawMoon(
-                    drawScope = this,
-                    center = moonCenter,
-                    radius = baseMoonRadius,
-                    illuminationPercent = moonData.illuminationPercent,
-                    phaseAngleRad = moonData.phaseAngleRad,
-                    isLunarEclipse = isLunarEclipse,
-                    isSolarEclipse = isSolarEclipse,
-                    moonPulseScale = moonPulseScale,
-                    lightingState = lightingState,
-                    frameTimeMs = frameTimeMs,
-                    isWaxing = (moonData.ageDays < 14.765),
-                    theme = uiState.skyCanvasTheme,
-                    limbScreenAngleDeg = limbScreenAngleDeg
-                )
-            }
-
-            // 6. Planet Renderer
-            PlanetRenderer.drawPlanets(
-                drawScope = this,
-                planets = planetPositions,
-                frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat
-            )
-
-            // 7. Horizon Landscape Silhouette Layer
-            LandscapeRenderer.drawHorizonLandscape(
-                drawScope = this,
-                lightingState = lightingState,
-                frameTimeMs = frameTimeMs
-            )
-
-            // 7. Tapped Celestial Target Ring Overlay
+            // Tapped Celestial Target Ring Overlay (Home-only interaction layer)
             selectedCelestial?.let { sel ->
                 val selPos = when {
-                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
-                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
+                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
                     sel.id.startsWith("planet_") -> {
                         val pName = sel.id.removePrefix("planet_")
                         planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
-                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat)
+                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
                         } ?: sel.position
                     }
                     else -> {
                         catalogStars.find { it.first.id == sel.id }?.let {
-                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat)
+                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
                         } ?: sel.position
                     }
                 }
-                val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
+                // Wrapped phase: wall-clock milliseconds are too large for a meaningful Float argument to sin.
+                val pulsePhase = (motionTimeMs % 4_000L).toFloat() / 4_000f * 2f * PI.toFloat()
+                val pulseRing = 1.0f + 0.12f * sin(pulsePhase)
                 val ringColor = when (uiState.skyCanvasTheme) {
+                    SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
                     SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
                     SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                     SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
                     SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
                     SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
                 }
+                val bloom = selectionBloom.value.coerceIn(0f, 1f)
                 drawCircle(
-                    color = ringColor.copy(alpha = 0.5f),
-                    radius = 28.dp.toPx() * pulseRing,
+                    color = ringColor.copy(alpha = (1f - bloom) * 0.72f),
+                    radius = (13.dp.toPx() + 24.dp.toPx() * bloom) * pulseRing,
                     center = selPos,
-                    style = Stroke(width = 1.5.dp.toPx())
+                    style = Stroke(width = (2.4f - bloom * 0.8f).dp.toPx())
                 )
                 drawCircle(
-                    color = ringColor,
-                    radius = 18.dp.toPx(),
+                    color = ringColor.copy(alpha = 0.94f),
+                    radius = (12.dp.toPx() + 6.dp.toPx() * bloom),
                     center = selPos,
                     style = Stroke(width = 1.8.dp.toPx())
                 )
@@ -517,110 +609,375 @@ fun HeroSkyCanvas(
             )
         }
 
-        // --- FLOATING SELECTED CELESTIAL OBJECT NAME PILL ---
-        selectedCelestial?.let { sel ->
-            val canvasW = constraints.maxWidth.toFloat()
-            val canvasH = constraints.maxHeight.toFloat()
-            val livePos = when {
-                sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
-                sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
-                sel.id.startsWith("planet_") -> {
-                    val pName = sel.id.removePrefix("planet_")
-                    planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
-                        HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat)
-                    } ?: sel.position
-                }
-                else -> {
-                    catalogStars.find { it.first.id == sel.id }?.let {
-                        HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat)
-                    } ?: sel.position
-                }
-            }
-            val xDp = with(LocalDensity.current) { livePos.x.toDp() }
-            val yDp = with(LocalDensity.current) { livePos.y.toDp() }
-
-            Surface(
-                onClick = {
-                    val idToOpen = sel.id
-                    selectedCelestial = null
-                    if (idToOpen.isNotEmpty()) {
-                        viewModel.openObjectDetailById(idToOpen)
-                    }
-                },
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xEE0F172A),
-                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.7f)),
-                shadowElevation = 8.dp,
+        // --- SCENE TAIL (scene presentation, Home only) ---
+        // The scene does not end at its bottom edge: the ground's own bottom colour
+        // continues *downward and outward* below the canvas, dissolving to full
+        // transparency over bottomTailHeight — the height of the Moon/eclipse card row
+        // that follows the canvas on Home, so the tail passes underneath those cards.
+        // Because it fades in alpha rather than toward any colour, it merges into
+        // whatever backdrop is actually behind the screen — the theme background, the
+        // live-sky backdrop render, or any other app backdrop — with nothing per-case
+        // to adapt. The canvas itself stays crisp to its edge; nothing fades upward
+        // into it. The GL monuments composite above this layer, but their stone ends
+        // far above the canvas's bottom, so the tail never has stone to fade.
+        if (isScene && bottomTailHeight > 0.dp) {
+            // The exact colour of the canvas's bottom row: the ground gradient's last
+            // stop, darkened by the ground renderer's foot fade (black at 0.26) — so
+            // the seam at the canvas edge is colour-continuous before the dissolve.
+            val tailColor = lerp(
+                scenePalette(uiState.skyCanvasTheme, skyFrame.lightingState).groundBottom,
+                Color.Black,
+                0.26f
+            )
+            Canvas(
                 modifier = Modifier
-                    .offset(
-                        x = (xDp - 70.dp).coerceIn(12.dp, 200.dp),
-                        y = (yDp - 54.dp).coerceAtLeast(12.dp)
-                    )
-                    .testTag("selected_celestial_pill")
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(bottomTailHeight)
+                    .offset(y = bottomTailHeight)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF38BDF8))
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0.0f to tailColor,
+                        0.35f to tailColor.copy(alpha = 0.55f),
+                        0.7f to tailColor.copy(alpha = 0.22f),
+                        1.0f to tailColor.copy(alpha = 0f)
+                    ),
+                    size = size
+                )
+            }
+        }
+
+        // --- SCENE READOUT ---
+        // Caption scale, on purpose. The scene is the product; the instant it is drawn for is the
+        // caption. The clock is still the first thing the eye finds, but it sits at reading size with an
+        // editorial hairline between it and the sky's own state, so the frame stays the sky's. The
+        // numbers come from the same state the sky is drawn from, so they can never disagree with it.
+        if (isScene) {
+            val timeText = TimeEngine.formatTime24h(simulatedTimeMs, isFa, userTimeZone)
+                .let { if (isFa) it.toPersianDigits() else it }
+            val dateText = TimeEngine.formatDate(simulatedTimeMs, uiState.calendarSystem, isFa, userTimeZone)
+                .let { if (isFa) it.toPersianDigits() else it }
+            val conditionText = skyConditionLabel(sunHoriz.altitudeDeg, isFa)
+            val moonPercent = moonData.illuminationPercent.roundToInt()
+            val moonText = if (moonData.altitudeDeg > 0.0) {
+                if (isFa) "ماه $moonPercent٪ بالای افق" else "Moon $moonPercent% up"
+            } else {
+                if (isFa) "ماه زیر افق" else "Moon below horizon"
+            }.let { if (isFa) it.toPersianDigits() else it }
+
+            // True while the finger is travelling in time: the dot says so instead of a caption nobody
+            // reads mid-gesture.
+            val isReadingSimulatedInstant = isDragging || abs(currentOffsetHours) > 0.05f
+            val readoutAccent = when (uiState.skyCanvasTheme) {
+                SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFFFBBF24)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+                SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
+                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(
+                        start = 20.dp,
+                        end = 20.dp,
+                        bottom = (maxHeight * (1f - horizonFraction)) + 12.dp
                     )
+                    .widthIn(max = maxWidth * 0.72f)
+                    .testTag("home_sky_readout"),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = sel.name,
+                        text = timeText,
                         style = TextStyle(
                             fontFamily = LocalAppFontFamily.current,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color.White
-                        )
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 26.sp,
+                            lineHeight = 28.sp,
+                            letterSpacing = if (isFa) 0.sp else 0.5.sp,
+                            color = Color.White,
+                            shadow = Shadow(Color.Black.copy(alpha = 0.38f), Offset(0f, 1f), 6f)
+                        ),
+                        maxLines = 1
                     )
-                    if (sel.typeName != null) {
-                        Text(
-                            text = "• ${sel.typeName}",
-                            style = TextStyle(
-                                fontFamily = LocalAppFontFamily.current,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 11.sp,
-                                color = Color(0xFF94A3B8)
+
+                    // The hairline that separates "when" from "what". One device pixel wide, the height
+                    // of the clock's cap height, so it reads as a rule in a table rather than as a chip.
+                    Spacer(modifier = Modifier.width(9.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(17.dp)
+                            .background(Color.White.copy(alpha = 0.30f))
+                    )
+                    Spacer(modifier = Modifier.width(9.dp))
+
+                    if (isReadingSimulatedInstant) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(readoutAccent)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                    }
+
+                    Text(
+                        text = conditionText,
+                        style = TextStyle(
+                            fontFamily = LocalAppFontFamily.current,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp,
+                            letterSpacing = if (isFa) 0.sp else 0.2.sp,
+                            color = Color.White.copy(alpha = 0.92f),
+                            shadow = Shadow(Color.Black.copy(alpha = 0.34f), Offset(0f, 1f), 5f)
+                        ),
+                        maxLines = 1
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = "$dateText  ·  $moonText",
+                    style = TextStyle(
+                        fontFamily = LocalAppFontFamily.current,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 10.sp,
+                        lineHeight = 13.sp,
+                        letterSpacing = if (isFa) 0.sp else 0.15.sp,
+                        color = Color.White.copy(alpha = 0.66f),
+                        shadow = Shadow(Color.Black.copy(alpha = 0.30f), Offset(0f, 1f), 4f)
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // --- FLOATING SELECTED CELESTIAL OBJECT NAME PILL ---
+        // Present in both Home and fullscreen: this is the affordance that turns identify into detail.
+        AnimatedVisibility(
+            visible = selectedCelestial != null,
+            enter = fadeIn(tween(180)) + scaleIn(
+                initialScale = 0.82f,
+                animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)
+            ) + slideInVertically(tween(220, easing = FastOutSlowInEasing)) { it / 5 },
+            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.94f, animationSpec = tween(140)) +
+                slideOutVertically(tween(140)) { -it / 8 }
+        ) {
+            selectedCelestial?.let { sel ->
+                val canvasW = constraints.maxWidth.toFloat()
+                val canvasH = constraints.maxHeight.toFloat()
+                val livePos = when {
+                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                    sel.id.startsWith("planet_") -> {
+                        val pName = sel.id.removePrefix("planet_")
+                        planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
+                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                        } ?: sel.position
+                    }
+                    else -> {
+                        catalogStars.find { it.first.id == sel.id }?.let {
+                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
+                        } ?: sel.position
+                    }
+                }
+                val xDp = with(LocalDensity.current) { livePos.x.toDp() }
+                val yDp = with(LocalDensity.current) { livePos.y.toDp() }
+                val bubbleMaxWidth = (maxWidth - 24.dp).coerceAtMost(240.dp)
+                val maxPillX = (maxWidth - bubbleMaxWidth).coerceAtLeast(12.dp)
+                val maxPillY = (maxHeight - 72.dp).coerceAtLeast(12.dp)
+                val accent = when (uiState.skyCanvasTheme) {
+                    SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
+                    SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White
+                    SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
+                    SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                    SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
+                }
+
+                Surface(
+                    onClick = {
+                        val idToOpen = sel.id
+                        selectedCelestial = null
+                        if (idToOpen.isNotEmpty()) {
+                            viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
+                        }
+                    },
+                    shape = RedShapes.capsule,
+                    color = Color(0xE6101727),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.72f)),
+                    shadowElevation = 14.dp,
+                    modifier = Modifier
+                        .widthIn(max = bubbleMaxWidth)
+                        .offset(
+                            x = (xDp - 74.dp).coerceIn(12.dp, maxPillX),
+                            y = (yDp - 56.dp).coerceIn(12.dp, maxPillY)
+                        )
+                        .testTag("selected_celestial_pill")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 13.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(accent)
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                text = sel.name,
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Text(
+                                text = sel.typeName ?: if (isFa) "مشاهده اطلاعات" else "View details",
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 10.sp,
+                                    letterSpacing = if (isFa) 0.sp else 0.3.sp,
+                                    color = Color.White.copy(alpha = 0.66f)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(
+                            text = if (isFa) "‹" else "›",
+                            style = TextStyle(fontSize = 22.sp, lineHeight = 22.sp, color = accent),
+                            modifier = Modifier.padding(start = 2.dp)
                         )
                     }
                 }
             }
         }
 
-        // --- BOTTOM PILLS (Live sky & Date) ---
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // "Live sky" minimal pill
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0x66000000),
-                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
+        // --- BOTTOM PILLS (Current / Simulated Time Pill & Date Pill) ---
+        val isTimeOffsetActive = isDragging || abs(currentOffsetHours) > 0.05f
+        val timeText = TimeEngine.formatTime24h(simulatedTimeMs, isFa, userTimeZone)
+        val totalOffsetMinutes = (currentOffsetHours * 60f).roundToInt()
+        val offsetText = if (abs(totalOffsetMinutes) >= 1) {
+            val sign = if (totalOffsetMinutes > 0) "+" else "-"
+            val absMins = abs(totalOffsetMinutes)
+            val hrs = absMins / 60
+            val mins = absMins % 60
+            val rawStr = String.format(Locale.US, "%s%d:%02dh", sign, hrs, mins)
+            if (isFa) rawStr.toPersianDigits() else rawStr
+        } else ""
+
+        val accentDotColor = if (isTimeOffsetActive) {
+            when (uiState.skyCanvasTheme) {
+                SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFFFBBF24)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White
+                SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
+                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
+            }
+        } else {
+            Color(0xFF2DD4BF)
+        }
+
+        // Only the fullscreen viewer has room for the time and date pills; the card and the scene do not.
+        if (presentation == SkyCanvasPresentation.VIEWER) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                // Stationary Current / Simulated Time pill
+                Surface(
+                    shape = RedShapes.capsule,
+                    color = Color(0x66000000),
+                    border = BorderStroke(
+                        width = if (isTimeOffsetActive) 0.8.dp else 0.5.dp,
+                        color = if (isTimeOffsetActive) accentDotColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.25f)
+                    ),
+                    modifier = Modifier.testTag("time_travel_bubble")
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF2DD4BF))
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(accentDotColor)
+                        )
+                        if (isTimeOffsetActive) {
+                            Text(
+                                text = timeText,
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFF9FAFB)
+                                )
+                            )
+                            if (offsetText.isNotEmpty()) {
+                                Text(
+                                    text = "($offsetText)",
+                                    style = TextStyle(
+                                        fontFamily = LocalAppFontFamily.current,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFFE2E8F0)
+                                    )
+                                )
+                            }
+                        } else {
+                            val livePrefix = if (uiState.timeMachineState.mode == TimeMachineMode.SIMULATION) {
+                                if (isFa) "شبیه‌سازی" else "Simulated"
+                            } else {
+                                if (isFa) "آسمان زنده" else "Live sky"
+                            }
+                            Text(
+                                text = "$livePrefix • $timeText",
+                                style = TextStyle(
+                                    fontFamily = LocalAppFontFamily.current,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFF9FAFB)
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Minimalistic Date pill
+                val formattedDate = TimeEngine.formatDate(simulatedTimeMs, uiState.calendarSystem, isFa, userTimeZone).let {
+                    if (isFa) it.toPersianDigits() else it
+                }
+                Surface(
+                    shape = RedShapes.capsule,
+                    color = Color(0x66000000),
+                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
+                ) {
                     Text(
-                        text = if (isFa) "آسمان زنده" else "Live sky",
+                        text = formattedDate,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         style = TextStyle(
                             fontFamily = LocalAppFontFamily.current,
                             fontWeight = FontWeight.Medium,
@@ -630,136 +987,54 @@ fun HeroSkyCanvas(
                     )
                 }
             }
-
-            // Minimalistic Date pill
-            val formattedDate = TimeEngine.formatDate(simulatedTimeMs, uiState.calendarSystem, isFa).let {
-                if (isFa) it.toPersianDigits() else it
-            }
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0x66000000),
-                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
-            ) {
-                Text(
-                    text = formattedDate,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = TextStyle(
-                        fontFamily = LocalAppFontFamily.current,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp,
-                        color = Color(0xFFF9FAFB)
-                    )
-                )
-            }
         }
 
-        // --- TIME BUBBLE (Floating Pill styled according to SkyCanvasTheme) ---
-        if (isDragging || abs(currentOffsetHours) > 0.05f) {
-            val timeText = TimeEngine.formatTime24h(simulatedTimeMs, isFa)
-            val offsetText = if (abs(currentOffsetHours) > 0.1f) {
-                val sign = if (currentOffsetHours > 0) "+" else ""
-                val hrs = currentOffsetHours.toInt()
-                val mins = (abs(currentOffsetHours - hrs) * 60).toInt()
-                val rawStr = String.format("%s%d:%02dh", sign, hrs, mins)
-                if (isFa) rawStr.toPersianDigits() else rawStr
-            } else ""
-
-            val bubbleWidthPx = with(density) { 130.dp.toPx() }
-            val clampedBubbleX = (bubbleX - bubbleWidthPx / 2f).coerceIn(10f, with(density) { 220.dp.toPx() })
-            val clampedBubbleY = (bubbleY - with(density) { 70.dp.toPx() }).coerceIn(10f, with(density) { 240.dp.toPx() })
-
-            val (bgColor, borderColor, primaryTextColor, secondaryTextColor) = when (uiState.skyCanvasTheme) {
-                SkyCanvasTheme.ATMOSPHERIC_SKY -> Quadruple(
-                    Color(0xCC0F172A),
-                    Color(0xFF2DD4BF),
-                    Color(0xFF2DD4BF),
-                    Color.White.copy(alpha = 0.8f)
-                )
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> {
-                    val isDay = sunHoriz.altitudeDeg > 0.0
-                    if (isDay) {
-                        Quadruple(
-                            Color.White.copy(alpha = 0.95f),
-                            Color(0xFF18181B),
-                            Color(0xFF18181B),
-                            Color(0xFF52525B)
-                        )
-                    } else {
-                        Quadruple(
-                            Color(0xFF18181B).copy(alpha = 0.95f),
-                            Color(0xFFFAFAFA),
-                            Color(0xFFFAFAFA),
-                            Color(0xFFA1A1AA)
-                        )
-                    }
-                }
-                SkyCanvasTheme.KIDS_WATERCOLOR -> Quadruple(
-                    Color(0xFFFFF0F5).copy(alpha = 0.95f),
-                    Color(0xFFFF6B8B),
-                    Color(0xFF4A4E69),
-                    Color(0xFF6C5CE7)
-                )
-                SkyCanvasTheme.OBSERVATORY -> Quadruple(
-                    Color(0xCC1A0000),
-                    Color(0xFFEF4444),
-                    Color(0xFFEF4444),
-                    Color.White.copy(alpha = 0.8f)
-                )
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Quadruple(
-                    Color(0xFFF7F4EE).copy(alpha = 0.95f),
-                    Color(0xFFE07A5F),
-                    Color(0xFF3D405B),
-                    Color(0xFF8B5E56)
-                )
-            }
-
+        // --- EXPAND AFFORDANCE: opens the fullscreen landscape sky viewer ---
+        if (onExpand != null) {
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(clampedBubbleX.toInt(), clampedBubbleY.toInt()) }
-                    .then(
-                        if (uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY)
-                            Modifier.shadow(12.dp, CircleShape, spotColor = Color(0xFF2DD4BF))
-                        else Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(34.dp)
+                    // Clear glass over a dark scrim: the affordance has to read on a noon sky and on a
+                    // moonless one alike, so it never takes the white card tint.
+                    .liquidGlass(
+                        shape = CircleShape,
+                        style = LiquidGlassDefaults.Pill,
+                        clearGlass = true,
+                        fallbackColor = Color.Black.copy(alpha = 0.38f),
+                        fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
+                        glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
                     )
-                    .clip(CircleShape)
-                    .background(bgColor)
-                    .border(
-                        width = if (uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC) 1.dp else 1.5.dp,
-                        color = borderColor,
-                        shape = CircleShape
-                    )
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .testTag("time_travel_bubble")
+                    .clickable(onClick = onExpand)
+                    .testTag("sky_canvas_expand_button"),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = timeText,
-                        style = TextStyle(
-                            fontFamily = LocalAppFontFamily.current,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = primaryTextColor
-                        )
-                    )
-                    if (offsetText.isNotEmpty()) {
-                        Text(
-                            text = "($offsetText)",
-                            style = TextStyle(
-                                fontFamily = LocalAppFontFamily.current,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 12.sp,
-                                color = secondaryTextColor
-                            )
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Outlined.FitScreen,
+                    contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open the sky fullscreen",
+                    tint = Color(0xFFF8FAFF),
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
 }
 
-private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
+
+
+/**
+ * The astronomical phase of the day, as a short label for the scene readout.
+ *
+ * These are the standard twilight bands, read straight from the Sun altitude the scene is drawn for — not
+ * a forecast and not a weather condition.
+ */
+private fun skyConditionLabel(sunAltitudeDeg: Double, isFa: Boolean): String = when {
+    sunAltitudeDeg > 6.0 -> if (isFa) "روز" else "Daylight"
+    sunAltitudeDeg > 0.0 -> if (isFa) "ساعت طلایی" else "Golden hour"
+    sunAltitudeDeg > -6.0 -> if (isFa) "شفق مدنی" else "Civil twilight"
+    sunAltitudeDeg > -12.0 -> if (isFa) "شفق دریایی" else "Nautical twilight"
+    sunAltitudeDeg > -18.0 -> if (isFa) "شفق نجومی" else "Astronomical twilight"
+    else -> if (isFa) "شب نجومی" else "Astronomical night"
+}

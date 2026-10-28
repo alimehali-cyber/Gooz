@@ -29,15 +29,29 @@ object RedSpacing {
 }
 
 // Concentric Corner Radii Scale
-// Outer radius R -> Nested element radius r = R - padding
+// A squircle corner reaches [Squircle.EXTENT] x its radius along each edge, so a 40 dp radius removes
+// 64 dp of straight edge per side. The tokens below are radii, not reaches — that keeps the scale
+// readable and lets the reach rule change in one place.
 object RedCornerRadius {
     val none: Dp = 0.dp
-    val xs: Dp = 6.dp       // Small badges, tags
-    val sm: Dp = 10.dp      // Inner items, nested chips, small controls
-    val md: Dp = 14.dp      // Standard buttons, small cards, text inputs
-    val lg: Dp = 18.dp      // Primary cards, list grouped containers
-    val xl: Dp = 22.dp      // Hero cards, sheet dialogs
-    val xxl: Dp = 28.dp     // Floating bars, modals
+    val xs: Dp = 4.dp       // Small badges, tags
+    val sm: Dp = 6.dp       // Inner items, nested chips, small controls
+    val md: Dp = 8.dp       // Standard buttons, text inputs, nested section blocks
+    /**
+     * The one radius every card and window in the app wears — the Home moon card set the standard.
+     * [lg], [xl] and [xxl] are aliases of it so the three historical "container" steps of the scale
+     * cannot drift apart again: a card is a card, whichever token the call site happens to use.
+     * Small controls above keep their own radii, so the concentric hierarchy still reads.
+     *
+     * The visual size of this token is not 40 dp: with [Squircle.EXTENT] the corner box is
+     * `40 x 1.6 = 64 dp`, which is what the eye measures. That is deliberate and is why the tokens
+     * are smaller than the corner they draw — a design that specifies `40` as the *reach* has to
+     * write `25` here, and two numbers for one corner is how a system drifts.
+     */
+    val window: Dp = 40.dp      // Cards, sheets, windows — 64 dp of corner box
+    val lg: Dp = window     // Primary cards, list grouped containers
+    val xl: Dp = window     // Hero cards, sheet dialogs
+    val xxl: Dp = window    // Floating bars, modals
     val pill: Dp = 999.dp   // Capsule / pill buttons
     val full: Dp = 999.dp   // Fully rounded
 }
@@ -118,20 +132,20 @@ data class RedColorTokens(
 // Default Dark Palette (Obsidian / Deep Slate)
 val RedDarkColorTokens = RedColorTokens(
     isDark = true,
-    background = Color(0xFF090A0F),
-    backgroundSecondary = Color(0xFF0F1017),
-    backgroundTertiary = Color(0xFF151722),
-    surface = Color(0xFF12131C),
-    surfaceElevated = Color(0xFF1A1C28),
-    surfaceGrouped = Color(0xFF202332),
-    surfaceVariant = Color(0xFF171824),
-    textPrimary = Color(0xFFFAF9F6),
-    textSecondary = Color(0xFFB0B4C0),
-    textTertiary = Color(0xFF7A8090),
-    textQuaternary = Color(0xFF4C5262),
-    border = Color(0x1FFFFFFF),             // 12% subtle white border
-    separator = Color(0x14FFFFFF),          // 8% hairline separator
-    separatorOpaque = Color(0xFF222432),
+    background = Color(0xFF000000),          // iOS 27 system background primary (dark)
+    backgroundSecondary = Color(0xFF1C1C1E),  // iOS 27 system background secondary (dark)
+    backgroundTertiary = Color(0xFF2C2C2E),   // iOS 27 system background tertiary (dark)
+    surface = Color(0xFF1C1C1E),
+    surfaceElevated = Color(0xFF2C2C2E),
+    surfaceGrouped = Color(0xFF1C1C1E),
+    surfaceVariant = Color(0xFF3A3A3C),
+    textPrimary = Color(0xFFFFFFFF),         // iOS 27 label primary (dark)
+    textSecondary = Color(0xB3EBEBF5),       // iOS 27 label secondary (dark, 70%)
+    textTertiary = Color(0x4DEBEBF5),        // iOS 27 label tertiary (dark, 30%)
+    textQuaternary = Color(0x28EBEBF5),      // iOS 27 label quaternary (dark, 16%)
+    border = Color(0x2BFFFFFF),             // iOS 27 separator non-opaque (dark, 17%)
+    separator = Color(0x2BFFFFFF),          // 17% hairline separator (dark)
+    separatorOpaque = Color(0xFF38383A),     // iOS 27 opaque separator (dark)
     accentRed = Color(0xFFE53935),          // Refined RED vermilion crimson
     accentRedSubtle = Color(0x28E53935),
     accentGold = Color(0xFFD4AF37),
@@ -152,20 +166,20 @@ val RedDarkColorTokens = RedColorTokens(
 // Default Light Palette (Pure Light & Warm Ivory)
 val RedLightColorTokens = RedColorTokens(
     isDark = false,
-    background = Color(0xFFF8F9FA),
-    backgroundSecondary = Color(0xFFF1F3F5),
-    backgroundTertiary = Color(0xFFE9ECEF),
+    background = Color(0xFFFFFFFF),          // iOS 27 system background primary (light)
+    backgroundSecondary = Color(0xFFF2F2F7),  // iOS 27 system background secondary (light)
+    backgroundTertiary = Color(0xFFFFFFFF),   // iOS 27 system background tertiary (light)
     surface = Color(0xFFFFFFFF),
-    surfaceElevated = Color(0xFFF8F9FA),
-    surfaceGrouped = Color(0xFFF1F3F5),
-    surfaceVariant = Color(0xFFF3EFE6),
-    textPrimary = Color(0xFF111827),
-    textSecondary = Color(0xFF4B5563),
-    textTertiary = Color(0xFF9CA3AF),
-    textQuaternary = Color(0xFFD1D5DB),
-    border = Color(0x14000000),             // 8% subtle black border
-    separator = Color(0x0F000000),          // 6% hairline separator
-    separatorOpaque = Color(0xFFE5E7EB),
+    surfaceElevated = Color(0xFFF2F2F7),
+    surfaceGrouped = Color(0xFFF2F2F7),
+    surfaceVariant = Color(0xFFF2F2F7),
+    textPrimary = Color(0xFF000000),         // iOS 27 label primary (light)
+    textSecondary = Color(0x993C3C43),       // iOS 27 label secondary (light, 60%)
+    textTertiary = Color(0x4D3C3C43),        // iOS 27 label tertiary (light, 30%)
+    textQuaternary = Color(0x2E3C3C43),      // iOS 27 label quaternary (light, 18%)
+    border = Color(0x1F000000),             // iOS 27 separator non-opaque (light, 12%)
+    separator = Color(0x1F000000),          // 12% hairline separator (light)
+    separatorOpaque = Color(0xFFC6C6C8),     // iOS 27 opaque separator (light)
     accentRed = Color(0xFFD32F2F),          // High-contrast deep RED
     accentRedSubtle = Color(0x1CD32F2F),
     accentGold = Color(0xFFB8860B),

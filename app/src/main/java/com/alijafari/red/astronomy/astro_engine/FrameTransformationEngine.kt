@@ -16,6 +16,120 @@ import kotlin.math.*
 class FrameTransformationEngine {
 
     companion object {
+        /**
+         * IAU 2000B nutation series — 77 terms.
+         *
+         * Format: (l, lp, f, d, omega,
+         *          dPsi_sin, dPsi_sin_times_t,
+         *          dEps_cos, dEps_cos_times_t)
+         *
+         * That is the standard IAU 2000B column order, in which the constant and the
+         * time coefficient of each nutation component sit adjacent:
+         *
+         *     Δψ = Σ (c5 + c6·t) · sin(arg)
+         *     Δε = Σ (c7 + c8·t) · cos(arg)
+         *
+         * This comment used to label the columns
+         * (sinCoeff_psi, sinCoeff_epsilon, cosCoeff_psi, cosCoeff_epsilon), which
+         * implies Δε is driven by c6. That is wrong, and it is provably wrong from the
+         * data: for the leading term c6 = −174666 is only −0.0175 arcsec, far too
+         * small to be a nutation amplitude, while c7 = 92052331 is +9.2052 arcsec —
+         * the nutation-in-obliquity constant, unmistakably the Δε amplitude. (The
+         * matching Δψ amplitude c5 = −172064161 is −17.2064 arcsec, the
+         * nutation-in-longitude constant.)
+         *
+         * The CODE below has always used the correct (c5, c6 | c7, c8) order; only the
+         * comment was mislabelled. Nothing numeric changed.
+         *
+         * Coefficients are in 0.1 microarcseconds.
+         *
+         * This used to be a function-local `val terms` inside
+         * [calculateNutationIAU2000B], which reallocated 78 objects on every
+         * call. Nutation is evaluated once per [TimeEngine.getLAST] and hence
+         * once per alt/az transform, so the table is now allocated once at
+         * class-initialisation time. The coefficients themselves are unchanged.
+         */
+        private val NUTATION_IAU2000B_TERMS: Array<IntArray> = arrayOf(
+            // Term 1: l=0, lp=0, f=0, d=0, omega=1 — largest term
+            intArrayOf(0, 0, 0, 0, 1, -172064161, -174666, 92052331, 9086),
+            intArrayOf(0, 0, 2, -2, 2, -13170906, -1675, 5730336, -3015),
+            intArrayOf(0, 0, 2, 0, 2, -2276413, -234, 978459, -485),
+            intArrayOf(0, 0, 0, 0, 2, 2074554, 207, -897492, 470),
+            intArrayOf(0, 1, 0, 0, 0, 1475877, -3633, 73871, -184),
+            intArrayOf(0, 1, 2, -2, 2, -516821, 1226, 224386, -677),
+            intArrayOf(1, 0, 0, 0, 0, 711159, 73, -6750, 0),
+            intArrayOf(0, 0, 2, 0, 1, -387298, -367, 200728, 18),
+            intArrayOf(1, 0, 2, 0, 2, -301461, -36, 129025, -63),
+            intArrayOf(0, -1, 2, -2, 2, 215829, -494, -95929, 299),
+            intArrayOf(0, 0, 2, -2, 1, 128227, 137, -68982, -9),
+            intArrayOf(-1, 0, 2, 0, 2, 123457, 11, -53311, 32),
+            intArrayOf(-1, 0, 0, 2, 0, 156994, 10, -1235, 0),
+            intArrayOf(1, 0, 0, 0, 1, 63110, 63, -33228, 0),
+            intArrayOf(-1, 0, 0, 0, 1, -57976, -63, 31429, 0),
+            intArrayOf(-1, 0, 2, 2, 2, -59641, -11, 25543, -11),
+            intArrayOf(1, 0, 2, 0, 1, -51613, -42, 26366, 0),
+            intArrayOf(-2, 0, 2, 0, 1, 45893, 50, -24236, -10),
+            intArrayOf(0, 0, 0, 2, 0, 63384, 11, -1220, 0),
+            intArrayOf(0, 0, 2, 2, 2, -38571, -1, 16452, -11),
+            intArrayOf(0, -2, 2, -2, 2, 32481, 0, -13870, 0),
+            intArrayOf(-2, 0, 0, 2, 0, -47722, 0, 477, 0),
+            intArrayOf(2, 0, 2, 0, 2, -31046, -1, 13238, -11),
+            intArrayOf(1, 0, 2, -2, 2, 28593, 0, -12338, 10),
+            intArrayOf(-1, 0, 2, 0, 1, 20441, 21, -10758, 0),
+            intArrayOf(2, 0, 0, 0, 0, 29243, 0, -609, 0),
+            intArrayOf(0, 0, 2, 0, 0, 25887, 0, -550, 0),
+            intArrayOf(0, 1, 0, 0, 1, -14053, -25, 8551, -2),
+            intArrayOf(-1, 0, 0, 2, 1, 15164, 10, -8001, 0),
+            intArrayOf(0, 2, 2, -2, 2, -15794, 72, 6850, -42),
+            intArrayOf(0, 0, -2, 2, 0, 21783, 0, -167, 0),
+            intArrayOf(1, 0, 0, -2, 1, -12873, -10, 6953, 0),
+            intArrayOf(0, -1, 0, 0, 1, -12654, 11, 6415, 0),
+            intArrayOf(-1, 0, 2, 2, 1, -10204, 0, 5222, 0),
+            intArrayOf(0, 2, 0, 0, 0, 16707, -85, 168, -1),
+            intArrayOf(1, 0, 2, 2, 2, -7691, 0, 3268, 0),
+            intArrayOf(-2, 0, 2, 0, 0, -11024, 0, 104, 0),
+            intArrayOf(0, 1, 2, 0, 2, 7566, -21, -3250, 0),
+            intArrayOf(0, 0, 2, 2, 1, -6637, -11, 3353, 0),
+            intArrayOf(0, -1, 2, 0, 2, -7141, 21, 3070, 0),
+            intArrayOf(0, 0, 0, 2, 1, -6302, -11, 3272, 0),
+            intArrayOf(1, 0, 2, -2, 1, 5800, 10, -3045, 0),
+            intArrayOf(2, 0, 2, -2, 2, 6443, 0, -2768, 0),
+            intArrayOf(-2, 0, 0, 2, 1, -5774, -11, 3041, 0),
+            intArrayOf(2, 0, 2, 0, 1, -5350, 0, 2695, 0),
+            intArrayOf(0, -1, 2, -2, 1, -4752, -11, 2719, 0),
+            intArrayOf(0, 0, 0, -2, 1, -4940, -11, 2720, 0),
+            intArrayOf(-1, -1, 2, 0, 2, 7350, 0, -3198, 0),
+            intArrayOf(2, 0, 0, -2, 1, 4065, 0, -2206, 0),
+            intArrayOf(1, 0, 0, 2, 0, 6579, 0, -199, 0),
+            intArrayOf(0, 1, 2, -2, 1, 3579, 0, -1900, 0),
+            intArrayOf(1, -1, 0, 0, 0, 4725, 0, -41, 0),
+            intArrayOf(-2, 0, 2, 0, 2, -3075, 0, 1313, 0),
+            intArrayOf(3, 0, 2, 0, 2, -2904, 0, 1233, 0),
+            intArrayOf(0, -1, 0, 2, 0, 4344, 0, -81, 0),
+            intArrayOf(1, -1, 2, 0, 2, -2878, 0, 1232, 0),
+            intArrayOf(0, 0, 0, 1, 0, -4230, 0, 20, 0),
+            intArrayOf(-1, -1, 2, 2, 2, -2819, 0, 1207, 0),
+            intArrayOf(-1, 0, 2, 0, 0, -4056, 0, 40, 0),
+            intArrayOf(0, -1, 2, 2, 2, -2647, 0, 1129, 0),
+            intArrayOf(-2, 0, 0, 0, 1, -2294, 0, 1266, 0),
+            intArrayOf(1, 1, 2, 0, 2, 2481, 0, -1062, 0),
+            intArrayOf(2, 0, 0, 0, 1, 2179, 0, -1129, 0),
+            intArrayOf(-1, 1, 0, 1, 0, 3276, 0, -9, 0),
+            intArrayOf(1, 1, 0, 0, 0, -3389, 0, 35, 0),
+            intArrayOf(1, 0, 2, 0, 0, 3339, 0, -107, 0),
+            intArrayOf(-1, 0, 2, -2, 1, -1987, 0, 1073, 0),
+            intArrayOf(1, 0, 0, 0, 2, -1981, 0, 854, 0),
+            intArrayOf(-1, 0, 0, 1, 0, 4026, 0, -553, 0),
+            intArrayOf(0, 0, 2, 1, 2, 1660, 0, -710, 0),
+            intArrayOf(-1, 0, 2, 4, 2, -1521, 0, 647, 0),
+            intArrayOf(-1, 1, 0, 1, 1, 1314, 0, -700, 0),
+            intArrayOf(0, -2, 2, -2, 1, -1283, 0, 672, 0),
+            intArrayOf(1, 0, 2, 2, 1, -1331, 0, 663, 0),
+            intArrayOf(-2, 0, 2, 2, 2, 1383, 0, -594, 0),
+            intArrayOf(-1, 0, 0, 0, 2, 1405, 0, -610, 0),
+            intArrayOf(1, 1, 2, -2, 2, 1290, 0, -556, 0)
+        )
+
         // J2000.0 epoch in Julian Date (TT)
         private const val J2000 = 2451545.0
 
@@ -371,94 +485,10 @@ class FrameTransformationEngine {
             0.00059 * t * t * ARCSEC2DEG + 0.001813 * t * t * t * ARCSEC2DEG
         ) * DEG2RAD
 
-        // IAU 2000B nutation series — 77 terms
-        // Format: (l, lp, f, d, omega, sinCoeff_psi, sinCoeff_epsilon, cosCoeff_psi, cosCoeff_epsilon)
-        // Coefficients are in 0.1 microarcseconds
-        val terms = arrayOf(
-            // Term 1: l=0, lp=0, f=0, d=0, omega=1 — largest term
-            intArrayOf(0, 0, 0, 0, 1, -172064161, -174666, 92052331, 9086),
-            intArrayOf(0, 0, 2, -2, 2, -13170906, -1675, 5730336, -3015),
-            intArrayOf(0, 0, 2, 0, 2, -2276413, -234, 978459, -485),
-            intArrayOf(0, 0, 0, 0, 2, 2074554, 207, -897492, 470),
-            intArrayOf(0, 1, 0, 0, 0, 1475877, -3633, 73871, -184),
-            intArrayOf(0, 1, 2, -2, 2, -516821, 1226, 224386, -677),
-            intArrayOf(1, 0, 0, 0, 0, 711159, 73, -6750, 0),
-            intArrayOf(0, 0, 2, 0, 1, -387298, -367, 200728, 18),
-            intArrayOf(1, 0, 2, 0, 2, -301461, -36, 129025, -63),
-            intArrayOf(0, -1, 2, -2, 2, 215829, -494, -95929, 299),
-            intArrayOf(0, 0, 2, -2, 1, 128227, 137, -68982, -9),
-            intArrayOf(-1, 0, 2, 0, 2, 123457, 11, -53311, 32),
-            intArrayOf(-1, 0, 0, 2, 0, 156994, 10, -1235, 0),
-            intArrayOf(1, 0, 0, 0, 1, 63110, 63, -33228, 0),
-            intArrayOf(-1, 0, 0, 0, 1, -57976, -63, 31429, 0),
-            intArrayOf(-1, 0, 2, 2, 2, -59641, -11, 25543, -11),
-            intArrayOf(1, 0, 2, 0, 1, -51613, -42, 26366, 0),
-            intArrayOf(-2, 0, 2, 0, 1, 45893, 50, -24236, -10),
-            intArrayOf(0, 0, 0, 2, 0, 63384, 11, -1220, 0),
-            intArrayOf(0, 0, 2, 2, 2, -38571, -1, 16452, -11),
-            intArrayOf(0, -2, 2, -2, 2, 32481, 0, -13870, 0),
-            intArrayOf(-2, 0, 0, 2, 0, -47722, 0, 477, 0),
-            intArrayOf(2, 0, 2, 0, 2, -31046, -1, 13238, -11),
-            intArrayOf(1, 0, 2, -2, 2, 28593, 0, -12338, 10),
-            intArrayOf(-1, 0, 2, 0, 1, 20441, 21, -10758, 0),
-            intArrayOf(2, 0, 0, 0, 0, 29243, 0, -609, 0),
-            intArrayOf(0, 0, 2, 0, 0, 25887, 0, -550, 0),
-            intArrayOf(0, 1, 0, 0, 1, -14053, -25, 8551, -2),
-            intArrayOf(-1, 0, 0, 2, 1, 15164, 10, -8001, 0),
-            intArrayOf(0, 2, 2, -2, 2, -15794, 72, 6850, -42),
-            intArrayOf(0, 0, -2, 2, 0, 21783, 0, -167, 0),
-            intArrayOf(1, 0, 0, -2, 1, -12873, -10, 6953, 0),
-            intArrayOf(0, -1, 0, 0, 1, -12654, 11, 6415, 0),
-            intArrayOf(-1, 0, 2, 2, 1, -10204, 0, 5222, 0),
-            intArrayOf(0, 2, 0, 0, 0, 16707, -85, 168, -1),
-            intArrayOf(1, 0, 2, 2, 2, -7691, 0, 3268, 0),
-            intArrayOf(-2, 0, 2, 0, 0, -11024, 0, 104, 0),
-            intArrayOf(0, 1, 2, 0, 2, 7566, -21, -3250, 0),
-            intArrayOf(0, 0, 2, 2, 1, -6637, -11, 3353, 0),
-            intArrayOf(0, -1, 2, 0, 2, -7141, 21, 3070, 0),
-            intArrayOf(0, 0, 0, 2, 1, -6302, -11, 3272, 0),
-            intArrayOf(1, 0, 2, -2, 1, 5800, 10, -3045, 0),
-            intArrayOf(2, 0, 2, -2, 2, 6443, 0, -2768, 0),
-            intArrayOf(-2, 0, 0, 2, 1, -5774, -11, 3041, 0),
-            intArrayOf(2, 0, 2, 0, 1, -5350, 0, 2695, 0),
-            intArrayOf(0, -1, 2, -2, 1, -4752, -11, 2719, 0),
-            intArrayOf(0, 0, 0, -2, 1, -4940, -11, 2720, 0),
-            intArrayOf(-1, -1, 2, 0, 2, 7350, 0, -3198, 0),
-            intArrayOf(2, 0, 0, -2, 1, 4065, 0, -2206, 0),
-            intArrayOf(1, 0, 0, 2, 0, 6579, 0, -199, 0),
-            intArrayOf(0, 1, 2, -2, 1, 3579, 0, -1900, 0),
-            intArrayOf(1, -1, 0, 0, 0, 4725, 0, -41, 0),
-            intArrayOf(-2, 0, 2, 0, 2, -3075, 0, 1313, 0),
-            intArrayOf(3, 0, 2, 0, 2, -2904, 0, 1233, 0),
-            intArrayOf(0, -1, 0, 2, 0, 4344, 0, -81, 0),
-            intArrayOf(1, -1, 2, 0, 2, -2878, 0, 1232, 0),
-            intArrayOf(0, 0, 0, 1, 0, -4230, 0, 20, 0),
-            intArrayOf(-1, -1, 2, 2, 2, -2819, 0, 1207, 0),
-            intArrayOf(-1, 0, 2, 0, 0, -4056, 0, 40, 0),
-            intArrayOf(0, -1, 2, 2, 2, -2647, 0, 1129, 0),
-            intArrayOf(-2, 0, 0, 0, 1, -2294, 0, 1266, 0),
-            intArrayOf(1, 1, 2, 0, 2, 2481, 0, -1062, 0),
-            intArrayOf(2, 0, 0, 0, 1, 2179, 0, -1129, 0),
-            intArrayOf(-1, 1, 0, 1, 0, 3276, 0, -9, 0),
-            intArrayOf(1, 1, 0, 0, 0, -3389, 0, 35, 0),
-            intArrayOf(1, 0, 2, 0, 0, 3339, 0, -107, 0),
-            intArrayOf(-1, 0, 2, -2, 1, -1987, 0, 1073, 0),
-            intArrayOf(1, 0, 0, 0, 2, -1981, 0, 854, 0),
-            intArrayOf(-1, 0, 0, 1, 0, 4026, 0, -553, 0),
-            intArrayOf(0, 0, 2, 1, 2, 1660, 0, -710, 0),
-            intArrayOf(-1, 0, 2, 4, 2, -1521, 0, 647, 0),
-            intArrayOf(-1, 1, 0, 1, 1, 1314, 0, -700, 0),
-            intArrayOf(0, -2, 2, -2, 1, -1283, 0, 672, 0),
-            intArrayOf(1, 0, 2, 2, 1, -1331, 0, 663, 0),
-            intArrayOf(-2, 0, 2, 2, 2, 1383, 0, -594, 0),
-            intArrayOf(-1, 0, 0, 0, 2, 1405, 0, -610, 0),
-            intArrayOf(1, 1, 2, -2, 2, 1290, 0, -556, 0)
-        )
-
         var deltaPsi = 0.0  // in radians
         var deltaEpsilon = 0.0  // in radians
 
-        for (term in terms) {
+        for (term in NUTATION_IAU2000B_TERMS) {
             val arg = (
                 term[0] * l + term[1] * lp + term[2] * f +
                 term[3] * d + term[4] * omega

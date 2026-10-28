@@ -114,23 +114,72 @@ object TimeEngine {
     )
 
     /**
-     * Converts timestamp directly to Solar Hijri (Jalali) date accurately using ICU PersianCalendar.
+     * Converts timestamp directly to Solar Hijri (Jalali) date accurately using ICU PersianCalendar,
+     * with an exact astronomical/mathematical fallback for plain JVM unit tests where ICU is stubbed.
      */
     fun toSolarHijri(
         timestampMs: Long = System.currentTimeMillis(),
         timeZone: TimeZone = TEHRAN_TIME_ZONE
     ): SolarHijriDate {
-        val icuTz = android.icu.util.TimeZone.getTimeZone(timeZone.id)
-        val pCal = android.icu.util.Calendar.getInstance(
-            icuTz,
-            android.icu.util.ULocale("fa_IR@calendar=persian")
-        ).apply {
+        val icuTz = runCatching { android.icu.util.TimeZone.getTimeZone(timeZone.id) }.getOrNull()
+        val pCal = runCatching {
+            if (icuTz != null) {
+                android.icu.util.Calendar.getInstance(
+                    icuTz,
+                    android.icu.util.ULocale("fa_IR@calendar=persian")
+                )
+            } else null
+        }.getOrNull()
+
+        if (pCal != null) {
+            pCal.timeInMillis = timestampMs
+            val jy = pCal.get(android.icu.util.Calendar.YEAR)
+            if (jy > 0) {
+                val jm = pCal.get(android.icu.util.Calendar.MONTH) + 1 // 1..12
+                val jd = pCal.get(android.icu.util.Calendar.DAY_OF_MONTH)
+                val monthIdx = (jm - 1).coerceIn(0, 11)
+                return SolarHijriDate(
+                    year = jy,
+                    month = jm,
+                    day = jd,
+                    monthNameFa = PERSIAN_MONTHS_FA[monthIdx],
+                    monthNameEn = PERSIAN_MONTHS_EN[monthIdx]
+                )
+            }
+        }
+
+        val gCal = Calendar.getInstance(timeZone).apply {
             timeInMillis = timestampMs
         }
-        val jy = pCal.get(android.icu.util.Calendar.YEAR)
-        val jm = pCal.get(android.icu.util.Calendar.MONTH) + 1 // 1..12
-        val jd = pCal.get(android.icu.util.Calendar.DAY_OF_MONTH)
+        return gregorianToSolarHijriMath(
+            gy = gCal.get(Calendar.YEAR),
+            gm = gCal.get(Calendar.MONTH) + 1,
+            gd = gCal.get(Calendar.DAY_OF_MONTH)
+        )
+    }
 
+    private fun gregorianToSolarHijriMath(gy: Int, gm: Int, gd: Int): SolarHijriDate {
+        val gDaysInMonth = intArrayOf(0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)
+        val gy2 = if (gm > 2) gy + 1 else gy
+        var days = 355666 + (365 * gy) + ((gy2 + 3) / 4) - ((gy2 + 99) / 100) +
+                ((gy2 + 399) / 400) + gd + gDaysInMonth[(gm - 1).coerceIn(0, 11)]
+        var jy = -1595 + 33 * (days / 12053)
+        days %= 12053
+        jy += 4 * (days / 1461)
+        days %= 1461
+        if (days > 365) {
+            jy += (days - 1) / 365
+            days = (days - 1) % 365
+        }
+        val jm: Int
+        val jd: Int
+        if (days < 186) {
+            jm = 1 + (days / 31)
+            jd = 1 + (days % 31)
+        } else {
+            jm = 7 + ((days - 186) / 30)
+            jd = 1 + ((days - 186) % 30)
+        }
         val monthIdx = (jm - 1).coerceIn(0, 11)
         return SolarHijriDate(
             year = jy,
@@ -233,22 +282,38 @@ object TimeEngine {
     }
 
     /**
-     * Formats timestamp in 24-hour HH:mm format in Iran Time (Asia/Tehran).
+     * Resolves an IANA timezone ID safely, falling back to TEHRAN_TIME_ZONE if blank.
      */
-    fun formatTime24h(timestampMs: Long = System.currentTimeMillis(), isFa: Boolean = false): String {
+    fun resolveTimeZone(timezoneId: String?): TimeZone {
+        if (timezoneId.isNullOrBlank()) return TEHRAN_TIME_ZONE
+        return TimeZone.getTimeZone(timezoneId)
+    }
+
+    /**
+     * Formats timestamp in 24-hour HH:mm format (defaults to Iran Time Asia/Tehran).
+     */
+    fun formatTime24h(
+        timestampMs: Long = System.currentTimeMillis(),
+        isFa: Boolean = false,
+        timeZone: TimeZone = TEHRAN_TIME_ZONE
+    ): String {
         val sdf = SimpleDateFormat("HH:mm", Locale.US).apply {
-            timeZone = TEHRAN_TIME_ZONE
+            this.timeZone = timeZone
         }
         val formatted = sdf.format(Date(timestampMs))
         return if (isFa) formatPersianNumbers(formatted) else formatted
     }
 
     /**
-     * Formats timestamp in 24-hour HH:mm:ss format in Iran Time (Asia/Tehran).
+     * Formats timestamp in 24-hour HH:mm:ss format (defaults to Iran Time Asia/Tehran).
      */
-    fun formatTimeWithSeconds24h(timestampMs: Long = System.currentTimeMillis(), isFa: Boolean = false): String {
+    fun formatTimeWithSeconds24h(
+        timestampMs: Long = System.currentTimeMillis(),
+        isFa: Boolean = false,
+        timeZone: TimeZone = TEHRAN_TIME_ZONE
+    ): String {
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.US).apply {
-            timeZone = TEHRAN_TIME_ZONE
+            this.timeZone = timeZone
         }
         val formatted = sdf.format(Date(timestampMs))
         return if (isFa) formatPersianNumbers(formatted) else formatted

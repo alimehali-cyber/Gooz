@@ -28,11 +28,11 @@ object JupiterMoonsEngine {
 
     data class MoonPosition(
         val moon: GalileanMoon,
-        val xRJ: Double,          // X offset in Jupiter radii (+East)
-        val yRJ: Double,          // Y offset in Jupiter radii (+North)
-        val zRJ: Double,          // Z depth (+away from observer, behind planet)
-        val offsetRaArcsec: Double,
-        val offsetDecArcsec: Double,
+        val xRJ: Double,          // offset along Jupiter's equator in equatorial radii, +East on the sky
+        val yRJ: Double,          // offset along Jupiter's rotation axis in equatorial radii, +North
+        val zRJ: Double,          // depth in equatorial radii, + farther from the observer than Jupiter
+        val offsetRaArcsec: Double,   // ΔRA (seconds of arc of RA, i.e. already divided by cos δ)
+        val offsetDecArcsec: Double,  // ΔDec, seconds of arc
         val angularDistanceArcsec: Double,
         val phenomenon: MoonPhenomenon
     )
@@ -41,104 +41,112 @@ object JupiterMoonsEngine {
         val jupiterPos: PlanetEngine.PlanetPosition,
         val moons: List<MoonPosition>,
         val grsLongitudeDeg: Double,
-        val isGrsVisible: Boolean
+        val isGrsVisible: Boolean,
+        /** Position angle of Jupiter's north pole on the sky (degrees, from north through east). */
+        val polePositionAngleDeg: Double = 0.0
     )
 
     private const val DEG2RAD = Math.PI / 180.0
     private const val RAD2DEG = 180.0 / Math.PI
 
     /**
-     * Calculates positions of Galilean Moons for Julian Date (Meeus Chapter 44, Lieske E5 theory).
+     * Positions of the Galilean satellites (Meeus, *Astronomical Algorithms* 2nd ed., ch. 44, the
+     * lower-accuracy method: ~1 arcsecond-class, ample for display), rotated onto the sky with the
+     * position angle of Jupiter's north pole from the IAU rotation model.
+     *
+     * Earlier revisions mixed constants of the two Meeus methods (the angle J advanced at
+     * 0.904701°/day instead of 0.9025179°/day, i.e. ~0.82°/day of drift), added the equatorial x
+     * offset straight to RA without the cos δ factor or the pole rotation, and used x as +East where
+     * Meeus' x is +West.
+     *
+     * @param jd Julian Date (UTC)
      */
     fun calculateJupiterMoons(jd: Double): JupiterSystem {
         val jupPos = PlanetEngine.calculatePlanet(PlanetEngine.PlanetType.JUPITER, jd)
-        val d = jd - 2451545.0
+        val jde = AstroTime.fromJd(jd).jdTt
+        val d = jde - 2451545.0
 
-        // Fundamental arguments (Meeus Chapter 44)
-        val V = (172.74 + 0.00111588 * d) * DEG2RAD
-        val M = (357.529 + 0.9856003 * d) * DEG2RAD
-        val N = (20.00 + 0.0830853 * d + 0.329 * sin(V)) * DEG2RAD
-        val J = (66.115 + 0.904701 * d - 0.329 * sin(V)) * DEG2RAD
-        val A = (191.81 + 0.831919 * d) * DEG2RAD
-        val B = (21.82 + 0.320807 * d) * DEG2RAD
-        val C = (357.10 + 0.208374 * d) * DEG2RAD
-        val D = (311.58 + 0.082863 * d) * DEG2RAD
-        val E = (341.5 + 0.04350 * d) * DEG2RAD
+        val v = 172.74 + 0.00111588 * d
+        val m = 357.529 + 0.9856003 * d
+        val n = 20.020 + 0.0830853 * d + 0.329 * sinD(v)
+        val j = 66.115 + 0.9025179 * d - 0.329 * sinD(v)
+        val a = 1.915 * sinD(m) + 0.020 * sinD(2 * m)
+        val b = 5.555 * sinD(n) + 0.168 * sinD(2 * n)
+        val k = j + a - b
+        val rEarth = 1.00014 - 0.01671 * cosD(m) - 0.00014 * cosD(2 * m)
+        val rJup = 5.20872 - 0.25208 * cosD(n) - 0.00611 * cosD(2 * n)
+        val delta = sqrt(rJup * rJup + rEarth * rEarth - 2 * rJup * rEarth * cosD(k))
+        val psi = asin((rEarth / delta * sinD(k)).coerceIn(-1.0, 1.0)) * RAD2DEG
+        val dl = d - delta / 173.0
 
-        // Mean longitudes u1..u4
-        val u1 = (163.8067 + 203.4889538 * d + 0.0017371 * sin(V) * RAD2DEG + 0.0031 * sin(M) * RAD2DEG) * DEG2RAD
-        val u2 = (358.4108 + 101.3747231 * d + 0.0017371 * sin(V) * RAD2DEG + 0.0031 * sin(M) * RAD2DEG) * DEG2RAD
-        val u3 = (5.7129 + 50.3176081 * d + 0.0017371 * sin(V) * RAD2DEG + 0.0031 * sin(M) * RAD2DEG) * DEG2RAD
-        val u4 = (224.8169 + 21.5710715 * d + 0.0017371 * sin(V) * RAD2DEG + 0.0031 * sin(M) * RAD2DEG) * DEG2RAD
+        val u1a = 163.8069 + 203.4058646 * dl + psi - b
+        val u2a = 358.4140 + 101.2916335 * dl + psi - b
+        val u3a = 5.7176 + 50.2345180 * dl + psi - b
+        val u4a = 224.8092 + 21.4879800 * dl + psi - b
+        val g = 331.18 + 50.310482 * dl
+        val h = 87.45 + 21.569231 * dl
+        val u1 = u1a + 0.473 * sinD(2 * (u1a - u2a))
+        val u2 = u2a + 1.065 * sinD(2 * (u2a - u3a))
+        val u3 = u3a + 0.165 * sinD(g)
+        val u4 = u4a + 0.843 * sinD(h)
+        val r1 = 5.9057 - 0.0244 * cosD(2 * (u1a - u2a))
+        val r2 = 9.3966 - 0.0882 * cosD(2 * (u2a - u3a))
+        val r3 = 14.9883 - 0.0216 * cosD(g)
+        val r4 = 26.3627 - 0.1939 * cosD(h)
+        val lambda = 34.35 + 0.083091 * d + 0.329 * sinD(v) + b
+        val ds = 3.12 * sinD(lambda + 42.8)
+        val de = ds - 2.22 * sinD(psi) * cosD(lambda + 22.0) - 1.30 * (rJup - delta) / delta * sinD(lambda - 100.5)
 
-        // Longitude perturbations (Laplace resonance & eccentricities) in radians
-        val dL1 = (0.47259 * sin(2.0 * (u1 - u2)) - 0.0340 * sin(u1 - u2) + 0.0108 * sin(2.0 * (u2 - u3)) -
-                   0.0073 * sin(2.0 * (u1 - J)) + 0.0023 * sin(u1 - A) + 0.0021 * sin(u1 - C)) * DEG2RAD
-        val dL2 = (1.06476 * sin(2.0 * (u2 - u3)) + 0.04256 * sin(u1 - u2) - 0.0358 * sin(u2 - B) -
-                   0.0238 * sin(u2 - C) - 0.0128 * sin(2.0 * (u2 - J)) + 0.0076 * sin(u2 - A)) * DEG2RAD
-        val dL3 = (0.16490 * sin(u3 - C) + 0.09073 * sin(u2 - u3) - 0.0690 * sin(u3 - D) +
-                   0.0279 * sin(u3 - B) - 0.0068 * sin(2.0 * (u3 - J))) * DEG2RAD
-        val dL4 = (0.84287 * sin(u4 - D) + 0.03431 * sin(u4 - E) - 0.0330 * sin(u4 - C)) * DEG2RAD
-
-        // True longitudes l1..l4
-        val l1 = u1 + dL1
-        val l2 = u2 + dL2
-        val l3 = u3 + dL3
-        val l4 = u4 + dL4
-
-        // Radial distances r1..r4 in Jupiter Radii (R_J)
-        val r1 = 5.9057 * (1.0 - 0.00413 * cos(2.0 * (u1 - u2)) + 0.00006 * cos(u1 - u2))
-        val r2 = 9.3970 * (1.0 - 0.00930 * cos(2.0 * (u2 - u3)) - 0.00037 * cos(u1 - u2) + 0.00062 * cos(u2 - B))
-        val r3 = 14.9890 * (1.0 - 0.00143 * cos(u3 - C) - 0.00079 * cos(u2 - u3) + 0.00060 * cos(u3 - D))
-        val r4 = 26.3640 * (1.0 - 0.00735 * cos(u4 - D) - 0.00030 * cos(u4 - E))
-
-        // Latitudinal terms b1..b4 in radians
-        val b1 = (0.0381 * sin(l1 - B) + 0.0031 * sin(l1 - A) + 0.0018 * sin(l1 - C)) * DEG2RAD
-        val b2 = (0.4681 * sin(l2 - B) + 0.0282 * sin(l2 - A) + 0.0163 * sin(l2 - C)) * DEG2RAD
-        val b3 = (0.1827 * sin(l3 - B) + 0.0264 * sin(l3 - A) + 0.0116 * sin(l3 - C)) * DEG2RAD
-        val b4 = (0.2543 * sin(l4 - B) + 0.0503 * sin(l4 - D) + 0.0232 * sin(l4 - C)) * DEG2RAD
-
-        // Inclination of Jupiter's equator to Earth De
-        val De = (3.12 * sin(J - 191.81 * DEG2RAD) + 0.43 * sin(J - 21.82 * DEG2RAD)) * DEG2RAD
+        // Position angle of Jupiter's north pole (IAU 2015 pole; Jupiter's apparent RA/Dec of date).
+        val t = d / 36525.0
+        val a0 = (268.056595 - 0.006499 * t) * DEG2RAD
+        val d0 = (64.495303 + 0.002413 * t) * DEG2RAD
+        val ra = jupPos.raDeg * DEG2RAD
+        val dec = jupPos.decDeg * DEG2RAD
+        val pa = atan2(cos(d0) * sin(a0 - ra), sin(d0) * cos(dec) - cos(d0) * sin(dec) * cos(a0 - ra))
+        val sinP = sin(pa); val cosP = cos(pa)
 
         val jupAngularRadiusArcsec = jupPos.angularDiameterArcsec / 2.0
+        val cosDec = max(cos(dec), 1e-6)
 
-        // Compute moon coordinates relative to Jupiter center in Jupiter Radii (R_J)
         val moonPositions = GalileanMoon.values().map { moon ->
-            val (r, l, b) = when (moon) {
-                GalileanMoon.IO -> Triple(r1, l1, b1)
-                GalileanMoon.EUROPA -> Triple(r2, l2, b2)
-                GalileanMoon.GANYMEDE -> Triple(r3, l3, b3)
-                GalileanMoon.CALLISTO -> Triple(r4, l4, b4)
-                GalileanMoon.ELARA -> Triple(164.2, (110.0 + 1.3863 * d) * DEG2RAD, 0.0)
+            val (r, u) = when (moon) {
+                GalileanMoon.IO -> r1 to u1
+                GalileanMoon.EUROPA -> r2 to u2
+                GalileanMoon.GANYMEDE -> r3 to u3
+                GalileanMoon.CALLISTO -> r4 to u4
+                // Elara (mag 16.3) is far beyond naked-eye and phone reach; a circular orbit is kept only
+                // so that the catalogue entry has a nominal position.
+                GalileanMoon.ELARA -> 164.2 to (110.0 + 1.3863 * dl)
             }
+            // Meeus: x positive towards the WEST, y towards the north (along the projected axis);
+            // u is counted from inferior conjunction, so the satellite is in front of Jupiter at u = 0°.
+            val xWest = r * sinD(u)
+            val yNorth = -r * cosD(u) * sinD(de)
+            val zAway = -r * cosD(u)
 
-            val U = l - J
-            val xRJ = r * sin(U)
-            val yRJ = r * cos(U) * sin(De) + r * b * cos(De)
-            val zRJ = r * cos(U) * cos(De)
+            // Rotate from Jupiter's axis frame to the sky (north/east).
+            val dNorth = xWest * sinP + yNorth * cosP
+            val dEast = -xWest * cosP + yNorth * sinP
+            val offsetDecArcsec = dNorth * jupAngularRadiusArcsec
+            val offsetEastArcsec = dEast * jupAngularRadiusArcsec
+            val offsetRaArcsec = offsetEastArcsec / cosDec
+            val angDistArcsec = hypot(offsetEastArcsec, offsetDecArcsec)
 
-            val offsetRaArcsec = xRJ * jupAngularRadiusArcsec
-            val offsetDecArcsec = yRJ * jupAngularRadiusArcsec
-            val angDistArcsec = sqrt(offsetRaArcsec * offsetRaArcsec + offsetDecArcsec * offsetDecArcsec)
-
-            // Determine Phenomenon (Occultation, Transit, Eclipse)
-            val isBehindDisk = abs(xRJ) <= 1.0 && zRJ > 0.0
-            val isInFrontOfDisk = abs(xRJ) <= 1.0 && zRJ < 0.0
-            val isInShadow = xRJ in 1.0..1.5 && zRJ > 0.0 // Shadow cylinder approximation
-
+            val onDisk = xWest * xWest + yNorth * yNorth / (0.9351 * 0.9351) <= 1.0
             val phenomenon = when {
-                isInFrontOfDisk -> MoonPhenomenon.IN_TRANSIT
-                isBehindDisk -> MoonPhenomenon.OCCULTED
-                isInShadow -> MoonPhenomenon.IN_ECLIPSE
+                onDisk && zAway < 0.0 -> MoonPhenomenon.IN_TRANSIT
+                onDisk && zAway > 0.0 -> MoonPhenomenon.OCCULTED
+                // Shadow cylinder behind Jupiter as seen from the Sun (phase angle ≤ 12°).
+                zAway > 0.0 && abs(xWest + zAway * sinD(psi)) <= 1.0 -> MoonPhenomenon.IN_ECLIPSE
                 else -> MoonPhenomenon.VISIBLE
             }
 
             MoonPosition(
                 moon = moon,
-                xRJ = xRJ,
-                yRJ = yRJ,
-                zRJ = zRJ,
+                xRJ = -xWest,
+                yRJ = yNorth,
+                zRJ = zAway,
                 offsetRaArcsec = offsetRaArcsec,
                 offsetDecArcsec = offsetDecArcsec,
                 angularDistanceArcsec = angDistArcsec,
@@ -146,12 +154,11 @@ object JupiterMoonsEngine {
             )
         }
 
-        // Great Red Spot (GRS) System II Longitude (drift rate ~1.2° / year)
+        // Great Red Spot: System II longitude drifts by roughly +1.75°/month in recent years; an
+        // approximate model only (the GRS drift is irregular).
         val yearCurrent = 2000.0 + d / 365.25
-        val grsLonDeg = (15.0 + 1.25 * (yearCurrent - 2024.0) * 360.0 / 365.25) % 360.0
-
-        // Central Meridian System II
-        val cmIIDeg = (180.0 + 870.27 * d) % 360.0
+        val grsLonDeg = ((15.0 + 21.0 * (yearCurrent - 2024.0)) % 360.0 + 360.0) % 360.0
+        val cmIIDeg = ((180.0 + 870.27 * d) % 360.0 + 360.0) % 360.0
         val grsDiff = abs(((grsLonDeg - cmIIDeg) % 360.0 + 360.0) % 360.0)
         val isGrsVisible = grsDiff < 85.0 || grsDiff > 275.0
 
@@ -159,7 +166,15 @@ object JupiterMoonsEngine {
             jupiterPos = jupPos,
             moons = moonPositions,
             grsLongitudeDeg = grsLonDeg,
-            isGrsVisible = isGrsVisible
+            isGrsVisible = isGrsVisible,
+            polePositionAngleDeg = ((pa * RAD2DEG) % 360.0 + 360.0) % 360.0
         )
     }
+
+    /** Raw Meeus (x: +West, y: +North) coordinates in Jupiter radii for validation. */
+    internal fun meeusXY(jd: Double): List<Pair<Double, Double>> =
+        calculateJupiterMoons(jd).moons.take(4).map { -it.xRJ to it.yRJ }
+
+    private fun sinD(x: Double) = sin(x * DEG2RAD)
+    private fun cosD(x: Double) = cos(x * DEG2RAD)
 }

@@ -82,8 +82,26 @@ object CoordinateEngine {
     }
     fun formatRA(raDeg: Double) = CoordinateEngineLegacy.formatRA(raDeg)
     fun formatDec(decDeg: Double) = CoordinateEngineLegacy.formatDec(decDeg)
-    fun calculateRiseSetTransit(raDeg: Double, decDeg: Double, latDeg: Double, lonDeg: Double, jd: Double = TimeEngine.getJulianDate(), isFa: Boolean = true): RiseSetTransit {
-        val legacyRst = CoordinateEngineLegacy.calculateRiseSetTransit(raDeg, decDeg, latDeg, lonDeg, jd, isFa)
+    /**
+     * @see CoordinateEngineLegacy.calculateRiseSetTransit for the meaning of
+     * [timezoneId] and [horizonAltDeg]. Both default to the historical behaviour, so
+     * callers that do not pass them are unaffected — but a caller that knows the
+     * observer's timezone must pass it, otherwise the returned wall-clock strings are
+     * rendered in Asia/Tehran.
+     */
+    fun calculateRiseSetTransit(
+        raDeg: Double,
+        decDeg: Double,
+        latDeg: Double,
+        lonDeg: Double,
+        jd: Double = TimeEngine.getJulianDate(),
+        isFa: Boolean = true,
+        timezoneId: String? = null,
+        horizonAltDeg: Double = CoordinateEngineLegacy.STAR_HORIZON_ALT_DEG
+    ): RiseSetTransit {
+        val legacyRst = CoordinateEngineLegacy.calculateRiseSetTransit(
+            raDeg, decDeg, latDeg, lonDeg, jd, isFa, timezoneId, horizonAltDeg
+        )
         return RiseSetTransit(legacyRst.riseTimeStr, legacyRst.transitTimeStr, legacyRst.setTimeStr, legacyRst.isCircumpolar, legacyRst.neverRises)
     }
     fun calculateAngularSeparationDeg(ra1: Double, dec1: Double, ra2: Double, dec2: Double) = CoordinateEngineLegacy.calculateAngularSeparationDeg(ra1, dec1, ra2, dec2)

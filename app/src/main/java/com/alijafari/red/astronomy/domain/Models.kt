@@ -95,15 +95,13 @@ enum class CalendarSystem {
 }
 
 enum class ThemeMode {
-    DARK_NAVY,
-    OLED_BLACK,
+    GLASS,
     LIGHT,
-    PAPERCRAFT_PASTEL,
-    DYNAMIC_SKY,
-    DYNAMIC_SILK
+    DARK
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {
+    REAL_SKY("Real Sky", "آسمان واقعی"),
     ATMOSPHERIC_SKY("Atmospheric Sky", "آسمان جوی (اتمسفریک)"),
     MONOCHROME_SCIENTIFIC("Monochrome Scientific", "تک‌رنگ علمی (سوئیسی)"),
     KIDS_WATERCOLOR("Kids WaterColor", "آبرنگ جادویی کودکانه"),

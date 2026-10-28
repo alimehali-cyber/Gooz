@@ -12,7 +12,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -40,7 +39,9 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
  * Data structure for the Bortle Dark-Sky scale reference guide.
@@ -135,6 +136,7 @@ fun SettingsDialog(
     var isAppThemeExpanded by remember { mutableStateOf(false) }
     var isSkyCanvasThemeExpanded by remember { mutableStateOf(false) }
     var isLiquidGlassExpanded by remember { mutableStateOf(false) }
+    var isAppBackdropExpanded by remember { mutableStateOf(false) }
     var isBortleExpanded by remember { mutableStateOf(false) }
 
     // Formatted collapsed labels
@@ -149,15 +151,13 @@ fun SettingsDialog(
     }
 
     val appThemeLabel = when (uiState.themeMode) {
-        ThemeMode.DARK_NAVY -> if (isFa) "سرمه‌ای" else "Deep Navy"
-        ThemeMode.OLED_BLACK -> if (isFa) "مشکی خالص OLED" else "Pitch OLED"
-        ThemeMode.DYNAMIC_SILK -> if (isFa) "ابریشم پویا (Silk)" else "Dynamic Silk"
-        ThemeMode.DYNAMIC_SKY -> if (isFa) "آسمان پویا" else "Dynamic Sky"
+        ThemeMode.GLASS -> if (isFa) "شیشه‌ای (iOS 27)" else "Glass (iOS 27)"
         ThemeMode.LIGHT -> if (isFa) "روشن" else "Light"
-        ThemeMode.PAPERCRAFT_PASTEL -> if (isFa) "کاغذ دست‌ساز" else "Papercraft"
+        ThemeMode.DARK -> if (isFa) "تاریک (OLED)" else "Dark (OLED)"
     }
 
     val skyCanvasThemeLabel = when (uiState.skyCanvasTheme) {
+        SkyCanvasTheme.REAL_SKY -> if (isFa) "آسمان واقعی" else "Real Sky"
         SkyCanvasTheme.ATMOSPHERIC_SKY -> if (isFa) "آسمان جوی" else "Atmospheric"
         SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (isFa) "تک‌رنگ" else "Monochrome"
         SkyCanvasTheme.KIDS_WATERCOLOR -> if (isFa) "آبرنگ" else "WaterColor"
@@ -171,6 +171,13 @@ fun SettingsDialog(
         if (isFa) "خاموش" else "Off"
     }
 
+    val liveSkyStatusLabel = when (uiState.appBackdropMode) {
+        AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_setting)
+        AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_setting)
+        AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_setting)
+        AppBackdropMode.NONE -> if (isFa) "خاموش" else "Off"
+    }
+
     val bortleLabel = if (isFa) "کلاس ${uiState.bortleClass}" else "Class ${uiState.bortleClass}"
 
     AlertDialog(
@@ -178,7 +185,7 @@ fun SettingsDialog(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("settings_dialog"),
-        shape = RoundedCornerShape(RedCornerRadius.xl),
+        shape = squircleShape(RedCornerRadius.xl),
         containerColor = RedTheme.colors.surfaceElevated,
         title = {
             Row(
@@ -270,34 +277,19 @@ fun SettingsDialog(
                     testTag = "settings_section_app_theme"
                 ) {
                     SettingsOptionRow(
-                        title = if (isFa) "سرمه‌ای (پیش‌فرض زیگ)" else "Deep Navy (ZIG Default)",
-                        isSelected = uiState.themeMode == ThemeMode.DARK_NAVY,
-                        onClick = { viewModel.setThemeMode(ThemeMode.DARK_NAVY) }
+                        title = if (isFa) "شیشه‌ای (iOS 27)" else "Glass (iOS 27)",
+                        isSelected = uiState.themeMode == ThemeMode.GLASS,
+                        onClick = { viewModel.setThemeMode(ThemeMode.GLASS) }
                     )
                     SettingsOptionRow(
-                        title = if (isFa) "مشکی خالص OLED" else "Pitch OLED",
-                        isSelected = uiState.themeMode == ThemeMode.OLED_BLACK,
-                        onClick = { viewModel.setThemeMode(ThemeMode.OLED_BLACK) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "ابریشم پویا (Silk)" else "Dynamic Silk",
-                        isSelected = uiState.themeMode == ThemeMode.DYNAMIC_SILK,
-                        onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SILK) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "آسمان پویا" else "Dynamic Sky",
-                        isSelected = uiState.themeMode == ThemeMode.DYNAMIC_SKY,
-                        onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SKY) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "روشن (Light)" else "Light",
+                        title = if (isFa) "روشن" else "Light",
                         isSelected = uiState.themeMode == ThemeMode.LIGHT,
                         onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
                     )
                     SettingsOptionRow(
-                        title = if (isFa) "کاغذ دست‌ساز (Papercraft)" else "Papercraft",
-                        isSelected = uiState.themeMode == ThemeMode.PAPERCRAFT_PASTEL,
-                        onClick = { viewModel.setThemeMode(ThemeMode.PAPERCRAFT_PASTEL) }
+                        title = if (isFa) "تاریک (OLED)" else "Dark (OLED)",
+                        isSelected = uiState.themeMode == ThemeMode.DARK,
+                        onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
                     )
                 }
 
@@ -310,6 +302,11 @@ fun SettingsDialog(
                     onToggle = { isSkyCanvasThemeExpanded = !isSkyCanvasThemeExpanded },
                     testTag = "settings_section_sky_theme"
                 ) {
+                    SettingsOptionRow(
+                        title = if (isFa) "آسمان واقعی (Real Sky)" else "Real Sky",
+                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.REAL_SKY,
+                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.REAL_SKY) }
+                    )
                     SettingsOptionRow(
                         title = if (isFa) "آسمان جوی (Atmospheric)" else "Atmospheric Sky",
                         isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,
@@ -395,7 +392,7 @@ fun SettingsDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isFa) "⚙️ شخصی‌سازی اپتیک شیشه" else "⚙️ Optical Parameters",
+                                text = if (isFa) "شخصی‌سازی اپتیک شیشه" else "Optical Parameters",
                                 style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
                                 color = RedTheme.colors.textPrimary
                             )
@@ -436,7 +433,39 @@ fun SettingsDialog(
                             )
                         }
 
-                        // 2. Refraction Depth
+                        // 2. Glass Tint — the soft white film every glass card wears.
+                        //    The Sky Canvas card is exempt: it stays optically pure at any setting.
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (isFa) "ته‌رنگ سفید شیشه (Glass Tint)" else "Glass Tint",
+                                    style = RedTypographyTokens.caption,
+                                    color = RedTheme.colors.textPrimary
+                                )
+                                Text(
+                                    text = "${(glassConfig.tintAlpha * 100).toInt()}%",
+                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                    color = RedTheme.colors.accentRed
+                                )
+                            }
+                            RedSlider(
+                                value = glassConfig.tintAlpha,
+                                onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintAlpha = it)) },
+                                valueRange = 0.0f..0.4f,
+                                modifier = Modifier.testTag("liquid_glass_tint_slider")
+                            )
+                            Text(
+                                text = if (isFa) "یک لایه سفید بسیار ملایم روی کارت‌های شیشه‌ای؛ کارت آسمان همیشه شفاف می‌ماند."
+                                else "A very soft white film on the glass cards. The Sky Canvas card always stays clear.",
+                                style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
+                                color = RedTheme.colors.textTertiary
+                            )
+                        }
+
+                        // 3. Refraction Depth
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -461,7 +490,7 @@ fun SettingsDialog(
                             )
                         }
 
-                        // 3. Refraction Warping ("خمش و پراش نور" wording)
+                        // 4. Refraction Warping ("خمش و پراش نور" wording)
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -486,7 +515,7 @@ fun SettingsDialog(
                             )
                         }
 
-                        // 4. Gaussian Blur Radius
+                        // 5. Gaussian Blur Radius
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -552,6 +581,81 @@ fun SettingsDialog(
                     }
                 }
 
+                // 5b. App Backdrop Section. Single option, Live Sky, default OFF.
+                ExpandableSettingsSection(
+                    title = stringResource(R.string.app_backdrop_title),
+                    currentValueLabel = liveSkyStatusLabel,
+                    icon = Icons.Outlined.NightsStay,
+                    isExpanded = isAppBackdropExpanded,
+                    onToggle = { isAppBackdropExpanded = !isAppBackdropExpanded },
+                    statusColor = if (uiState.appBackdropMode != AppBackdropMode.NONE) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                    testTag = "settings_section_app_backdrop"
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                        ) {
+                            FilterChip(
+                                selected = uiState.appBackdropMode == AppBackdropMode.NONE,
+                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NONE) },
+                                label = { Text(text = if (isFa) "خاموش" else "Off", fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
+                                modifier = Modifier.testTag("settings_backdrop_off")
+                            )
+                            FilterChip(
+                                selected = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
+                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.LIVE_SKY) },
+                                label = { Text(text = stringResource(R.string.live_sky_setting), fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_live_sky_switch")
+                            )
+                            FilterChip(
+                                selected = uiState.appBackdropMode == AppBackdropMode.NGC_1929,
+                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NGC_1929) },
+                                label = { Text(text = stringResource(R.string.backdrop_ngc1929_setting), fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_backdrop_ngc1929")
+                            )
+                        }
+                        FilterChip(
+                            selected = uiState.appBackdropMode == AppBackdropMode.CEPHEUS,
+                            onClick = { viewModel.setAppBackdropMode(AppBackdropMode.CEPHEUS) },
+                            label = { Text(text = stringResource(R.string.backdrop_cepheus_setting), fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = RedTheme.colors.accentRed,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("settings_backdrop_cepheus")
+                        )
+                        Text(
+                            text = when (uiState.appBackdropMode) {
+                                AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_desc)
+                                AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_desc)
+                                AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_desc)
+                                AppBackdropMode.NONE -> stringResource(R.string.backdrop_off_desc)
+                            },
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textSecondary
+                        )
+                    }
+                }
+
                 // 6. Bortle Light-Pollution Dedicated Section & Guide
                 ExpandableSettingsSection(
                     title = if (isFa) "آلودگی نوری (مقیاس بورتل)" else "Light Pollution (Bortle Scale)",
@@ -607,16 +711,18 @@ fun SettingsDialog(
                     ) {
                         BORTLE_CLASSES.forEach { info ->
                             val isSelected = uiState.bortleClass == info.classNumber
-                            Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.sm),
-                                color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
-                                border = BorderStroke(
+                            LiquidGlassSurface(
+                                shape = squircleShape(RedCornerRadius.window),
+                                fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
+                                fallbackBorder = BorderStroke(
                                     0.5.dp,
                                     if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border.copy(alpha = 0.2f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { viewModel.setBortleClass(info.classNumber) }
+                                    .clickable { viewModel.setBortleClass(info.classNumber) },
+                                style = LiquidGlassDefaults.Card,
+                                fallbackShadowElevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -627,7 +733,7 @@ fun SettingsDialog(
                                 ) {
                                     // Class Number Badge
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
+                                        shape = squircleShape(4.dp),
                                         color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
                                         modifier = Modifier.padding(top = 1.dp)
                                     ) {
@@ -670,7 +776,7 @@ fun SettingsDialog(
                         .fillMaxWidth()
                         .padding(top = RedSpacing.xs)
                         .testTag("developer_credit_card"),
-                    shape = RoundedCornerShape(RedCornerRadius.lg),
+                    shape = squircleShape(RedCornerRadius.lg),
                     style = LiquidGlassDefaults.Card,
                     fallbackColor = RedTheme.colors.surfaceGrouped
                 ) {
@@ -726,7 +832,7 @@ fun SettingsDialog(
                             // Telegram Glass Badge
                             val intentContext = context
                             Surface(
-                                shape = RoundedCornerShape(RedCornerRadius.xs),
+                                shape = squircleShape(RedCornerRadius.xs),
                                 color = RedTheme.colors.accentRed.copy(alpha = 0.1f),
                                 border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f)),
                                 modifier = Modifier.clickable {
@@ -746,9 +852,11 @@ fun SettingsDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text(
-                                        text = "✈️",
-                                        fontSize = 11.sp
+                                    Icon(
+                                        imageVector = Icons.Default.Send,
+                                        contentDescription = null,
+                                        tint = RedTheme.colors.accentRed,
+                                        modifier = Modifier.size(13.dp)
                                     )
                                     Text(
                                         text = "@EdisonWasAThief",
@@ -767,7 +875,7 @@ fun SettingsDialog(
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(RedCornerRadius.md),
+                shape = squircleShape(RedCornerRadius.md),
                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
             ) {
                 Text(text = stringResource(R.string.ok), color = Color.White, fontWeight = FontWeight.Bold)
@@ -797,16 +905,18 @@ private fun ExpandableSettingsSection(
         label = "expand_rotation"
     )
 
-    Surface(
-        shape = RoundedCornerShape(RedCornerRadius.md),
-        color = RedTheme.colors.surfaceGrouped,
-        border = BorderStroke(
+    LiquidGlassSurface(
+        shape = squircleShape(RedCornerRadius.window),
+        fallbackColor = RedTheme.colors.surfaceGrouped,
+        fallbackBorder = BorderStroke(
             1.dp,
             if (isExpanded) RedTheme.colors.accentRed.copy(alpha = 0.35f) else RedTheme.colors.border
         ),
         modifier = modifier
             .fillMaxWidth()
-            .testTag(testTag)
+            .testTag(testTag),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header Row (Clickable)
@@ -841,7 +951,7 @@ private fun ExpandableSettingsSection(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(RedCornerRadius.xs),
+                        shape = squircleShape(RedCornerRadius.xs),
                         color = (statusColor ?: RedTheme.colors.accentRed).copy(alpha = 0.12f),
                         border = BorderStroke(0.5.dp, (statusColor ?: RedTheme.colors.accentRed).copy(alpha = 0.3f))
                     ) {
@@ -896,16 +1006,18 @@ private fun SettingsOptionRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null
 ) {
-    Surface(
-        shape = RoundedCornerShape(RedCornerRadius.sm),
-        color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
-        border = BorderStroke(
+    LiquidGlassSurface(
+        shape = squircleShape(RedCornerRadius.window),
+        fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
+        fallbackBorder = BorderStroke(
             0.5.dp,
             if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border.copy(alpha = 0.2f)
         ),
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        style = LiquidGlassDefaults.Card,
+        fallbackShadowElevation = RedElevation.none,
     ) {
         Row(
             modifier = Modifier

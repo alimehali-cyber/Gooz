@@ -19,3 +19,6 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# XAPK libblackhole.so resolves JNI by this exact class and method name.
+-keep class com.orchestrsim.blackhole.NativeBridge { *; }

@@ -474,7 +474,7 @@ enum class SilkElevation {
 fun Modifier.silkSurface(
     celestial: CelestialLighting,
     elevation: SilkElevation = SilkElevation.PRIMARY_CARD,
-    shape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    shape: Shape = squircleShape(16.dp),
     borderWidth: Dp = 1.dp
 ): Modifier = this.drawBehind {
     drawSilkFabric(

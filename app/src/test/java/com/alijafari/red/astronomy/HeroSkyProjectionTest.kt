@@ -66,4 +66,41 @@ class HeroSkyProjectionTest {
         assertEquals(0f, wrapPos.x, 1e-4f)
         assertEquals(425f, wrapPos.y, 1e-4f)
     }
+
+    @Test
+    fun testSouthernHemisphereRisesRightSetsLeft() {
+        val width = 1000f
+        val height = 500f
+        val sydneyLat = -33.8688
+
+        // In Southern Hemisphere facing North (0°):
+        // East (90°) is on the RIGHT (x = 750), North (0°) is CENTER (x = 500), West (270°) is on the LEFT (x = 250)
+        val eastPos = HeroSkyProjection.project(90.0, 0.0, width, height, sydneyLat)
+        val northPos = HeroSkyProjection.project(0.0, 0.0, width, height, sydneyLat)
+        val westPos = HeroSkyProjection.project(270.0, 0.0, width, height, sydneyLat)
+
+        assertEquals(750f, eastPos.x, 1e-4f)
+        assertEquals(500f, northPos.x, 1e-4f)
+        assertEquals(250f, westPos.x, 1e-4f)
+    }
+
+    @Test
+    fun testRealSkyThemeAndAtmosphereLighting() {
+        // Verify REAL_SKY is the first theme and has bilingual labels
+        val themes = com.alijafari.red.astronomy.domain.SkyCanvasTheme.values()
+        assertEquals(com.alijafari.red.astronomy.domain.SkyCanvasTheme.REAL_SKY, themes.first())
+        assertEquals("Real Sky", com.alijafari.red.astronomy.domain.SkyCanvasTheme.REAL_SKY.nameEn)
+        assertEquals("آسمان واقعی", com.alijafari.red.astronomy.domain.SkyCanvasTheme.REAL_SKY.nameFa)
+
+        // Verify LightingEngine.computeLightingState transitions
+        val dayLighting = com.alijafari.red.astronomy.ui.rendering.LightingEngine.computeLightingState(25.0, -10.0, 0.0)
+        assertEquals(0.0f, dayLighting.starVisibility, 1e-4f)
+
+        val deepNightDarkMoon = com.alijafari.red.astronomy.ui.rendering.LightingEngine.computeLightingState(-22.0, -15.0, 0.0)
+        assertEquals(1.0f, deepNightDarkMoon.starVisibility, 1e-4f)
+        assertEquals(0.0f, deepNightDarkMoon.moonGlowIntensity, 1e-4f)
+
+        val deepNightFullMoon = com.alijafari.red.astronomy.ui.rendering.LightingEngine.computeLightingState(-22.0, 45.0, 100.0)
+        assertTrue(deepNightFullMoon.moonGlowIntensity > deepNightDarkMoon.moonGlowIntensity)
+    }
 }

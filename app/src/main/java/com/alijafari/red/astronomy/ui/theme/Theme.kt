@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import kotlin.math.pow
 import com.alijafari.red.astronomy.domain.ThemeMode
 
 // Material 3 Color Schemes
@@ -90,6 +91,120 @@ private fun lerpColor(c1: Color, c2: Color, fraction: Float): Color {
         green = c1.green + (c2.green - c1.green) * f,
         blue = c1.blue + (c2.blue - c1.blue) * f,
         alpha = c1.alpha + (c2.alpha - c1.alpha) * f
+    )
+}
+
+/**
+ * WCAG relative luminance of a color, with the sRGB transfer function applied (the plain 0.299/0.587/
+ * 0.114 weighting used for the glass ink is a brightness estimate, not a contrast measure).
+ */
+private fun relativeLuminance(color: Color): Float {
+    fun linear(channel: Float): Float =
+        if (channel <= 0.03928f) channel / 12.92f else ((channel + 0.055f) / 1.055f).pow(2.4f)
+
+    return 0.2126f * linear(color.red) + 0.7152f * linear(color.green) + 0.0722f * linear(color.blue)
+}
+
+/** WCAG contrast ratio between two opaque colors: 1.0 (identical) to 21.0 (black on white). */
+private fun contrastRatio(a: Color, b: Color): Float {
+    val la = relativeLuminance(a)
+    val lb = relativeLuminance(b)
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+}
+
+/** Composites a translucent color over an opaque one, the way the screen will show it. */
+private fun over(base: Color, overlay: Color): Color {
+    val a = overlay.alpha
+    return Color(
+        red = base.red + (overlay.red - base.red) * a,
+        green = base.green + (overlay.green - base.green) * a,
+        blue = base.blue + (overlay.blue - base.blue) * a,
+        alpha = 1f
+    )
+}
+
+/** The two inks a theme can draw on — near-black or near-white, chosen from the surface's luminance. */
+private fun inkFor(surface: Color): Color =
+    if (relativeLuminance(surface) > 0.35f) Color(0xFF090B12) else Color(0xFFF7F9FF)
+
+/**
+ * The ink for a surface: `preferred` when it really reads on `background`, otherwise the theme's own ink
+ * at the given weight.
+ *
+ * This is what makes "text is readable in every theme" a property of the theme instead of a promise. The
+ * bundled light palette's `textQuaternary` (#D1D5DB) on its own #F8F9FA surface measures 1.4:1 and simply
+ * cannot be read; a muted step loses the same way whenever a dynamic theme substitutes surfaces. Rather
+ * than hope every call site picked a readable step, each text token is measured against the surface it is
+ * drawn on and repaired when it fails.
+ */
+private fun readableToken(
+    preferred: Color,
+    background: Color,
+    ink: Color,
+    minRatio: Float,
+    inkAlpha: Float
+): Color = if (contrastRatio(over(background, preferred), background) >= minRatio) {
+    preferred
+} else {
+    ink.copy(alpha = inkAlpha)
+}
+
+/**
+ * An accent that survives its surface. Instead of swapping the hue out for something generic, the color
+ * is walked toward black (on a light surface) or white (on a dark one) until it clears [minRatio], so a
+ * gold chip stays gold and a blue icon stays blue — just readable.
+ */
+private fun repairedAccent(color: Color, background: Color, minRatio: Float): Color {
+    if (contrastRatio(over(background, color), background) >= minRatio) return color
+    val target = if (relativeLuminance(background) > 0.35f) Color.Black else Color.White
+    var best = color
+    for (step in 1..24) {
+        val f = step / 24f
+        best = Color(
+            red = color.red + (target.red - color.red) * f,
+            green = color.green + (target.green - color.green) * f,
+            blue = color.blue + (target.blue - color.blue) * f,
+            alpha = 1f
+        )
+        if (contrastRatio(best, background) >= minRatio) return best
+    }
+    return best
+}
+
+/**
+ * Repairs a token set so its text hierarchy and accents are legible on its own surfaces.
+ *
+ * The measuring surface is deliberately the *hardest* card background for the ink this theme uses: the
+ * lightest surface when the ink is light, the darkest one when the ink is dark. Anything that clears the
+ * hard case clears the easy one too.
+ */
+private fun withReadableInk(tokens: RedColorTokens): RedColorTokens {
+    val ink = inkFor(tokens.surfaceElevated)
+    val prefersDarkInk = relativeLuminance(tokens.surfaceElevated) > 0.35f
+    val hardBackground = if (prefersDarkInk) {
+        if (relativeLuminance(tokens.surfaceElevated) < relativeLuminance(tokens.surfaceGrouped)) tokens.surfaceElevated else tokens.surfaceGrouped
+    } else {
+        if (relativeLuminance(tokens.surfaceElevated) > relativeLuminance(tokens.surfaceGrouped)) tokens.surfaceElevated else tokens.surfaceGrouped
+    }
+    return tokens.copy(
+        textPrimary = readableToken(tokens.textPrimary, hardBackground, ink, 4.5f, 1f),
+        textSecondary = readableToken(tokens.textSecondary, hardBackground, ink, 3.0f, 0.78f),
+        textTertiary = readableToken(tokens.textTertiary, hardBackground, ink, 2.2f, 0.62f),
+        textQuaternary = readableToken(tokens.textQuaternary, hardBackground, ink, 1.7f, 0.46f),
+        accentRed = repairedAccent(tokens.accentRed, hardBackground, 3.0f),
+        accentGold = repairedAccent(tokens.accentGold, hardBackground, 3.0f),
+        accentBlue = repairedAccent(tokens.accentBlue, hardBackground, 3.0f),
+        accentPurple = repairedAccent(tokens.accentPurple, hardBackground, 3.0f),
+        statusSuccess = repairedAccent(tokens.statusSuccess, hardBackground, 3.0f),
+        statusWarning = repairedAccent(tokens.statusWarning, hardBackground, 3.0f),
+        statusError = repairedAccent(tokens.statusError, hardBackground, 3.0f),
+        statusInfo = repairedAccent(tokens.statusInfo, hardBackground, 3.0f),
+        // Translucent hairlines are meant to be subtle, so only an opaque border is held to the floor.
+        border = if (tokens.border.alpha > 0.9f && contrastRatio(tokens.border, tokens.background) < 1.25f) {
+            if (relativeLuminance(tokens.background) > 0.35f) Color.Black.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.16f)
+        } else {
+            tokens.border
+        }
     )
 }
 
@@ -205,7 +320,7 @@ fun createDynamicSkyColorScheme(sunAltitudeDeg: Double): androidx.compose.materi
 
 @Composable
 fun REDTheme(
-    themeMode: ThemeMode = ThemeMode.DARK_NAVY,
+    themeMode: ThemeMode = ThemeMode.DARK,
     sunAltitudeDeg: Double = -20.0,
     userLatitude: Double = 30.1141,
     userLongitude: Double = 51.5217,
@@ -218,17 +333,15 @@ fun REDTheme(
     }
 
     val colorScheme = when (themeMode) {
-        ThemeMode.DARK_NAVY -> SpaceColorScheme
-        ThemeMode.OLED_BLACK -> OledSpaceColorScheme
+        ThemeMode.GLASS -> SpaceColorScheme
         ThemeMode.LIGHT -> LightSpaceColorScheme
-        ThemeMode.PAPERCRAFT_PASTEL -> PapercraftPastelColorScheme
-        ThemeMode.DYNAMIC_SKY -> createDynamicSkyColorScheme(sunAltitudeDeg)
-        ThemeMode.DYNAMIC_SILK -> createDynamicSilkColorScheme(celestialLighting)
+        ThemeMode.DARK -> OledSpaceColorScheme
     }
 
     val redColorTokens = when (themeMode) {
-        ThemeMode.DARK_NAVY -> RedDarkColorTokens
-        ThemeMode.OLED_BLACK -> RedDarkColorTokens.copy(
+        ThemeMode.GLASS -> RedDarkColorTokens
+        ThemeMode.LIGHT -> RedLightColorTokens
+        ThemeMode.DARK -> RedDarkColorTokens.copy(
             background = Color.Black,
             backgroundSecondary = Color(0xFF060608),
             backgroundTertiary = Color(0xFF0C0C10),
@@ -239,58 +352,19 @@ fun REDTheme(
             border = Color(0xFF27272A),
             separator = Color(0xFF18181B)
         )
-        ThemeMode.LIGHT -> RedLightColorTokens
-        ThemeMode.PAPERCRAFT_PASTEL -> RedLightColorTokens.copy(
-            background = PapercraftBackground,
-            backgroundSecondary = PapercraftSurfaceVariant,
-            backgroundTertiary = PapercraftSurface,
-            surface = PapercraftSurface,
-            surfaceElevated = PapercraftSurfaceVariant,
-            surfaceGrouped = PapercraftSurfaceVariant,
-            textPrimary = PapercraftTextPrimary,
-            textSecondary = PapercraftTextSecondary,
-            border = PapercraftOutline,
-            separator = PapercraftOutline.copy(alpha = 0.5f)
-        )
-        ThemeMode.DYNAMIC_SKY -> if (sunAltitudeDeg >= 0.0) {
-            RedLightColorTokens.copy(
-                background = colorScheme.background,
-                surface = colorScheme.surface,
-                surfaceElevated = colorScheme.surfaceVariant,
-                textPrimary = colorScheme.onSurface,
-                textSecondary = colorScheme.onSurfaceVariant
-            )
-        } else {
-            RedDarkColorTokens.copy(
-                background = colorScheme.background,
-                surface = colorScheme.surface,
-                surfaceElevated = colorScheme.surfaceVariant,
-                textPrimary = colorScheme.onSurface,
-                textSecondary = colorScheme.onSurfaceVariant
-            )
-        }
-        ThemeMode.DYNAMIC_SILK -> if (celestialLighting.isDark) {
-            RedDarkColorTokens.copy(
-                background = celestialLighting.backgroundColor,
-                surface = celestialLighting.surfaceColor,
-                surfaceElevated = celestialLighting.surfaceVariantColor,
-                textPrimary = celestialLighting.textPrimaryColor,
-                textSecondary = celestialLighting.textSecondaryColor,
-                textTertiary = celestialLighting.textTertiaryColor,
-                border = celestialLighting.outlineColor
-            )
-        } else {
-            RedLightColorTokens.copy(
-                background = celestialLighting.backgroundColor,
-                surface = celestialLighting.surfaceColor,
-                surfaceElevated = celestialLighting.surfaceVariantColor,
-                textPrimary = celestialLighting.textPrimaryColor,
-                textSecondary = celestialLighting.textSecondaryColor,
-                textTertiary = celestialLighting.textTertiaryColor,
-                border = celestialLighting.outlineColor
-            )
-        }
     }
+
+    // Every token set goes through the contrast repair, so no theme — bundled or dynamic — can hand a
+    // call site text or accent ink that dies on the surface it is drawn on.
+    val readableColorTokens = withReadableInk(redColorTokens)
+
+    // Material's ink roles are aligned with those tokens: screens exist that put `colorScheme.onSurface`
+    // text on `RedTheme.colors` surfaces (and the reverse), so the two palettes must agree on what ink is.
+    val readableMaterialScheme = colorScheme.copy(
+        onBackground = readableColorTokens.textPrimary,
+        onSurface = readableColorTokens.textPrimary,
+        onSurfaceVariant = readableColorTokens.textSecondary
+    )
 
     // The app's one and only type-face decision: Persian renders in Vazirmatn, English keeps the
     // platform default face. Two channels, both fed from that single rule, so no call site anywhere
@@ -305,15 +379,20 @@ fun REDTheme(
 
     CompositionLocalProvider(
         LocalCelestialLighting provides celestialLighting,
-        LocalRedColors provides redColorTokens,
+        LocalRedColors provides readableColorTokens,
         LocalRedSpacing provides RedSpacing,
         LocalRedRadius provides RedCornerRadius,
         LocalRedElevation provides RedElevation,
         LocalAppFontFamily provides appFontFamily
     ) {
         MaterialTheme(
-            colorScheme = colorScheme,
+            colorScheme = readableMaterialScheme,
             typography = redTypographyFor(isPersian),
+            // Every Material surface that reads MaterialTheme.shapes — Card, AlertDialog, bottom
+            // sheets, text fields, menus, chips — inherits the app's squircle corners from here
+            // instead of Material's circular-arc defaults, so there is one corner geometry in the
+            // app and no component can silently reintroduce a G1 join.
+            shapes = RedShapes.material,
             content = {
                 // Material 3's Text uses whatever `style` it is handed *as-is* — it does not merge the
                 // theme's ambient style into an explicitly passed one — so the typography swap above

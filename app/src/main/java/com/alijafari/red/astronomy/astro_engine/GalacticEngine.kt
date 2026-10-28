@@ -57,6 +57,13 @@ object GalacticEngine {
         )
     }
 
+    private val GALACTIC_EQUATOR_EQ: List<Pair<Double, CoordinateEngine.Equatorial>> by lazy {
+        (0..350 step 10).map { lDeg ->
+            val l = lDeg.toDouble()
+            l to CoordinateEngine.galacticToEquatorial(CoordinateEngine.Galactic(l, 0.0))
+        }
+    }
+
     /**
      * Generates 36 points tracing the Galactic Equator (b = 0°) across the sky for live AR view.
      */
@@ -67,10 +74,18 @@ object GalacticEngine {
         elevationM: Double = 0.0
     ): List<GalacticPlanePoint> {
         val lastDeg = TimeEngine.getLAST(jd, userLonDeg)
+        return calculateGalacticPlanePointsWithLast(lastDeg, userLatDeg, elevationM)
+    }
 
-        return (0..350 step 10).map { lDeg ->
-            val gal = CoordinateEngine.Galactic(lDeg.toDouble(), 0.0)
-            val eq = CoordinateEngine.galacticToEquatorial(gal)
+    /**
+     * Generates 36 points tracing the Galactic Equator (b = 0°) using a precomputed LAST angle.
+     */
+    fun calculateGalacticPlanePointsWithLast(
+        lastDeg: Double,
+        userLatDeg: Double,
+        elevationM: Double = 0.0
+    ): List<GalacticPlanePoint> {
+        return GALACTIC_EQUATOR_EQ.map { (lDeg, eq) ->
             val horiz = CoordinateEngine.equatorialToHorizontal(
                 equatorial = eq,
                 lastDeg = lastDeg,
@@ -79,7 +94,7 @@ object GalacticEngine {
             )
 
             GalacticPlanePoint(
-                galLongitudeDeg = lDeg.toDouble(),
+                galLongitudeDeg = lDeg,
                 raDeg = eq.raDeg,
                 decDeg = eq.decDeg,
                 azimuthDeg = horiz.azimuthDeg,

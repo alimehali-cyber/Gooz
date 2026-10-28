@@ -16,5 +16,7 @@
 local.properties
 .env
 debug.keystore
-!build-outputs/
-!build-outputs/*.apk
+
+# Python bytecode
+__pycache__/
+*.pyc

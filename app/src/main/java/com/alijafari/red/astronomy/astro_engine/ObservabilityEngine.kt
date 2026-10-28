@@ -76,8 +76,8 @@ object ObservabilityEngine {
                     isVisibleNow = true,
                     bestObservationTimeEn = "Daytime (WARNING: Certified Solar Filter Mandatory!)",
                     bestObservationTimeFa = "روز (هشدار: استفاده از فیلتر مخصوص خورشید اجباری است!)",
-                    reasonsEn = listOf("✓ Sun is above horizon", "⚠ Requires ISO-certified solar filter"),
-                    reasonsFa = listOf("✓ خورشید بالای افق قرار دارد", "⚠ نیازمند فیلتر استاندارد خورشیدی")
+                    reasonsEn = listOf("✓ Sun is above horizon", "Warning: Requires ISO-certified solar filter"),
+                    reasonsFa = listOf("✓ خورشید بالای افق قرار دارد", "Warning: نیازمند فیلتر استاندارد خورشیدی")
                 )
             } else {
                 ObservabilityResult(
@@ -107,8 +107,8 @@ object ObservabilityEngine {
             }
             altitudeDeg >= 10.0 -> {
                 score += 15
-                reasonsEn.add("⚠ Low altitude subject to horizon extinction (${altitudeDeg.toInt()}°)")
-                reasonsFa.add("⚠ ارتفاع پایین تحت تاثیر شکست نوری افق (${altitudeDeg.toInt()} درجه)")
+                reasonsEn.add("Warning: Low altitude subject to horizon extinction (${altitudeDeg.toInt()}°)")
+                reasonsFa.add("Warning: ارتفاع پایین تحت تاثیر شکست نوری افق (${altitudeDeg.toInt()} درجه)")
             }
             else -> {
                 score += 5
@@ -132,8 +132,8 @@ object ObservabilityEngine {
             sunAltitudeDeg <= -6.0 -> {
                 score += 15
                 if (objectMagnitude > 1.0) {
-                    reasonsEn.add("⚠ Civil twilight glow reduces contrast")
-                    reasonsFa.add("⚠ روشنایی شفق شهری کنتراست را کاهش می‌دهد")
+                    reasonsEn.add("Warning: Civil twilight glow reduces contrast")
+                    reasonsFa.add("Warning: روشنایی شفق شهری کنتراست را کاهش می‌دهد")
                 } else {
                     reasonsEn.add("✓ Bright object visible in civil twilight")
                     reasonsFa.add("✓ جرم درخشان در شفق شهری قابل مشاهده است")
@@ -142,8 +142,8 @@ object ObservabilityEngine {
             else -> {
                 if (objectType == ObjectType.MOON || objectMagnitude < -3.0) {
                     score += 10
-                    reasonsEn.add("⚠ Visible during daytime/dusk due to high brightness")
-                    reasonsFa.add("⚠ به دلیل درخشندگی بالا در روز/شفق دیده می‌شود")
+                    reasonsEn.add("Warning: Visible during daytime/dusk due to high brightness")
+                    reasonsFa.add("Warning: به دلیل درخشندگی بالا در روز/شفق دیده می‌شود")
                 } else {
                     score += 0
                     reasonsEn.add("✕ Sunlight masks faint astronomical objects")
@@ -173,8 +173,8 @@ object ObservabilityEngine {
                     reasonsFa.add("✕ ماه کامل کنتراست جرم‌های اعماق فضا را محو می‌کند")
                 } else {
                     score += 8
-                    reasonsEn.add("⚠ Bright Moon in sky")
-                    reasonsFa.add("⚠ حضور ماه پرنور در آسمان")
+                    reasonsEn.add("Warning: Bright Moon in sky")
+                    reasonsFa.add("Warning: حضور ماه پرنور در آسمان")
                 }
             }
         }
@@ -198,8 +198,8 @@ object ObservabilityEngine {
                     reasonsFa.add("✕ آلودگی نوری شهری سحابی‌ها و کهکشان‌ها را محو می‌کند (بورتل $bortleClass)")
                 } else {
                     score += 5
-                    reasonsEn.add("⚠ Urban light pollution present (Bortle $bortleClass)")
-                    reasonsFa.add("⚠ آلودگی نوری شهری موجود است (بورتل $bortleClass)")
+                    reasonsEn.add("Warning: Urban light pollution present (Bortle $bortleClass)")
+                    reasonsFa.add("Warning: آلودگی نوری شهری موجود است (بورتل $bortleClass)")
                 }
             }
         }

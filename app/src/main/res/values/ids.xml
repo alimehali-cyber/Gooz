@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Set on the AR camera PreviewView once it has left the composition (guards late camera binds). -->
+    <item name="ar_camera_released_tag" type="id" />
+</resources>

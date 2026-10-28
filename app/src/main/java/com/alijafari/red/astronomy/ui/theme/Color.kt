@@ -15,7 +15,9 @@ val RedCelestialPurple = Color(0xFFA855F7)
 
 // Status & Semantic Colors
 val StatusSuccess = Color(0xFF34C759)
-val StatusWarning = Color(0xFFFF9F0A)
+// Deep amber: the previous #FF9F0A measured 1.95:1 on the light card surface, which is not a
+// warning anyone can read. This clears 3:1 on both the light and the dark card.
+val StatusWarning = Color(0xFFB45309)
 val StatusError = Color(0xFFFF453A)
 val StatusInfo = Color(0xFF0A84FF)
 
@@ -44,7 +46,10 @@ val BackgroundCard = Color(0xFF12131C)         // Deep Slate Card Surface
 val CardSurface = Color(0x12FFFFFF)            // Light glass overlay
 val CardBorder = Color(0x1AFFFFFF)             // Subtle light border
 
-val AccentPrimary = Color(0xFF9F1239)          // Mars Crimson / Old Money Burgundy
+// Mars Crimson. Deliberately a mid-tone: #9F1239 measured 2.1:1 on the dark card surface and
+// white text needs ~5:1 on it, while this sits at 3.1:1 on the dark card and 4.7:1 on the light
+// one, so the accent icon and the accent button work in every theme.
+val AccentPrimary = Color(0xFFD32F2F)          // Mars Crimson / Old Money Burgundy
 val AccentSecondary = Color(0xFFC5A059)        // Champagne Gold
 val AccentTertiary = Color(0xFF2563EB)         // Royal Indigo Blue
 

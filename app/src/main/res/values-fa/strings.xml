@@ -7,7 +7,6 @@
     <string name="nav_home">خانه</string>
     <string name="nav_compass">آسمان AR</string>
     <string name="nav_skymap">نقشه آسمان</string>
-    <string name="nav_moon">ماه</string>
     <string name="nav_iss">ماهواره‌ها</string>
     <string name="nav_lab">آزمایشگاه</string>
     <string name="nav_satellites">ماهواره‌ها</string>
@@ -84,6 +83,14 @@
     <string name="select_city">انتخاب شهر / مرکز استان</string>
     <string name="liquid_glass_setting">جلوه شیشه مایع (Liquid Glass)</string>
     <string name="liquid_glass_desc">شکست فیزیکی نور و بازتاب اپتیکال بر روی سطوح شناور (اندروید ۱۳+)</string>
+    <string name="app_backdrop_title">پس‌زمینه برنامه</string>
+    <string name="live_sky_setting">آسمان زنده</string>
+    <string name="live_sky_desc">از آسمان محلی خود به عنوان پس‌زمینه برنامه استفاده کنید.</string>
+    <string name="backdrop_ngc1929_setting">NGC 1929</string>
+    <string name="backdrop_ngc1929_desc">عکس اسپیتزر / چاندرا / ESO از سحابی NGC 1929؛ برش می‌خورد تا کل صفحه را با بالاترین کیفیت پر کند.</string>
+    <string name="backdrop_cepheus_setting">قیفاووس</string>
+    <string name="backdrop_cepheus_desc">عکس فروسرخ اسپیتزر از قیفاووس B و C؛ برش می‌خورد تا کل صفحه را با بالاترین کیفیت پر کند.</string>
+    <string name="backdrop_off_desc">پس‌زمینه یکدست پوسته. آسمان زنده یا یک عکس را به‌عنوان پس‌زمینه تمام‌صفحه انتخاب کنید.</string>
     <string name="ok">تایید</string>
     <string name="cancel">انصراف</string>
     <string name="confirm">تایید</string>
@@ -109,4 +116,14 @@
     <!-- Gravity Sandbox -->
     <string name="gravity_sandbox_title">میز گرانش</string>
     <string name="gravity_sandbox_subtitle">شبیه‌سازی برهم‌کنش‌های N-جرم گرانشی</string>
+
+    <!-- Gargantua Laboratory -->
+    <string name="gargantua_title">گارگانتوا</string>
+    <string name="gargantua_subtitle">آزمایشگاه نسبیتی سیاه‌چاله</string>
+    <string name="gargantua_description">آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.</string>
+
+    <!-- Chal Kerr Ray-Marching Engine -->
+    <string name="chal_title">چال</string>
+    <string name="chal_subtitle">موتور ردیابی پرتوی زمان-واقعی کر</string>
+    <string name="chal_description">ردیابی پرتوی نسبیتی و دقیق به‌صورت زمان-واقعی برای سیاه‌چاله چرخان کر: همگرایی گرانشی ژئودزیکی، قرص برافزایشی نوویکوف-تورن، درخشش دوپلری نسبیتی، درخشش حلقه فوتونی و میدان ستارگان طیفی.</string>
 </resources>

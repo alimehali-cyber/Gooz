@@ -14,9 +14,9 @@ import androidx.compose.ui.geometry.Offset
  *
  * - In Southern Hemisphere (latitude < 0°):
  *   Viewer faces North (center = 0°).
- *   East (90°) is at Left (x = 0.25 * width), North (0°/360°) is Center (x = 0.5 * width),
- *   West (270°) is at Right (x = 0.75 * width). South (180°) is at the seam behind the viewer.
- *   Normal daytime diurnal motion flows: East -> North -> West (LEFT -> CENTER -> RIGHT).
+ *   West (270°) is at Left (x = 0.25 * width), North (0°/360°) is Center (x = 0.5 * width),
+ *   East (90°) is at Right (x = 0.75 * width). South (180°) is at the seam behind the viewer.
+ *   Normal daytime diurnal motion flows: East -> North -> West (RIGHT -> CENTER -> LEFT).
  *
  * - Equator (latitude == 0°):
  *   Stable default facing South (center = 180°).
@@ -54,7 +54,8 @@ object HeroSkyProjection {
         altitudeDeg: Double,
         canvasWidth: Float,
         canvasHeight: Float,
-        latitudeDeg: Double = 0.0
+        latitudeDeg: Double = 0.0,
+        horizonFraction: Float = HORIZON_FRACTION
     ): Offset {
         if (canvasWidth <= 0f || canvasHeight <= 0f) {
             return Offset.Zero
@@ -63,19 +64,19 @@ object HeroSkyProjection {
         // Calculate continuous relative azimuth centered on the equator-facing direction:
         // - Northern Hemisphere (latitude >= 0°): Center is South (180°).
         //   relAz = normalizeSignedAngle(azimuthDeg - 180.0)
-        //   East (90°) -> -90°, South (180°) -> 0°, West (270°) -> +90°
+        //   East (90°) -> -90° (Left), South (180°) -> 0° (Center), West (270°) -> +90° (Right)
         // - Southern Hemisphere (latitude < 0°): Center is North (0°).
-        //   relAz = normalizeSignedAngle(0.0 - azimuthDeg)
-        //   East (90°) -> -90°, North (0°) -> 0°, West (270°) -> +90°
+        //   relAz = normalizeSignedAngle(azimuthDeg)
+        //   West (270°) -> -90° (Left), North (0°) -> 0° (Center), East (90°) -> +90° (Right)
         val relAz = if (latitudeDeg >= 0.0) {
             normalizeSignedAngle(azimuthDeg - 180.0)
         } else {
-            normalizeSignedAngle(0.0 - azimuthDeg)
+            normalizeSignedAngle(azimuthDeg)
         }
 
         val x = ((0.5 + relAz / 360.0) * canvasWidth).toFloat()
 
-        val horizonY = canvasHeight * HORIZON_FRACTION
+        val horizonY = canvasHeight * horizonFraction.coerceIn(0.05f, 0.98f)
         val scale = (horizonY - TOP_MARGIN_PX) / 90.0f
         val y = horizonY - (altitudeDeg.toFloat() * scale)
 
@@ -110,7 +111,7 @@ object HeroSkyProjection {
     /**
      * Returns the horizon line Y coordinate on the canvas.
      */
-    fun getHorizonY(canvasHeight: Float): Float {
-        return canvasHeight * HORIZON_FRACTION
+    fun getHorizonY(canvasHeight: Float, horizonFraction: Float = HORIZON_FRACTION): Float {
+        return canvasHeight * horizonFraction.coerceIn(0.05f, 0.98f)
     }
 }

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.edu.TutorialContent
 import com.zig.gravity.edu.TutorialGesture
 import com.zig.gravity.edu.TutorialStep
@@ -88,9 +88,9 @@ fun TutorialOverlay(
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(top = 10.dp, end = 14.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(squircleShape(16.dp))
                 .background(c.chrome)
-                .border(1.dp, c.chromeBorder, RoundedCornerShape(16.dp))
+                .border(1.dp, c.chromeBorder, squircleShape(16.dp))
                 .semantics {
                     contentDescription =
                         if (persian) TutorialContent.SKIP_A11Y_FA else TutorialContent.SKIP_A11Y_EN
@@ -111,9 +111,9 @@ fun TutorialOverlay(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 18.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(squircleShape(24.dp))
                 .background(c.chrome)
-                .border(1.dp, c.chromeBorder, RoundedCornerShape(24.dp))
+                .border(1.dp, c.chromeBorder, squircleShape(24.dp))
                 .padding(20.dp)
                 .testTag("tutorial_card"),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -163,7 +163,7 @@ fun TutorialOverlay(
                 if (index > 0) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(squircleShape(14.dp))
                             .clickableTag("tutorial_back") { index-- }
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
@@ -178,9 +178,9 @@ fun TutorialOverlay(
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(squircleShape(16.dp))
                         .background(c.accent.copy(alpha = 0.18f))
-                        .border(1.dp, c.accent.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+                        .border(1.dp, c.accent.copy(alpha = 0.55f), squircleShape(16.dp))
                         .clickableTag(if (last) "tutorial_finish" else "tutorial_next") {
                             if (last) onDismiss() else index++
                         }
@@ -240,7 +240,7 @@ private fun GestureDemo(gesture: TutorialGesture, tint: Color) {
         modifier = Modifier
             .fillMaxWidth()
             .height(54.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(squircleShape(14.dp))
             .background(tint.copy(alpha = 0.06f))
             .testTag("tutorial_gesture_demo")
     ) {

@@ -31,8 +31,8 @@ class ISSEngine {
 
     data class TLEData(
         val name: String = "ISS (ZARYA)",
-        val line1: String = "1 25544U 98067A   26213.50000000  .00016717  00000-0  30000-3 0  9993",
-        val line2: String = "2 25544  51.6400 200.0000 0005000  90.0000 270.0000 15.49000000400001",
+        val line1: String = "1 25544U 98067A   26288.82192346  .00005580  00000+0  10980-3 0  9999",
+        val line2: String = "2 25544  51.6317  63.1136 0006755 265.8514  94.1703 15.48879905590452",
         val epochYear: Int = StarlinkTrainManager.extractEpochYear(line1),
         val epochDay: Double = StarlinkTrainManager.extractEpochDay(line1)
     )
@@ -787,13 +787,13 @@ class ISSEngine {
                 }
                 maxElevDeg >= 15.0 -> {
                     score += 10
-                    reasonsEn.add("⚠ Moderate peak elevation (${maxElevDeg.toInt()}°)")
-                    reasonsFa.add("⚠ زاویه اوج متوسط (${maxElevDeg.toInt()} درجه)")
+                    reasonsEn.add("Warning: Moderate peak elevation (${maxElevDeg.toInt()}°)")
+                    reasonsFa.add("هشدار: زاویه اوج متوسط (${maxElevDeg.toInt()} درجه)")
                 }
                 else -> {
                     score += 2
-                    reasonsEn.add("⚠ Low horizon pass (${maxElevDeg.toInt()}°)")
-                    reasonsFa.add("⚠ گذر نزدیک به افق (${maxElevDeg.toInt()} درجه)")
+                    reasonsEn.add("Warning: Low horizon pass (${maxElevDeg.toInt()}°)")
+                    reasonsFa.add("هشدار: گذر نزدیک به افق (${maxElevDeg.toInt()} درجه)")
                 }
             }
 

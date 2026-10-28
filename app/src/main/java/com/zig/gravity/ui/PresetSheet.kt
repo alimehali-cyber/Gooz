@@ -2,7 +2,6 @@ package com.zig.gravity.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,9 +13,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.sim.Preset
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.LocalGravityColors
@@ -99,12 +99,12 @@ fun PresetSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(squircleShape(14.dp))
                         .background(if (selected) c.accent.copy(alpha = 0.12f) else c.onSurface.copy(alpha = 0.04f))
                         .border(
                             1.dp,
                             if (selected) c.accent.copy(alpha = 0.5f) else c.chromeBorder,
-                            RoundedCornerShape(14.dp)
+                            squircleShape(14.dp)
                         )
                         .clickableTag("preset_${p.name.lowercase()}") {
                             vm.loadPreset(p)

@@ -2,14 +2,18 @@ package com.alijafari.red.astronomy.ui.rendering
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
@@ -34,9 +38,10 @@ object MoonRenderer {
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
         brightLimbAngleDeg: Double = 0.0,
         parallacticAngleDeg: Double = 0.0,
-        limbScreenAngleDeg: Double? = null
+        limbScreenAngleDeg: Double? = null,
+        clipBottomPx: Float? = null
     ) {
-        val horizonY = drawScope.size.height * 0.85f
+        val horizonY = clipBottomPx ?: (drawScope.size.height * 0.85f)
         drawScope.clipRect(
             left = 0f,
             top = 0f,
@@ -44,7 +49,8 @@ object MoonRenderer {
             bottom = horizonY
         ) {
             if (isSolarEclipse) {
-                drawSolarEclipse(drawScope, center, radius, theme)
+                val eclipseRadius = if (theme == SkyCanvasTheme.REAL_SKY) radius * 0.48f else radius
+                drawSolarEclipse(drawScope, center, eclipseRadius, theme)
                 return@clipRect
             }
 
@@ -55,20 +61,234 @@ object MoonRenderer {
             }).toFloat()
 
             when (theme) {
+                SkyCanvasTheme.REAL_SKY -> drawRealSkyMoon(drawScope, center, radius * 0.48f, illuminationPercent, isLunarEclipse, lightingState, rotationDeg)
                 SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg)
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, rotationDeg)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg, isObservatory = false)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg, isObservatory = true)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, rotationDeg, isLunarEclipse)
+            }
+        }
+    }
+
+    /**
+     * The photographic Moon (the Home Moon card's plate, rendered by [SkyMoonSprites] with the true phase,
+     * libration, axis position angle, earthshine and visibility against the sky), drawn so that celestial
+     * north and west in the sprite land on the screen directions [northDeg] and [westDeg] (canvas angles
+     * from +x towards +y, as returned by [SkyProjection.moonLimbAngleDeg]); mirrored projections are
+     * handled. The moonlight bloom of the Real Sky theme and the aura of the Atmospheric theme are kept,
+     * scaled by how much the eye's glare around the Moon stands out against the sky.
+     */
+    fun drawPhotoMoon(
+        drawScope: DrawScope,
+        center: Offset,
+        radius: Float,
+        sprite: SkyMoonSprites.Sprite,
+        northDeg: Double,
+        westDeg: Double,
+        isLunarEclipse: Boolean,
+        lightingState: LightingState,
+        theme: SkyCanvasTheme,
+        frameTimeMs: Long,
+        illuminationPercent: Double,
+        clipBottomPx: Float? = null
+    ) {
+        val horizonY = clipBottomPx ?: (drawScope.size.height * 0.85f)
+        drawScope.clipRect(left = 0f, top = 0f, right = drawScope.size.width, bottom = horizonY) {
+            val glare = sprite.glareWeight.toFloat().coerceIn(0f, 1f)
+            val phaseFrac = (illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
+            if (theme == SkyCanvasTheme.ATMOSPHERIC_SKY) {
+                val auraRadius = radius * 3.2f
+                val a1 = if (isLunarEclipse) Color(0xFFEF4444).copy(alpha = 0.30f) else Color(0xFFFEF9C3).copy(alpha = 0.35f * lightingState.bloomIntensity * glare)
+                val a2 = if (isLunarEclipse) Color(0xFF991B1B).copy(alpha = 0.10f) else Color(0xFF38BDF8).copy(alpha = 0.12f * lightingState.bloomIntensity * glare)
+                drawScope.drawCircle(
+                    brush = Brush.radialGradient(colors = listOf(a1, a2, Color.Transparent), center = center, radius = auraRadius),
+                    radius = auraRadius,
+                    center = center
+                )
+            } else {
+                // Moonlight bloom: ocular and atmospheric glare, as strong as it stands out against the sky.
+                val bloomAlpha = if (isLunarEclipse) 0.22f * glare else (0.06f + 0.28f * phaseFrac) * lightingState.bloomIntensity.coerceIn(0.35f, 1.0f) * glare
+                if (bloomAlpha > 0.003f) {
+                    val bloomColor = if (isLunarEclipse) Color(0xFFC84B31) else Color(0xFFF4F0E6)
+                    val bloomRadius = radius * (2.6f + 1.2f * phaseFrac)
+                    drawScope.drawCircle(
+                        brush = Brush.radialGradient(
+                            0.0f to bloomColor.copy(alpha = bloomAlpha),
+                            0.42f to bloomColor.copy(alpha = bloomAlpha * 0.35f),
+                            1.0f to Color.Transparent,
+                            center = center,
+                            radius = bloomRadius
+                        ),
+                        radius = bloomRadius,
+                        center = center,
+                        blendMode = BlendMode.Plus
+                    )
+                }
+            }
+
+            // Sprite axes (x = celestial west, y = celestial north) → screen.
+            val nRad = Math.toRadians(northDeg)
+            val nx = cos(nRad).toFloat(); val ny = sin(nRad).toFloat()
+            // West is north turned 90° clockwise on a y-down canvas unless the projection mirrors the sky.
+            var wx = -ny; var wy = nx
+            val wRad = Math.toRadians(westDeg)
+            if (cos(wRad).toFloat() * wx + sin(wRad).toFloat() * wy < 0f) { wx = -wx; wy = -wy }
+            val s = radius / sprite.bodyRadiusPx
+            val half = sprite.light.width / 2f
+            val sx = s * wx; val kx = -s * nx
+            val sy = s * wy; val ky = -s * ny
+            val matrix = android.graphics.Matrix().apply {
+                setValues(floatArrayOf(sx, kx, center.x - (sx + kx) * half, sy, ky, center.y - (sy + ky) * half, 0f, 0f, 1f))
+            }
+            val eclipseFilter = if (isLunarEclipse) android.graphics.PorterDuffColorFilter(
+                android.graphics.Color.rgb(214, 96, 64), android.graphics.PorterDuff.Mode.MULTIPLY
+            ) else null
+            // The Moon's light adds to the sky behind it (SCREEN), as in GlyphRaster.renderMoon.
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SCREEN)
+                colorFilter = eclipseFilter
+            }
+            drawScope.drawIntoCanvas { canvas -> canvas.nativeCanvas.drawBitmap(sprite.light, matrix, paint) }
+        }
+    }
+
+    /**
+     * Photorealistic borderless Moon with Earthshine (Da Vinci glow), anatomical lunar maria washes,
+     * soft regolith limb darkening, and additive atmospheric moonlight bloom.
+     */
+    private fun drawRealSkyMoon(
+        drawScope: DrawScope,
+        center: Offset,
+        radius: Float,
+        illuminationPercent: Double,
+        isLunarEclipse: Boolean,
+        lightingState: LightingState,
+        rotationDeg: Float
+    ) {
+        val phaseFrac = (illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
+
+        // 1. Soft additive atmospheric moonlight bloom scaled by illuminated fraction
+        val bloomAlpha = if (isLunarEclipse) {
+            0.22f
+        } else {
+            (0.06f + 0.28f * phaseFrac) * lightingState.bloomIntensity.coerceIn(0.35f, 1.0f)
+        }
+        val bloomColor = if (isLunarEclipse) Color(0xFFC84B31) else Color(0xFFF4F0E6)
+        val bloomRadius = radius * (2.6f + 1.2f * phaseFrac)
+        drawScope.drawCircle(
+            brush = Brush.radialGradient(
+                0.0f to bloomColor.copy(alpha = bloomAlpha),
+                0.42f to bloomColor.copy(alpha = bloomAlpha * 0.35f),
+                1.0f to Color.Transparent,
+                center = center,
+                radius = bloomRadius
+            ),
+            radius = bloomRadius,
+            center = center,
+            blendMode = BlendMode.Plus
+        )
+
+        // 2. Unlit lunar hemisphere with Earthshine (Da Vinci glow, strongest for crescent phases)
+        val earthshineIntensity = ((1f - phaseFrac) * (0.35f + 0.65f * (1f - abs(phaseFrac - 0.18f) / 0.82f))).coerceIn(0.02f, 0.18f)
+        val darkDiskBase = Color(0xFF0A0F1D)
+        val earthshineTint = Color(0xFF8EA4C8)
+        drawScope.drawCircle(
+            color = darkDiskBase,
+            radius = radius,
+            center = center
+        )
+        drawScope.drawCircle(
+            brush = Brush.radialGradient(
+                0.0f to earthshineTint.copy(alpha = earthshineIntensity * 0.55f),
+                0.78f to earthshineTint.copy(alpha = earthshineIntensity * 0.85f),
+                1.0f to earthshineTint.copy(alpha = earthshineIntensity),
+                center = center,
+                radius = radius
+            ),
+            radius = radius,
+            center = center
+        )
+
+        // 3. Illuminated phase path (centered at 0° / +X, rotated by rotationDeg toward the Sun)
+        if (phaseFrac > 0.005f) {
+            val illuminatedPath = Path().apply {
+                if (phaseFrac >= 0.995f) {
+                    addOval(Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius))
+                } else {
+                    addArc(
+                        Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
+                        -90f,
+                        180f
+                    )
+                    val k = 2.0f * phaseFrac - 1.0f
+                    val stepInnerWidth = (abs(k) * radius).coerceAtLeast(0f)
+                    val innerRect = Rect(center.x - stepInnerWidth, center.y - radius, center.x + stepInnerWidth, center.y + radius)
+                    val innerSweep = if (k >= 0f) 180f else -180f
+                    arcTo(innerRect, 90f, innerSweep, false)
+                    close()
+                }
+            }
+
+            val litCenterColor = if (isLunarEclipse) Color(0xFFD65A38) else Color(0xFFF6F2E8)
+            val litLimbColor = if (isLunarEclipse) Color(0xFF7A1E14) else Color(0xFFDDD5C5)
+            val mariaColor = if (isLunarEclipse) Color(0xFF4A100A).copy(alpha = 0.32f) else Color(0xFF948E84).copy(alpha = 0.28f)
+
+            drawScope.rotate(rotationDeg, center) {
+                drawScope.clipPath(illuminatedPath) {
+                    // Base limb-shaded lunar regolith
+                    drawScope.drawCircle(
+                        brush = Brush.radialGradient(
+                            0.0f to litCenterColor,
+                            0.75f to litCenterColor,
+                            1.0f to litLimbColor,
+                            center = center,
+                            radius = radius
+                        ),
+                        radius = radius,
+                        center = center
+                    )
+
+                    // Anatomical naked-eye Lunar Maria washes (Imbrium, Serenitatis, Tranquillitatis, Crisium, Procellarum, Humorum)
+                    val mariaFeatures = listOf(
+                        Triple(-0.22f, -0.26f, 0.34f), // Mare Imbrium
+                        Triple(+0.14f, -0.20f, 0.24f), // Mare Serenitatis
+                        Triple(+0.30f, +0.04f, 0.26f), // Mare Tranquillitatis
+                        Triple(+0.56f, -0.10f, 0.16f), // Mare Crisium
+                        Triple(-0.44f, +0.06f, 0.38f), // Oceanus Procellarum
+                        Triple(-0.18f, +0.36f, 0.26f)  // Mare Nubium / Humorum
+                    )
+                    for ((dx, dy, rFrac) in mariaFeatures) {
+                        val mCenter = Offset(center.x + dx * radius, center.y + dy * radius)
+                        val mRadius = (rFrac * radius).coerceAtLeast(1f)
+                        drawScope.drawCircle(
+                            brush = Brush.radialGradient(
+                                0.0f to mariaColor,
+                                0.65f to mariaColor.copy(alpha = mariaColor.alpha * 0.45f),
+                                1.0f to Color.Transparent,
+                                center = mCenter,
+                                radius = mRadius
+                            ),
+                            radius = mRadius,
+                            center = mCenter
+                        )
+                    }
+                }
             }
         }
     }
 
     private fun drawSolarEclipse(drawScope: DrawScope, center: Offset, radius: Float, theme: SkyCanvasTheme) {
-        val coronaColor = if (theme == SkyCanvasTheme.MONOCHROME) Color.White.copy(alpha = 0.4f) else Color(0xFF60A5FA).copy(alpha = 0.6f)
+        val coronaColor = when (theme) {
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White.copy(alpha = 0.4f)
+            SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444).copy(alpha = 0.55f)
+            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFFFF3B0).copy(alpha = 0.7f)
+            else -> Color(0xFF60A5FA).copy(alpha = 0.6f)
+        }
+        val innerCorona = if (theme == SkyCanvasTheme.OBSERVATORY) Color(0xFFFCA5A5) else Color.White
         drawScope.drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Color.White, coronaColor, Color.Transparent),
+                colors = listOf(innerCorona, coronaColor, Color.Transparent),
                 center = center,
                 radius = radius * 4.0f
             ),
@@ -76,12 +296,17 @@ object MoonRenderer {
             center = center
         )
         drawScope.drawCircle(
-            color = Color(0xFF0F172A),
+            color = if (theme == SkyCanvasTheme.OBSERVATORY) Color(0xFF1A0000) else Color(0xFF0F172A),
             radius = radius,
             center = center
         )
         drawScope.drawCircle(
-            color = if (theme == SkyCanvasTheme.MONOCHROME) Color.White else Color(0xFF60A5FA),
+            color = when (theme) {
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White
+                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFF3C5B6)
+                else -> Color(0xFF60A5FA)
+            },
             radius = radius,
             center = center,
             style = Stroke(width = 1.5f)
@@ -94,11 +319,18 @@ object MoonRenderer {
         radius: Float,
         illuminationPercent: Double,
         isLunarEclipse: Boolean,
-        rotationDeg: Float = 0f
+        rotationDeg: Float = 0f,
+        isObservatory: Boolean = false
     ) {
-        // Monochromatic vector Moon: Illuminated part white, shadowed part dark grey, subtle depth stroke
-        val illuminatedColor = if (isLunarEclipse) Color(0xFFD4D4D8) else Color.White
-        val shadowedColor = Color(0xFF262626)
+        // Monochromatic / Observatory vector Moon
+        val illuminatedColor = when {
+            isObservatory && isLunarEclipse -> Color(0xFF991B1B)
+            isObservatory -> Color(0xFFEF4444)
+            isLunarEclipse -> Color(0xFFD4D4D8)
+            else -> Color.White
+        }
+        val shadowedColor = if (isObservatory) Color(0xFF260505) else Color(0xFF262626)
+        val outlineColor = if (isObservatory) Color(0xFFEF4444).copy(alpha = 0.55f) else Color.White.copy(alpha = 0.5f)
 
         // 1. Draw base shadowed disk
         drawScope.drawCircle(
@@ -137,7 +369,7 @@ object MoonRenderer {
 
         // 3. Subtle depth outline (minimal, architectural stroke)
         drawScope.drawCircle(
-            color = Color.White.copy(alpha = 0.5f),
+            color = outlineColor,
             radius = radius,
             center = center,
             style = Stroke(width = drawScope.run { 1.2.dp.toPx() })
@@ -336,12 +568,14 @@ object MoonRenderer {
         center: Offset,
         radius: Float,
         illuminationPercent: Double,
-        rotationDeg: Float = 0f
+        rotationDeg: Float = 0f,
+        isLunarEclipse: Boolean = false
     ) {
         val shadowOffset = Offset(4f, 5f)
         val shadowColor = Color(0x352A221E)
-        val paperCream = Color(0xFFFAF8F3)
+        val paperCream = if (isLunarEclipse) Color(0xFFE07A5F) else Color(0xFFFAF8F3)
         val paperDarkCard = Color(0xFF3B4050)
+        val auraColor = if (isLunarEclipse) Color(0x44E07A5F) else Color(0x33FFF3B0)
 
         // Drop shadow for the main paper moon disc
         drawScope.drawCircle(
@@ -352,7 +586,7 @@ object MoonRenderer {
 
         // Outer Paper Aura Ring
         drawScope.drawCircle(
-            color = Color(0x33FFF3B0),
+            color = auraColor,
             radius = radius * 1.35f,
             center = center
         )

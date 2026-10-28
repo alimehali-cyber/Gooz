@@ -26,27 +26,23 @@ class AstroTimeTest {
 
     @Test
     fun `test Delta T for year 2024`() {
-        // For 2024, ΔT should be approximately 69.3 seconds
-        // t ≈ 2024 - 2000 = 24 at start of year 2024
-        // ΔT = 63.86 + 0.3345*24 - 0.006037*24^2 + 0.001727*24^3
-        // ΔT = 63.86 + 8.028 - 3.477 + 23.85 = 69.26
-
+        // 73.870536 s is the NASA Espenak-Meeus value for 2024-01-01 00:00 UTC
+        // (2005-2050 interval). It is a transcribed literal from an independent port
+        // of the published polynomials, NOT recomputed with the app's own formula.
+        // The previous version of this test asserted 63.86 + 0.3345*24 - 0.006037*576
+        // + 0.001727*13824, which merely restated the (incorrect) production code.
         val astroTime = AstroTime.fromUtcDate(2024, 1, 1, 0, 0, 0)
-        val expectedDeltaT = 63.86 + 0.3345 * 24.0 - 0.006037 * 576.0 + 0.001727 * 13824.0
 
-        assertEquals(expectedDeltaT, astroTime.deltaT, 0.5)  // 0.5 second tolerance
+        assertEquals(73.870536, astroTime.deltaT, 0.01)
     }
 
     @Test
     fun `test Delta T for year 2026`() {
-        // For 2026, t ≈ 26 at start of year 2026
-        // ΔT = 63.86 + 0.3345*26 - 0.006037*26^2 + 0.001727*26^3
-
+        // 75.074584 s is the NASA Espenak-Meeus value for 2026-01-01 00:00 UTC
+        // (2005-2050 interval). Transcribed literal; see DeltaTPolynomialTest.
         val astroTime = AstroTime.fromUtcDate(2026, 1, 1, 0, 0, 0)
-        val t = 26.0
-        val expectedDeltaT = 63.86 + 0.3345 * t - 0.006037 * t * t + 0.001727 * t * t * t
 
-        assertEquals(expectedDeltaT, astroTime.deltaT, 0.5)
+        assertEquals(75.074584, astroTime.deltaT, 0.01)
     }
 
     @Test
@@ -91,30 +87,43 @@ class AstroTimeTest {
         assertEquals(2026, astroTime.getYear())
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun `test Delta T throws for year 1000`() {
-        val astroTime = AstroTime.fromUtcDate(1000, 1, 1, 0, 0, 0)
-        // Accessing deltaT should throw
-        astroTime.deltaT
-    }
+    @Test
+    fun `test Delta T returns a finite extrapolation instead of throwing`() {
+        // deltaT used to throw IllegalArgumentException outside 1620..2150 from a
+        // public property, so any out-of-window date was a crash. The model is now
+        // total. These values are EXTRAPOLATIONS of the Espenak-Meeus long-term
+        // parabola and are not observations, so only finiteness is asserted here.
+        val year1000 = AstroTime.fromUtcDate(1000, 1, 1, 0, 0, 0).deltaT
+        val year2200 = AstroTime.fromUtcDate(2200, 1, 1, 0, 0, 0).deltaT
 
-    @Test(expected = IllegalArgumentException::class)
-    fun `test Delta T throws for year 2200`() {
-        val astroTime = AstroTime.fromUtcDate(2200, 1, 1, 0, 0, 0)
-        // Accessing deltaT should throw
-        astroTime.deltaT
+        assertTrue("deltaT for year 1000 must be finite, was $year1000", year1000.isFinite())
+        assertTrue("deltaT for year 2200 must be finite, was $year2200", year2200.isFinite())
+
+        // Monotonicity only holds WITHIN the post-2150 parabolic branch, where
+        //     ΔT = −20 + 32·((y − 1820)/100)²
+        // grows with |y − 1820|. It does NOT hold across branches, and an earlier
+        // revision asserted `year2200 > year1000`, which is false:
+        //   · year 1000 is not in the parabolic branch at all — it falls in the
+        //     [500, 1600) 6th-degree interval, where ΔT ≈ 1574 s;
+        //   · year 2200 is in the parabolic branch with ΔT ≈ 442 s;
+        //   · even evaluated on the parabola alone, year 1000 is 820 years from the
+        //     vertex against year 2200's 380, so year 1000 would still be the larger.
+        // Measured: ΔT(1000-01-01) = 1574.086 s, ΔT(2200-01-01) = 442.070 s.
+        val year2500 = AstroTime.fromUtcDate(2500, 1, 1, 0, 0, 0).deltaT
+        assertTrue(
+            "deltaT must grow with |y−1820| inside the post-2150 branch " +
+                "($year2500 should exceed $year2200)",
+            year2500 > year2200
+        )
     }
 
     @Test
     fun `test Delta T for year 1970`() {
-        // 1970 is in the 1950-2000 range
-        // t = 1970 - 2000 = -30
-        // ΔT = 63.86 + 0.3345*(-30) - 0.006037*900 + 0.001727*(-27000)
+        // 40.192941 s is the NASA Espenak-Meeus value for 1970-01-01 00:00 UTC
+        // (1961-1986 interval). Transcribed literal; see DeltaTPolynomialTest.
         val astroTime = AstroTime.fromUtcDate(1970, 1, 1, 0, 0, 0)
-        val t = -30.0
-        val expectedDeltaT = 63.86 + 0.3345 * t - 0.006037 * t * t + 0.001727 * t * t * t
 
-        assertEquals(expectedDeltaT, astroTime.deltaT, 1.0)
+        assertEquals(40.192941, astroTime.deltaT, 0.01)
     }
 
     @Test
