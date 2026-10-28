@@ -172,11 +172,13 @@ chosen width, so the scale the ground painter assumes is the scale the camera us
 
 On the photographic themes the painted ground is no longer a generic ridge-and-grass band: it is
 the monuments' own geography, art-directed to the framing (`SceneGroundRenderer`'s photographic
-path, profiles in `LandscapeProfile`). Persepolis really stands where the Marvdasht plain meets
-Kuh-e Rahmat, near the Pulvar River, encircled by southern Zagros ranges — so the scene paints,
-back to front:
+path, profiles in `LandscapeProfile`). The backdrop is the country the Mil-e Azhdaha tower
+actually stands in, west of **Nurabad (Mamasani), Fars**: the tower (دیمه‌میل / میل اژدها)
+stands at the foot of the rocky, relatively green limestone ridge of Kuh-e Shirmard /
+Tang-e Kalleh in the Dimeh-Mil valley, under the folded Zagros of Mamasani — so the scene
+paints, back to front:
 
-- a **far Zagros range** and the **Kuh-e Rahmat wall** as domain-warped ridged-multifractal
+- the **far Mamasani fold range** and the **Dimeh-Mil / Mil-e Azhdaha massif** as domain-warped ridged-multifractal
   skylines (Musgrave `(1−|noise|)²` with ridge-weighted detail) given fold-and-thrust geology:
   soft bedrock benching (hard limestone beds terrace, marl washes smooth), a carved water-gap
   notch whose alluvial fan spills out below it, strata dipping away from the fold hinge in a
@@ -186,21 +188,25 @@ back to front:
   range is facet-shaded from its profile slope against the *actual* Sun's screen side, with
   erosion gullies, a crest catch-light, and depth-graded aerial perspective into the scene's
   haze colour — at night the same shapes collapse to a moonlit silhouette. The relief is
-  kept honest to the real topography: Kuh-e Rahmat tops out at 2,413 m above the 1,620 m
-  plain (≈0.8 km of relief), so both ranges were lowered to low whaleback ridges whose
-  crests ride just above the horizon line, *below* the tallest column tops — the ruins
-  dominate, the mountains frame;
+  kept honest to the real topography: Nurabad sits at ≈920 m in the Zagros fold-and-thrust
+  belt, its ridges rising to roughly 1,500–2,500 m, so the ranges stay low whaleback
+  ridges whose crests ride just above the horizon line, *below* the tallest column tops —
+  the ruins dominate, the mountains frame. The massif is cut by the wide gorge
+  (**Tang-e Farakh**, the Tang-e Kalleh cleft of the site) with a shadowed throat and the
+  Dimeh-Mil spring greening its mouth, and both ranges carry the open *Quercus brantii*
+  oak-woodland grain and green scrub wash of the real Mamasani hills;
 - **piedmont foothills and alluvial fans** where the massif's gullies debouch, then the
-  semi-arid **steppe plain**: dry olive-straw field mosaic (irrigated green against fallow),
-  an irrigation canal with its tree line, and a three-band **batched grass system** built on
-  the production recipe (Ghost-of-Tsushima/GodotGrass class): true Voronoi clumps sharing
-  height/lean/dryness/density softened at their borders, tapered blades along a cubic-Bézier
-  bend profile with ground-tinted AO roots and backlit tips, a ground-cover carpet plus
-  thousands of micro-blades at range, dry litter — and, on the viewer's own near bank, a
-  low harmonized fringe of short ground-tinted tufts whose tones are lerped toward the
-  steppe ground colour so the foreground grass reads as the plain's own sunlit skin
-  (the earlier tall filled foreground blades are gone), all batched, moisture-driven
-  (noise + river + canal), never in the water or the clearings;
+  a **lively cool-green plain** (the floor itself re-toned from the old yellowy
+  olive-straw to green) with an irrigation canal and its tree line, and a **uniform
+  grass field** built on the researched distant-grass solution — the ground-as-grass
+  impostor (hexaquo's grass-LOD work) with Ghost-of-Tsushima's field-as-one-mass
+  shading: *no individual blades are rendered anywhere*. The field is one textured
+  mass: a perspective grid of overlapping tone cells (fbm patch albedo × river/canal
+  moisture) quantized into eight cool-green colour buckets — eight path fills for the
+  whole valley — with tone contrast compressed at range (the mipmap lesson), and, on
+  the viewer's own near bank, the same field deepened into a lush moisture ribbon
+  hugging the water. Never in the water, the canal thread, the clearings or on the
+  Mil slope front;
 - a **broad Pulvar river** (≈3.8× the first stream) the viewer stands across from: layered
   water (damp wet-bank fringe, shallow edges with the bed and pebbles showing, sky
   reflection, a deep thalweg hugging each outer bank, gravel point bars inside the bends,
@@ -208,15 +214,16 @@ back to front:
   broad Fresnel sheen plus stochastically thinned glitter (with rare star sparkles)
   concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
   illumination, at night);
-- a **mixed parkland of 63 space-colonization trees** (riparian gallery, canal line,
+- a **mixed parkland of 68 space-colonization trees** (riparian gallery, canal line,
   foothill woodland, scattered plain trees, near-bank foreground trees, the lone tree
   between the sites): wild pistachio, gnarled decurrent **Zagros oaks** (*Quercus
   brantii* — the lone tree between the sites and the foreground frame), vase-shaped
   **flowering cherries** in Somei Yoshino bloom (pale-pink cloud crowns on both
   riverbanks, petal litter beneath), and tall umbrella-crowned **Paulownia**
   (*Paulownia tomentosa*) carrying upright lavender terminal panicles over oversized
-  heart-shaped foliage — planted as dedicated groves (+15 Paulownia, +10 cherry, +8 oak)
-  with refuse-and-retry placement so the species counts always hold — plus pistachio
+  heart-shaped foliage — planted as dedicated groves (+15 Paulownia, +10 cherry, +8 oak,
+  and +3 cherry / +2 oak on the river's near bank) with refuse-and-retry placement so
+  the species counts always hold — plus pistachio
   scrub and silver-grey *Artemisia* sage. All are grown by 2D space
   colonization upgraded with the self-organizing tree model (Palubicki et al. 2009:
   bud occupancy zones, shadow self-pruning, apical-control scaffold spread, arching and

@@ -24,8 +24,9 @@ import kotlin.math.sqrt
  *  - **Stylised themes** keep the original simple band — two sine ridges, a mist shelf, solid
  *    ground and a grass line — because flat illustration is those themes' whole point.
  *  - **Photographic themes with the Persepolis + Mil-e Azhdaha relief** get the full
- *    Marvdasht landscape ([drawMarvdashtLandscape]): a haze-layered far Zagros range and
- *    the Kuh-e Rahmat limestone wall built from geology-shaped profiles (soft bedrock
+ *    Marvdasht landscape ([drawMarvdashtLandscape]): a haze-layered far Mamasani fold
+ *    range and the Dimeh-Mil / Mil-e Azhdaha limestone massif west of Nurabad built
+ *    from geology-shaped profiles (soft bedrock
  *    benching, a carved water-gap, strata dipping off the fold hinge, pale caprock, talus
  *    cones and cliff streaks) with sun-facing facet shading, piedmont foothills and
  *    alluvial fans, a semi-arid steppe/cultivation plain with an irrigation canal, the
@@ -33,11 +34,12 @@ import kotlin.math.sqrt
  *    bed, deep thalweg, point bars, sheen/stochastic glitter tracking the real Sun or
  *    Moon, tree reflections, reed clumps), a space-colonization parkland of pistachio,
  *    Zagros oak, flowering cherry and tall Paulownia with Artemisia sage scrub, and a
- *    batched grass system (Voronoi clumps, Bézier blades) whose near-bank band is
- *    harmonized — ground-tinted, short and fine — instead of foreground hero tufts.
- *    It is the monuments' actual geography —
- *    Persepolis stands at the foot of Kuh-e Rahmat on the Marvdasht plain near the Pulvar
- *    River, ringed by Zagros ranges — art-directed to the scene's framing.
+ *    uniform grass *field* — one textured green mass rendered as a few bucketed fills,
+ *    never individual blades — lush and cool-toned, richest along the river banks.
+ *    The monuments' backdrop is the Nurabad (Mamasani) country the Mil-e Azhdaha tower
+ *    actually stands in: the folded Zagros whalebacks, the rocky Dimeh-Mil ridge and
+ *    the wide gorge (Tang-e Farakh / Tang-e Kalleh) cut through it — art-directed to
+ *    the scene's framing.
  *
  * Everything is generated from the scene composition, theme palette and live lighting, and
  * every placement is deterministic, so the landscape never shimmers between clock ticks.
@@ -45,15 +47,17 @@ import kotlin.math.sqrt
 object SceneGroundRenderer {
 
     // Art-directed skyline envelopes (see LandscapeProfile): x in 0..1 across the canvas.
-    // Far Zagros: a complete encircling range, saddled behind Persepolis. Kuh-e Rahmat: a
+    // Far Mamasani folds: a complete encircling range, saddled behind Persepolis. The
+    // Dimeh-Mil ridge (the Mil-e Azhdaha tower's own massif west of Nurabad): a
     // low shoulder behind the ruins and readout, swelling to the great crest at the right
     // that backs the Mil-e Azhdaha tower, then continuing off-frame.
-    private val FAR_ZAGROS_ENVELOPE = floatArrayOf(
+    private val MAMASANI_FOLD_ENVELOPE = floatArrayOf(
         0f, 0.58f, 0.18f, 0.78f, 0.38f, 0.64f, 0.55f, 0.76f, 0.72f, 0.72f, 0.88f, 0.82f, 1f, 0.74f
     )
-    // Kuh-e Rahmat as a folded whaleback anticline: long gentle back-limb rising from the
-    // left, hinge near x = 0.76, then the crest continuing high off-frame at the right.
-    private val KUH_RAHMAT_ENVELOPE = floatArrayOf(
+    // The Dimeh-Mil ridge behind Mil-e Azhdaha (Kuh-e Shirmard / Tang-e Kalleh massif,
+    // west of Nurabad): a folded whaleback anticline — long gentle back-limb rising from
+    // the left, hinge near x = 0.76, then the crest continuing high off-frame at the right.
+    private val DIMEH_MIL_ENVELOPE = floatArrayOf(
         0f, 0.26f, 0.14f, 0.34f, 0.30f, 0.42f, 0.45f, 0.50f, 0.58f, 0.55f,
         0.68f, 0.70f, 0.76f, 0.85f, 0.86f, 0.76f, 1f, 0.60f
     )
@@ -178,9 +182,6 @@ object SceneGroundRenderer {
         val sunSign: Float
     )
 
-    /** One soft ground patch replayed per draw (its colour follows the light). */
-    private class PatchSpec(val cx: Float, val cy: Float, val w: Float, val h: Float, val green: Boolean)
-
     /** One tree's ground shadow, drawn per draw so its length still tracks the Sun. */
     private class TreeShadowSpec(val cx: Float, val by: Float, val hgt: Float)
 
@@ -189,8 +190,6 @@ object SceneGroundRenderer {
 
     private class VegetationGeometry(
         val key: VegetationKey,
-        val carpetPatches: List<PatchSpec>,
-        val aoPatches: List<PatchSpec>,
         val treeShadows: List<TreeShadowSpec>,
         val branchBuckets: List<BranchBucket>,
         val leafDarkP: Path,
@@ -217,19 +216,8 @@ object SceneGroundRenderer {
         val blossomMidP: Path,
         val blossomLitP: Path,
         val petalP: Path,
-        val dryRootP: Path,
-        val dryMidP: Path,
-        val dryTipP: Path,
-        val greenRootP: Path,
-        val greenMidP: Path,
-        val greenTipP: Path,
-        val litterP: Path,
-        val nearDryRootP: Path,
-        val nearDryMidP: Path,
-        val nearDryTipP: Path,
-        val nearGreenRootP: Path,
-        val nearGreenMidP: Path,
-        val nearGreenTipP: Path
+        val fieldBuckets: List<Path>,
+        val nearBankFieldP: Path
     )
 
     /** Last built layout's vegetation; replaced whenever the key changes. Main-thread only. */
@@ -423,7 +411,9 @@ object SceneGroundRenderer {
         crestAlpha: Float,
         strataDip: Float = 0f,
         hingeX: Float = 0f,
-        capAmount: Float = 0f
+        capAmount: Float = 0f,
+        scrub: Color = Color.Transparent,
+        scrubAmt: Float = 0f
     ) {
         val n = heights.size - 1
         if (n < 2 || width <= 0f) return
@@ -450,6 +440,14 @@ object SceneGroundRenderer {
                     // Pale hard-limestone caprock hugging the crest (Asmari-type beds).
                     val cap = (1f - frac * 3.3f).coerceIn(0f, 1f)
                     if (cap > 0f) c = lerp(c, c.scaled(1.28f), cap * capAmount)
+                }
+                if (scrubAmt > 0f) {
+                    // Oak-scrub slopes (Zagros Quercus brantii woodland clothes the
+                    // lower two-thirds of these hills): a broken green-grey wash that
+                    // strengthens toward the foot and breaks up per facet.
+                    val vegBand = ((frac - 0.38f) / 0.62f).coerceIn(0f, 1f)
+                    val vegNoise = 0.35f + 0.65f * LandscapeProfile.hash01(microSeed + 9, i * 13 + 5)
+                    c = lerp(c, scrub, vegBand * scrubAmt * vegNoise)
                 }
                 if (strataAmp > 0f) {
                     val yTop = (top0 + top1) / 2f
@@ -511,13 +509,14 @@ object SceneGroundRenderer {
     /**
      * The photographic Marvdasht landscape the two monuments stand in.
      *
-     * Back to front: far Zagros range in haze; semi-arid steppe plain; the
-     * folded Kuh-e Rahmat wall (benched profile, water-gap, dipping strata, caprock,
+     * Back to front: far Mamasani fold range in haze; lively cool-green plain; the
+     * folded Dimeh-Mil / Mil-e Azhdaha massif (benched profile, the Tang-e Farakh
+     * gorge, dipping strata, caprock,
      * gullies, talus, varnish streaks); piedmont foothills and alluvial fans; a
      * cultivation mosaic and canal tree-line; the monuments' own earthworks; the broad
      * Pulvar river (layered water, point bars, ripples, pebbles, sheen + thinned glitter,
      * tree reflections, reed clumps); a space-colonization tree parkland and sage scrub;
-     * a three-band batched grass system. Composition and parameters were tuned in
+     * a uniform grass field (no individual blades). Parameters were tuned in
      * `tools/persepolis/render_framing_preview.py` against the exact framing; colours are
      * derived per-frame from the theme palette and the live Sun, so the whole valley warms
      * at golden hour and dissolves into a moonlit silhouette at night. The GL relief
@@ -563,7 +562,7 @@ object SceneGroundRenderer {
         drawMountainLayer(
             drawScope = drawScope, width = width, sceneHeight = height, baseY = farBase,
             heights = LandscapeProfile.mountainHeights(
-                120, height * 0.088f, FAR_ZAGROS_ENVELOPE, seed = 11,
+                190, height * 0.095f, MAMASANI_FOLD_ENVELOPE, seed = 11,
                 benchAmp = 0.08f, benchStep = 0.16f
             ),
             // Opaque and only lightly hazed: at 0.72 alpha washed 55% toward a
@@ -573,20 +572,48 @@ object SceneGroundRenderer {
             shade = lerp(palette.farRidge, rockShade, 0.35f).copy(alpha = 1f),
             haze = atmosphere, hazeTop = 0.12f, hazeBase = 0.25f,
             sunSign = sunSign, facetStrength = 0.32f, strataAmp = 0f,
-            microSeed = 3, crestAlpha = 0.05f + 0.10f * lightLevel, capAmount = 0.25f
+            microSeed = 3, crestAlpha = 0.05f + 0.10f * lightLevel, capAmount = 0.25f,
+            scrub = lerp(Color(0xFF0D130D), Color(0xFF46543C), lightLevel), scrubAmt = 0.35f
         )
+        // Far oak-speckle: the folded Mamasani hills carry open oak woodland; at this
+        // range it is only a grain in the slope tone, denser toward the feet.
+        run {
+            val farHeights = LandscapeProfile.mountainHeights(
+                190, height * 0.095f, MAMASANI_FOLD_ENVELOPE, seed = 11,
+                benchAmp = 0.08f, benchStep = 0.16f
+            )
+            val speck = Path()
+            for (k in 0 until 130) {
+                val x = width * LandscapeProfile.hash01(401, k * 13 + 3)
+                val top = farBase - LandscapeProfile.heightAt(farHeights, (x / width).coerceIn(0f, 1f))
+                val hh = farBase - top
+                if (hh < height * 0.03f) continue
+                val y = top + hh * (0.35f + 0.60f * LandscapeProfile.hash01(403, k * 7 + 1))
+                val r = height * (0.0010f + 0.0012f * LandscapeProfile.hash01(405, k * 5 + 2))
+                speck.addOval(
+                    androidx.compose.ui.geometry.Rect(x - r, y - r * 0.7f, x + r, y + r * 0.7f)
+                )
+            }
+            drawScope.drawPath(
+                speck,
+                lerp(Color(0xFF0A0F0A), Color(0xFF3E4C34), lightLevel).copy(alpha = 0.10f + 0.16f * lightLevel)
+            )
+        }
 
         // (No horizon mist shelf here either — with the hazy far range behind it, the old
         // shelf stacked into a white band across the canvas at the readout's day/date line.
         // The range's own haze dissolve supplies the aerial perspective by itself.)
 
-        // 3. The Marvdasht plain: dry olive-straw steppe, darkening toward the viewer.
-        val steppeTop = lerp(palette.groundTop, Color(0xFF7C7046), 0.55f * day)
+        // 3. The plain: a lively cool-green field floor, darkening toward the viewer.
+        //    (The old dry olive-straw base read yellowy and half-dead under the new
+        //    green field; the whole floor now lives in the same cool green family.)
+        val steppeTop = lerp(palette.groundTop, Color(0xFF5F7F45), 0.62f * day)
+        val fieldBottom = lerp(palette.groundBottom, Color(0xFF3C6034), 0.58f * day)
         drawScope.drawRect(
             brush = Brush.verticalGradient(
                 0.0f to steppeTop,
-                0.38f to lerp(steppeTop, palette.groundBottom, 0.45f),
-                1.0f to palette.groundBottom,
+                0.38f to lerp(steppeTop, fieldBottom, 0.45f),
+                1.0f to fieldBottom,
                 startY = groundTopY,
                 endY = height
             ),
@@ -597,22 +624,30 @@ object SceneGroundRenderer {
         // edge at groundTopY was the white band visible across the scene at the
         // readout's day/date line, strongest while scrubbing through daytime.)
 
-        // 4. Kuh-e Rahmat: the great limestone wall at Persepolis' back. Nearer, warmer and
-        //    more strongly faceted than the far range, with folded strata and gullies.
+        // 4. The Dimeh-Mil massif: the rocky, relatively green limestone ridge the
+        //    Mil-e Azhdaha tower stands against west of Nurabad (Kuh-e Shirmard /
+        //    Tang-e Kalleh). Nearer, paler and more strongly faceted than the far
+        //    folds, with folded strata, gullies — and the wide gorge (Tang-e Farakh)
+        //    cut through its crest, the spring at its mouth feeding the green below.
         val massifBase = toeY - height * 0.004f
         val massifHeights = LandscapeProfile.mountainHeights(
-            140, height * 0.138f, KUH_RAHMAT_ENVELOPE, seed = 29,
+            210, height * 0.145f, DIMEH_MIL_ENVELOPE, seed = 29,
             benchAmp = 0.16f, benchStep = 0.13f,
-            notches = floatArrayOf(0.63f, 0.030f, 0.30f) // water-gap; its fan spills below
+            notches = floatArrayOf(
+                0.70f, 0.034f, 0.42f, // Tang-e Farakh: the wide gorge through the crest
+                0.34f, 0.020f, 0.24f  // a lesser cleft on the back-limb
+            )
         )
         drawMountainLayer(
             drawScope = drawScope, width = width, sceneHeight = height, baseY = massifBase,
             heights = massifHeights,
-            lit = rockLit, shade = rockShade,
+            lit = lerp(rockLit, Color(0xFFC4AC84), 0.25f * lightLevel), // white-veined limestone
+            shade = rockShade,
             haze = atmosphere, hazeTop = 0.05f, hazeBase = 0.14f,
-            sunSign = sunSign, facetStrength = 0.65f, strataAmp = 0.045f,
-            microSeed = 5, crestAlpha = 0.08f + 0.16f * lightLevel,
-            strataDip = 0.9f, hingeX = width * 0.76f, capAmount = 0.38f
+            sunSign = sunSign, facetStrength = 0.78f, strataAmp = 0.06f,
+            microSeed = 5, crestAlpha = 0.10f + 0.18f * lightLevel,
+            strataDip = 0.9f, hingeX = width * 0.76f, capAmount = 0.45f,
+            scrub = lerp(Color(0xFF0D140D), Color(0xFF4C5E3A), lightLevel), scrubAmt = 0.5f
         )
         // Erosion gullies: dark seams from crest to fan apex with a faint lit lip.
         fun massifTopAt(x: Float): Float =
@@ -706,6 +741,44 @@ object SceneGroundRenderer {
                 if (++drawn >= 14) break
             }
         }
+        // The gorge (Tang-e Farakh): a shadowed cleft where the notch cuts the crest,
+        // and the Dimeh-Mil spring greening its mouth — the tower's valley is watered.
+        run {
+            val gx = width * 0.70f
+            val gTop = massifTopAt(gx)
+            val gorge = Path().apply {
+                moveTo(gx - width * 0.016f, gTop - height * 0.002f)
+                lineTo(gx + width * 0.016f, gTop - height * 0.002f)
+                lineTo(gx + width * 0.004f, massifBase - height * 0.010f)
+                lineTo(gx - width * 0.004f, massifBase - height * 0.010f)
+                close()
+            }
+            drawScope.drawPath(gorge, rockShade.scaled(0.5f).copy(alpha = 0.28f + 0.20f * lightLevel))
+            drawSoftPatch(
+                drawScope, gx, massifBase + height * 0.004f, width * 0.07f, height * 0.011f,
+                lerp(Color(0xFF0E1A0E), Color(0xFF55763E), lightLevel),
+                peakAlpha = 0.08f + 0.16f * lightLevel, layers = 8
+            )
+        }
+        // Near oak-speckle on the massif: open Quercus brantii woodland grain.
+        run {
+            val speck = Path()
+            for (k in 0 until 320) {
+                val x = width * LandscapeProfile.hash01(409, k * 13 + 3)
+                val top = massifTopAt(x)
+                val hh = massifBase - top
+                if (hh < height * 0.045f) continue
+                val y = top + hh * (0.30f + 0.66f * LandscapeProfile.hash01(411, k * 7 + 1))
+                val r = height * (0.0012f + 0.0016f * LandscapeProfile.hash01(413, k * 5 + 2))
+                speck.addOval(
+                    androidx.compose.ui.geometry.Rect(x - r, y - r * 0.7f, x + r, y + r * 0.7f)
+                )
+            }
+            drawScope.drawPath(
+                speck,
+                lerp(Color(0xFF0A0F0A), Color(0xFF42532F), lightLevel).copy(alpha = 0.14f + 0.20f * lightLevel)
+            )
+        }
         // (No haze-pooling wash at the massif foot: another full-width pale rect, and
         // one more contributor to the horizontal white band. Banned like the rest.)
 
@@ -723,8 +796,8 @@ object SceneGroundRenderer {
         drawScope.drawPath(
             path = foothill,
             brush = Brush.verticalGradient(
-                0.0f to lerp(palette.midRidge, Color(0xFF77683F), 0.5f * day),
-                1.0f to lerp(palette.midRidge.scaled(0.70f), Color(0xFF4E4429), 0.5f * day),
+                0.0f to lerp(palette.midRidge, Color(0xFF66763F), 0.5f * day),
+                1.0f to lerp(palette.midRidge.scaled(0.70f), Color(0xFF3F4E2A), 0.5f * day),
                 startY = footBase - height * 0.021f,
                 endY = footBase
             )
@@ -762,10 +835,10 @@ object SceneGroundRenderer {
 
         // 7. Cultivation mosaic: vast soft plots, irrigated green against fallow straw,
         //    kept feather-edged and low-contrast so the plain reads as land use, not shapes.
-        val irrigated = lerp(palette.groundTop, Color(0xFF5C7038), 0.5f * day)
-            .copy(alpha = 0.16f + 0.14f * day)
-        val fallow = lerp(palette.groundTop, Color(0xFFB59660), 0.5f * day)
-            .copy(alpha = 0.14f + 0.12f * day)
+        val irrigated = lerp(palette.groundTop, Color(0xFF4E7A38), 0.55f * day)
+            .copy(alpha = 0.20f + 0.16f * day)
+        val fallow = lerp(palette.groundTop, Color(0xFF8E9A5E), 0.5f * day)
+            .copy(alpha = 0.08f + 0.08f * day)
         for ((cx, cy, w, h, green) in listOf(
             listOf(0.16f, 0.875f, 0.55f, 0.040f, 1f), listOf(0.62f, 0.855f, 0.62f, 0.034f, 0f),
             listOf(0.40f, 0.935f, 0.70f, 0.050f, 1f), listOf(0.85f, 0.920f, 0.55f, 0.044f, 0f),
@@ -1101,8 +1174,6 @@ object SceneGroundRenderer {
             framing.milSlopeLeftXPx, framing.milSlopeFrontYPx, sunSign
         )
         fun buildVegetation(): VegetationGeometry {
-            val carpetPatches = mutableListOf<PatchSpec>()
-            val aoPatches = mutableListOf<PatchSpec>()
             val treeShadows = mutableListOf<TreeShadowSpec>()
             val branchBuckets = listOf(1.1f, 1.8f, 2.8f, 4.2f, 6.2f, 9f, 13f, 19f, 27f)
                 .map { BranchBucket(it, Path(), Path()) }
@@ -1114,11 +1185,8 @@ object SceneGroundRenderer {
             val paulowniaLeafDarkP = Path(); val paulowniaLeafP = Path()
             val paulowniaFlowerShadowP = Path(); val paulowniaFlowerLitP = Path()
             val blossomShadowP = Path(); val blossomMidP = Path(); val blossomLitP = Path(); val petalP = Path()
-            val dryRootP = Path(); val dryMidP = Path(); val dryTipP = Path()
-            val greenRootP = Path(); val greenMidP = Path(); val greenTipP = Path()
-            val litterP = Path()
-            val nearDryRootP = Path(); val nearDryMidP = Path(); val nearDryTipP = Path()
-            val nearGreenRootP = Path(); val nearGreenMidP = Path(); val nearGreenTipP = Path()
+            val fieldBuckets = List(8) { Path() }
+            val nearBankFieldP = Path()
 
             fun addOvalTo(path: Path, cx: Float, cy: Float, w: Float, h: Float) {
                 path.addOval(
@@ -1588,23 +1656,42 @@ object SceneGroundRenderer {
                 )
             }
 
-            // Steppe grass — the researched recipe from production grass systems
-            // (Ghost-of-Tsushima GDC, GodotGrass, Unity-Grass), translated to static 2D:
-            // tapered blades on a cubic-Bezier bend profile, true Voronoi clumps sharing
-            // height/lean/dryness/density, distance bands, dry litter — all batched
-            // into the colour buckets above. The near-bank band is the harmonized
-            // treatment of section (d): short ground-tinted blades over a carpet
-            // fringe, no foreground hero species. The far/mid bands shade
-            // every stroked blade in three tones (root/mid/tip instead of two, which
-            // posterised). Moisture (noise + river +
-            // canal) drives density and the green-vs-straw mix; nothing grows in the
-            // water or the worn clearings.
-            val densityScale = ((width * height) / (1080f * 1260f)).coerceIn(0.6f, 2.2f)
+            // Near-bank additions (+5): three more flowering cherries and two more
+            // Zagros oaks along the viewer's own bank, filling the riparian grove
+            // between the Paulownia frames — blossom and oak shade over the water.
+            for ((j, xf) in listOf(0.40f, 0.55f, 0.70f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, nearBankY(x),
+                    height * (0.056f + 0.008f * LandscapeProfile.hash01(1253, j * 5 + 2)),
+                    TreeKind.CHERRY
+                )
+            }
+            for ((j, xf) in listOf(0.47f, 0.66f).withIndex()) {
+                val x = width * xf
+                plantGrove(
+                    x, nearBankY(x),
+                    height * (0.052f + 0.008f * LandscapeProfile.hash01(1257, j * 5 + 2)),
+                    TreeKind.OAK
+                )
+            }
+
+            // Uniform grass field — the researched distant-grass solution (the
+            // ground-as-grass impostor of hexaquo's LOD work, Ghost-of-Tsushima's
+            // field-as-one-mass shading): NO individual blades anywhere. The field
+            // is a single textured mass — a perspective grid of overlapping tone
+            // cells quantized into eight colour buckets, so the whole valley floor
+            // costs eight path fills per frame. Cell tone is albedo patch noise
+            // (fbm) x moisture (river/canal proximity), in a lively cool green;
+            // near the banks the same field deepens into a lush ribbon. Mip-like
+            // behaviour comes free: far rows are smaller and their tone contrast
+            // is compressed toward the distance tone, so the texture smooths with
+            // range exactly like a mipmapped ground texture.
             fun canalYAt(x: Float): Float = canalY - height * 0.004f + (x / width) * height * 0.010f
             fun grassAllowed(x: Float, y: Float): Boolean {
                 if (inApron(x, y)) return false
                 val yc = riverCenterY(x)
-                return abs(y - yc) >= riverHalfW(x, yc) * 1.26f
+                return abs(y - yc) >= riverHalfW(x, yc) * 1.10f
             }
             fun moistureAt(x: Float, y: Float, depth: Float): Float {
                 var m = 0.5f + 0.5f * LandscapeProfile.fbm(x / width * 4.2f + depth * 1.7f, 91, octaves = 3)
@@ -1613,158 +1700,58 @@ object SceneGroundRenderer {
                 m += (1f - abs(y - canalYAt(x)) / (height * 0.018f)).coerceIn(0f, 1f) * 0.35f
                 return m.coerceIn(0f, 1f)
             }
-            fun bladePt(bx: Float, by: Float, bh: Float, lean: Float, stiff: Float, t: Float): Offset =
-                Offset(
-                    bx + lean * bh * LandscapeProfile.bladeBendX(t, stiff),
-                    by - bh * t * (1f - 0.10f * t * abs(lean)) // arched blades lose a little height
-                )
-            // One stroked blade in three tones — dark root, body mid, pale tip.
-            // Two tones posterised every blade into a dark stick with a light hat;
-            // the mid tone is what lets a blade read as one continuous lit surface
-            // (and lets dry blades go straw gradually instead of switching colour).
-            fun strokeBlade(
-                bx: Float, by: Float, bh: Float, lean: Float, stiff: Float,
-                root: Path, mid: Path, tip: Path
-            ) {
-                var p = bladePt(bx, by, bh, lean, stiff, 0f)
-                root.moveTo(p.x, p.y)
-                p = bladePt(bx, by, bh, lean, stiff, 0.18f); root.lineTo(p.x, p.y)
-                p = bladePt(bx, by, bh, lean, stiff, 0.36f); root.lineTo(p.x, p.y)
-                mid.moveTo(p.x, p.y)
-                p = bladePt(bx, by, bh, lean, stiff, 0.58f); mid.lineTo(p.x, p.y)
-                p = bladePt(bx, by, bh, lean, stiff, 0.78f); mid.lineTo(p.x, p.y)
-                tip.moveTo(p.x, p.y)
-                p = bladePt(bx, by, bh, lean, stiff, 0.90f); tip.lineTo(p.x, p.y)
-                p = bladePt(bx, by, bh, lean, stiff, 1f); tip.lineTo(p.x, p.y)
-            }
-            // (a) Carpet: the ground-cover colour field real fields have between tufts —
-            //     this is what makes the far plain read as *covered*, not sprinkled.
-            for (i in 0 until 70) {
-                val x = width * LandscapeProfile.hash01(811, i * 13 + 3)
-                val depth = LandscapeProfile.hash01(809, i * 17 + 5).pow(1.25f)
-                val y = groundTopY + (height - groundTopY) * depth
-                if (!grassAllowed(x, y)) continue
-                carpetPatches += PatchSpec(
-                    x, y,
-                    width * (0.10f + 0.10f * LandscapeProfile.hash01(813, i * 7 + 1)),
-                    height * (0.010f + 0.016f * depth),
-                    green = moistureAt(x, y, depth) > 0.52f
-                )
-            }
-            // (b) Far micro-blades: pure texture at range.
-            val farCount = (1300 * densityScale).toInt()
-            for (i in 0 until farCount) {
-                val x = width * LandscapeProfile.hash01(821, i * 13 + 7)
-                val depth = 0.46f * LandscapeProfile.hash01(823, i * 17 + 3).pow(1.15f)
-                val y = groundTopY + (height - groundTopY) * depth
-                if (!grassAllowed(x, y)) continue
-                val moist = moistureAt(x, y, depth)
-                val clump = LandscapeProfile.grassClump(x / width, depth, 517)
-                if (LandscapeProfile.hash01(827, i * 19 + 5) >
-                    (0.18f + 0.82f * moist) * (0.30f + 0.70f * clump.density01)) continue
-                val soft = 0.45f + 0.55f * clump.edge01
-                val bh = height * (0.0035f + 0.010f * depth) * (1f + (clump.heightMul - 1f) * soft) *
-                    (0.75f + 0.5f * LandscapeProfile.hash01(829, i * 23 + 7))
-                val lean = clump.lean * soft + (LandscapeProfile.hash01(831, i * 29 + 9) - 0.5f) * 0.5f
-                val dryMix = 0.5f * (1f - moist) + 0.5f * clump.dryness01
-                val stiff = 0.25f + 0.45f * (1f - dryMix)
-                if (dryMix > 0.5f) strokeBlade(x, y, bh, lean, stiff, dryRootP, dryMidP, dryTipP)
-                else strokeBlade(x, y, bh, lean, stiff, greenRootP, greenMidP, greenTipP)
-            }
-            // (c) Mid tufts: stroked blade fans (the river rejects most attempts mid-band;
-            //     survivors dress the far strip and the banks).
-            val midTufts = (520 * densityScale).toInt()
-            for (i in 0 until midTufts) {
-                val x = width * LandscapeProfile.hash01(839, i * 13 + 1)
-                val depth = 0.30f + 0.54f * LandscapeProfile.hash01(843, i * 17 + 3)
-                val y = groundTopY + (height - groundTopY) * depth
-                if (!grassAllowed(x, y)) continue
-                val moist = moistureAt(x, y, depth)
-                val clump = LandscapeProfile.grassClump(x / width, depth, 517)
-                if (LandscapeProfile.hash01(853, i * 19 + 5) >
-                    (0.22f + 0.78f * moist) * (0.35f + 0.65f * clump.density01)) continue
-                val soft = 0.45f + 0.55f * clump.edge01
-                val hm = 1f + (clump.heightMul - 1f) * soft
-                val dryMix = 0.5f * (1f - moist) + 0.5f * clump.dryness01
-                val stiff = 0.25f + 0.45f * (1f - dryMix)
-                val darkB = if (dryMix > 0.5f) dryRootP else greenRootP
-                val midB = if (dryMix > 0.5f) dryMidP else greenMidP
-                val lightB = if (dryMix > 0.5f) dryTipP else greenTipP
-                val blades = 5 + (5 * LandscapeProfile.hash01(857, i * 11 + 5)).toInt()
-                for (b in 0 until blades) {
-                    val bx = x + (LandscapeProfile.hash01(859, i * 101 + b * 37) - 0.5f) * width * 0.011f
-                    val bh = height * (0.005f + 0.013f * depth) * hm *
-                        (0.7f + 0.6f * LandscapeProfile.hash01(863, i * 57 + b * 19))
-                    val lean = clump.lean * soft + (LandscapeProfile.hash01(867, i * 67 + b * 23) - 0.5f) * 0.55f
-                    strokeBlade(bx, y, bh, lean, stiff, darkB, midB, lightB)
+            // The near-bank lush ribbon: one filled band hugging the water's near
+            // edge — the same field, deepened by the river's moisture.
+            run {
+                val steps = 28
+                for (i in 0..steps) {
+                    val x = -width * 0.02f + (width * 1.04f) * i / steps
+                    val yc = riverCenterY(x)
+                    val y = yc + riverHalfW(x, yc) * 1.03f
+                    if (i == 0) nearBankFieldP.moveTo(x, y) else nearBankFieldP.lineTo(x, y)
                 }
-            }
-            // (d) Near-bank harmonized grass: the old hero tufts are gone — the filled
-            //     broad blades, Stipa awn fans, Bromus panicles, green riparian leaf
-            //     tufts and forb dots at the viewer's feet read as lawn spikes and
-            //     leafy clumps pasted onto the bank. What stands here now follows the
-            //     field-as-one-mass lesson of the production grass systems: a soft
-            //     ground-tinted carpet fringe (the grass *mass*, sharing the ground's
-            //     colour) plus short, fine, three-tone blades from the same Voronoi
-            //     clumps as the rest of the field. Every near-bank tone is pulled
-            //     halfway toward the steppe ground colour at replay, so this grass is
-            //     the ground itself, lit — it can never shout lawn-green against the
-            //     dry valley, and nothing here is taller than an ankle.
-            for (i in 0 until 36) { // carpet fringe along the near bank: the mass itself
-                val x = width * LandscapeProfile.hash01(937, i * 13 + 3)
-                val ycHere = riverCenterY(x)
-                val y = ycHere + riverHalfW(x, ycHere) *
-                    (1.30f + 0.30f * LandscapeProfile.hash01(941, i * 7 + 1)) +
-                    height * 0.006f * LandscapeProfile.hash01(943, i * 11 + 2)
-                if (!grassAllowed(x, y)) continue
-                carpetPatches += PatchSpec(
-                    x, y, width * 0.085f, height * 0.011f,
-                    green = moistureAt(x, y, 0.92f) > 0.52f
-                )
-            }
-            val nearTufts = (170 * densityScale).toInt()
-            for (i in 0 until nearTufts) {
-                val x = width * LandscapeProfile.hash01(947, i * 13 + 3)
-                val depth = 0.86f + 0.14f * LandscapeProfile.hash01(949, i * 17 + 5)
-                val y = groundTopY + (height - groundTopY) * depth
-                if (!grassAllowed(x, y)) continue
-                val moist = moistureAt(x, y, depth)
-                val clump = LandscapeProfile.grassClump(x / width, depth, 517)
-                if (LandscapeProfile.hash01(951, i * 19 + 7) >
-                    (0.42f + 0.58f * moist) * (0.45f + 0.55f * clump.density01)) continue
-                val soft = 0.45f + 0.55f * clump.edge01
-                val hm = 1f + (clump.heightMul - 1f) * soft
-                val dryMix = 0.55f * (1f - moist) + 0.45f * clump.dryness01
-                val stiff = 0.30f + 0.40f * (1f - dryMix)
-                val rootB = if (dryMix > 0.52f) nearDryRootP else nearGreenRootP
-                val midB = if (dryMix > 0.52f) nearDryMidP else nearGreenMidP
-                val tipB = if (dryMix > 0.52f) nearDryTipP else nearGreenTipP
-                val blades = 6 + (4 * LandscapeProfile.hash01(953, i * 11 + 5)).toInt()
-                for (b in 0 until blades) {
-                    val bx = x + (LandscapeProfile.hash01(957, i * 101 + b * 37) - 0.5f) * width * 0.010f
-                    val bh = height * (0.0055f + 0.0075f * depth) * hm *
-                        (0.70f + 0.55f * LandscapeProfile.hash01(959, i * 57 + b * 19))
-                    val lean = clump.lean * soft +
-                        (LandscapeProfile.hash01(961, i * 67 + b * 23) - 0.5f) * 0.50f
-                    strokeBlade(bx, y, bh, lean, stiff, rootB, midB, tipB)
+                for (i in steps downTo 0) {
+                    val x = -width * 0.02f + (width * 1.04f) * i / steps
+                    val yc = riverCenterY(x)
+                    nearBankFieldP.lineTo(x, yc + riverHalfW(x, yc) * 1.58f)
                 }
+                nearBankFieldP.close()
             }
-            // (e) Dry litter flecks — last season's blades lying flat in the dry patches.
-            for (i in 0 until (240 * densityScale).toInt()) {
-                val x = width * LandscapeProfile.hash01(929, i * 13 + 3)
-                val depth = 0.3f + 0.7f * LandscapeProfile.hash01(931, i * 17 + 5)
-                val y = groundTopY + (height - groundTopY) * depth
-                if (!grassAllowed(x, y)) continue
-                val clump = LandscapeProfile.grassClump(x / width, depth, 517)
-                if (clump.dryness01 < 0.45f) continue
-                val len = height * (0.004f + 0.008f * depth * LandscapeProfile.hash01(933, i * 23 + 7))
-                litterP.moveTo(x, y)
-                litterP.lineTo(x + len, y - len * 0.08f)
+            // The field itself: perspective rows of overlapping tone cells.
+            val fieldTop = toeY + height * 0.008f // the plain below the foothill skirt
+            var rowY = fieldTop
+            var row = 0
+            while (rowY < height && row < 90) {
+                val depth = ((rowY - fieldTop) / (height - fieldTop)).coerceIn(0f, 1f)
+                val rowH = height * (0.005f + 0.009f * depth)
+                val cellW = width * (0.020f + 0.024f * depth)
+                var x = -cellW * 0.5f + cellW * LandscapeProfile.hash01(2001, row * 7 + 1)
+                var col = 0
+                while (x < width + cellW) {
+                    val cx = x + (LandscapeProfile.hash01(2003, row * 131 + col * 17) - 0.5f) * cellW * 0.35f
+                    val cy = rowY + (LandscapeProfile.hash01(2005, row * 137 + col * 19) - 0.5f) * rowH * 0.5f
+                    col++
+                    x += cellW
+                    if (!grassAllowed(cx, cy)) continue
+                    if (cx > framing.milSlopeLeftXPx - width * 0.065f &&
+                        cy < framing.milSlopeFrontYPx + height * 0.14f) continue // Mil slope front stays stone
+                    if (abs(cy - canalYAt(cx)) < height * 0.0065f) continue // the canal thread stays open
+                    val moist = moistureAt(cx, cy, depth)
+                    val patch = 0.5f + 0.5f * LandscapeProfile.fbm(
+                        cx / width * 4.6f + depth * 2.3f, 733, octaves = 3
+                    )
+                    // Tone: patch albedo x moisture, contrast compressed with
+                    // distance (the mipmap lesson), never dipping into straw.
+                    var tone = (0.18f + 0.52f * patch + 0.38f * moist).coerceIn(0f, 1f)
+                    tone = 0.5f + (tone - 0.5f) * 0.60f * (1f - 0.45f * (1f - depth))
+                    val bucket = (tone * (fieldBuckets.size - 1)).toInt().coerceIn(0, fieldBuckets.size - 1)
+                    addOvalTo(fieldBuckets[bucket], cx, cy, cellW * 1.60f, rowH * 1.05f)
+                }
+                rowY += rowH * 0.85f
+                row++
             }
             return VegetationGeometry(
                 key = vegKey,
-                carpetPatches = carpetPatches,
-                aoPatches = aoPatches,
                 treeShadows = treeShadows,
                 branchBuckets = branchBuckets,
                 leafDarkP = leafDarkP,
@@ -1791,23 +1778,28 @@ object SceneGroundRenderer {
                 blossomMidP = blossomMidP,
                 blossomLitP = blossomLitP,
                 petalP = petalP,
-                dryRootP = dryRootP,
-                dryMidP = dryMidP,
-                dryTipP = dryTipP,
-                greenRootP = greenRootP,
-                greenMidP = greenMidP,
-                greenTipP = greenTipP,
-                litterP = litterP,
-                nearDryRootP = nearDryRootP,
-                nearDryMidP = nearDryMidP,
-                nearDryTipP = nearDryTipP,
-                nearGreenRootP = nearGreenRootP,
-                nearGreenMidP = nearGreenMidP,
-                nearGreenTipP = nearGreenTipP
+                fieldBuckets = fieldBuckets,
+                nearBankFieldP = nearBankFieldP
             )
         }
         val veg = vegetationCache?.takeIf { it.key == vegKey }
             ?: buildVegetation().also { vegetationCache = it }
+
+        // The uniform grass field goes down first in the replay — eight bucketed
+        // fills for the whole valley floor, then the near-bank lush ribbon — so
+        // tree shadows, trunks and crowns all stand *in* it. Cool lively greens,
+        // deep in shade to sunlit at the bucket tops; at night the same buckets
+        // collapse toward the dark ground tone.
+        val fieldDeep = lerp(Color(0xFF0A1610), Color(0xFF38663A), day)
+        val fieldLit = lerp(Color(0xFF101F14), Color(0xFF74A460), day)
+        for (i in veg.fieldBuckets.indices) {
+            val t = (i + 0.5f) / veg.fieldBuckets.size
+            drawScope.drawPath(veg.fieldBuckets[i], lerp(fieldDeep, fieldLit, t).copy(alpha = 0.94f))
+        }
+        drawScope.drawPath(
+            veg.nearBankFieldP,
+            lerp(lerp(Color(0xFF0A1610), Color(0xFF3E7038), day), fieldLit, 0.25f).copy(alpha = 0.95f)
+        )
 
         // Replay with live colours: ground shadows (length still tracks the Sun),
         // bark buckets dark-then-lit, foliage by tone role, the soft carpet/AO
@@ -1914,53 +1906,6 @@ object SceneGroundRenderer {
         drawScope.drawPath(veg.paulowniaFlowerShadowP, paulFlowerShadow)
         drawScope.drawPath(veg.paulowniaFlowerLitP, paulFlowerLit)
 
-        val backlight = if (sunAlt in -2f..14f && day > 0.04f) 0.40f else 0.10f
-        val gRootDry = lerp(lerp(Color(0xFF171307), Color(0xFF4A3A1E), day), steppeTop, 0.30f)
-        val gTipDry = lerp(lerp(Color(0xFF2A2416), Color(0xFFC4A468), day), lighting.horizonTone, backlight * 0.35f)
-        val gRootGreen = lerp(lerp(Color(0xFF0A1206), Color(0xFF26341A), day), steppeTop, 0.30f)
-        // Desaturated a touch toward the steppe so foreground tufts read as dry
-        // Zagros grass, not lawn-green spikes.
-        val gTipGreen = lerp(
-            lerp(lerp(Color(0xFF16200F), Color(0xFF7E9455), day), lighting.horizonTone, backlight * 0.30f),
-            steppeTop, 0.16f
-        )
-        val carpetDry = lerp(gTipDry, steppeTop, 0.55f)
-        val carpetGreen = lerp(gTipGreen, steppeTop, 0.55f)
-        for (p in veg.carpetPatches) {
-            drawSoftPatch(
-                drawScope, p.cx, p.cy, p.w, p.h,
-                if (p.green) carpetGreen else carpetDry,
-                peakAlpha = 0.05f + 0.10f * day, layers = 5
-            )
-        }
-        for (p in veg.aoPatches) {
-            drawSoftPatch(
-                drawScope, p.cx, p.cy, p.w, p.h, Color(0xFF0A0C06),
-                peakAlpha = 0.10f + 0.10f * day, layers = 4
-            )
-        }
-        val strokeW = (height * 0.0013f).coerceIn(0.9f, 2.0f)
-        drawScope.drawPath(veg.dryRootP, gRootDry.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.greenRootP, gRootGreen.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.dryMidP, lerp(gRootDry, gTipDry, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.greenMidP, lerp(gRootGreen, gTipGreen, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.dryTipP, gTipDry.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.greenTipP, gTipGreen.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        // Near-bank harmonized grass: every tone pulled halfway toward the steppe
-        // ground colour, so the foreground grass is the ground's own colour lit by
-        // the same sky — straw where the clump is dry, muted sage where the river
-        // feeds it, never the old lawn green.
-        val nearRootDry = lerp(gRootDry, steppeTop, 0.45f)
-        val nearTipDry = lerp(gTipDry, steppeTop, 0.50f)
-        val nearRootGreen = lerp(gRootGreen, steppeTop, 0.48f)
-        val nearTipGreen = lerp(gTipGreen, steppeTop, 0.52f)
-        drawScope.drawPath(veg.nearDryRootP, nearRootDry.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.nearGreenRootP, nearRootGreen.copy(alpha = 0.45f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.nearDryMidP, lerp(nearRootDry, nearTipDry, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.nearGreenMidP, lerp(nearRootGreen, nearTipGreen, 0.52f).copy(alpha = 0.42f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.nearDryTipP, nearTipDry.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.nearGreenTipP, nearTipGreen.copy(alpha = 0.40f + 0.40f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
-        drawScope.drawPath(veg.litterP, gTipDry.copy(alpha = 0.25f + 0.25f * day), style = Stroke(width = strokeW, cap = StrokeCap.Round))
     }
 
     /**

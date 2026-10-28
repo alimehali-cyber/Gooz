@@ -104,20 +104,22 @@ the strokes). (The old full-width horizon "mist shelf" was removed from both pat
 white band across the canvas at the readout's day/date line.)
 
 When the combined relief is active (the photographic themes), the band becomes the full **Marvdasht
-landscape** and is painted underneath the GL stone: a far Zagros range and the folded Kuh-e Rahmat
-wall built from domain-warped ridged-multifractal profiles (`LandscapeProfile`) with Sun-facing facet
+landscape** and is painted underneath the GL stone: the far Mamasani fold range and the
+Dimeh-Mil / Mil-e Azhdaha massif of Nurabad (Mamasani, Fars) — the tower's real backdrop,
+cut by the Tang-e Farakh gorge — built from domain-warped ridged-multifractal profiles
+(`LandscapeProfile`) with Sun-facing facet
 shading, bedrock benching, a water-gap, strata dipping off the fold hinge, crest caprock, talus
 cones, cliff streaks, erosion gullies and aerial perspective; piedmont foothills and alluvial
 fans; a semi-arid steppe/cultivation plain with an irrigation canal; two separate footprint-local
 earthworks from `PersepolisFraming` (worn apron, talus, contact shadows, debris — ordinary field
 between the sites, feathered and Sun-following, so neither monument ends on a full-width stripe);
 a broad layered Pulvar river (wet banks, shallows, thalweg, point bars, tree reflections, reed
-clumps) whose sheen and thinned glitter track the real Sun/Moon; a 63-tree space-colonization
+clumps) whose sheen and thinned glitter track the real Sun/Moon; a 68-tree space-colonization
 parkland (pistachio, *Quercus brantii* oak, flowering cherry, lavender-panicle Paulownia)
 plus *Artemisia* sage scrub with pipe-model branching and leaf-cluster foliage; low
-whaleback Zagros/Kuh-e Rahmat ridges at true relief; and a batched grass system (Voronoi
-clumps, Bézier blades, tri-tone AO roots, ground-tinted harmonized near-bank tufts). All
-placement is deterministic. See
+whaleback Nurabad ridges at true relief; and a uniform grass field — one textured
+cool-green mass in eight bucketed fills, no individual blades, lush along the near bank.
+All placement is deterministic. See
 [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 
 ### Clouds — `CloudVeilRenderer`
