@@ -14,6 +14,45 @@ import kotlin.math.abs
 class LandscapeProfileTest {
 
     @Test
+    fun clusterPolygonIsDeterministicIrregularAndBounded() {
+        // The anti-blob contract for leaf clusters: same seed -> same outline,
+        // radii bounded around r (never a perfect circle), and the perimeter
+        // genuinely irregular (max/min radius ratio well above 1 for most seeds).
+        var irregular = 0
+        for (seed in listOf(3, 17, 101, 555, 909, 4242)) {
+            for (idx in 1..12) {
+                val a = LandscapeProfile.clusterPolygon(10f, 0.78f, seed, idx)
+                val b = LandscapeProfile.clusterPolygon(10f, 0.78f, seed, idx)
+                assertEquals("cluster size", 14, a.size)
+                for (k in a.indices) assertEquals("deterministic", a[k], b[k], 0f)
+                var rMin = Float.MAX_VALUE
+                var rMax = 0f
+                var k = 0
+                while (k < a.size) {
+                    val r = kotlin.math.sqrt(a[k] * a[k] + a[k + 1] * a[k + 1] / 0.78f / 0.78f)
+                    assertTrue("cluster radius bounded ($r)", r in 4.5f..12.5f)
+                    if (r < rMin) rMin = r
+                    if (r > rMax) rMax = r
+                    k += 2
+                }
+                if (rMax / rMin > 1.25f) irregular++
+            }
+        }
+        assertTrue("most clusters irregular ($irregular/72)", irregular > 48)
+        // Different seeds must give genuinely different outlines (variation is
+        // structural, not a re-rotation of one shape).
+        var distinct = 0
+        for (idx in 1..12) {
+            val a = LandscapeProfile.clusterPolygon(10f, 0.78f, 101, idx)
+            val b = LandscapeProfile.clusterPolygon(10f, 0.78f, 202, idx)
+            var maxDiff = 0f
+            for (k in a.indices) maxDiff = maxOf(maxDiff, abs(a[k] - b[k]))
+            if (maxDiff > 1.5f) distinct++
+        }
+        assertTrue("seed variation is structural ($distinct/12)", distinct > 8)
+    }
+
+    @Test
     fun hashAndNoiseStayInRangeAndAreDeterministic() {
         for (seed in listOf(0, 3, 11, 29, 317, -7)) {
             for (i in -50..500) {

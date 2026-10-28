@@ -83,6 +83,12 @@ object SceneGroundRenderer {
             ).sortedByDescending { it.r0 },
             LandscapeProfile.treeSkeleton(
                 seed = 606, aspect = 1.55f, trunkFraction = 0.26f, attractorCount = 95, lean = -0.06f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 151, aspect = 1.22f, trunkFraction = 0.38f, attractorCount = 105, lean = -0.04f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 252, aspect = 1.38f, trunkFraction = 0.33f, attractorCount = 92, lean = 0.01f
             ).sortedByDescending { it.r0 }
         )
     }
@@ -110,6 +116,16 @@ object SceneGroundRenderer {
                 seed = 808, aspect = 1.60f, trunkFraction = 0.26f, attractorCount = 105,
                 lean = -0.04f, scaffoldSpread = 1.20f, arch = 0.6f, gnarl = 0.65f,
                 occupancy = 0.8f, selfPrune = 0.6f, shellBias = 0.80f, topFlatten = 0.76f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 111, aspect = 1.68f, trunkFraction = 0.28f, attractorCount = 110,
+                lean = 0.03f, scaffoldSpread = 1.25f, arch = 0.55f, gnarl = 0.60f,
+                occupancy = 0.8f, selfPrune = 0.55f, shellBias = 0.80f, topFlatten = 0.77f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 313, aspect = 1.80f, trunkFraction = 0.32f, attractorCount = 100,
+                lean = -0.02f, scaffoldSpread = 1.35f, arch = 0.45f, gnarl = 0.50f,
+                occupancy = 0.8f, selfPrune = 0.45f, shellBias = 0.82f, topFlatten = 0.79f
             ).sortedByDescending { it.r0 }
         )
     }
@@ -130,6 +146,12 @@ object SceneGroundRenderer {
                 lean = -0.03f, vase = 0.65f, scaffoldSpread = 0.50f, arch = 0.9f,
                 gnarl = 0.20f, occupancy = 0.6f, selfPrune = 0.3f,
                 shellBias = 0.35f, topFlatten = 0.96f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 1313, aspect = 1.38f, trunkFraction = 0.38f, attractorCount = 118,
+                lean = -0.02f, vase = 0.60f, scaffoldSpread = 0.55f, arch = 0.85f,
+                gnarl = 0.18f, occupancy = 0.6f, selfPrune = 0.28f,
+                shellBias = 0.35f, topFlatten = 0.955f
             ).sortedByDescending { it.r0 }
         )
     }
@@ -150,6 +172,11 @@ object SceneGroundRenderer {
                 seed = 1212, aspect = 0.98f, trunkFraction = 0.46f, attractorCount = 110,
                 lean = -0.03f, scaffoldSpread = 0.90f, arch = 0.30f, gnarl = 0.30f,
                 occupancy = 0.65f, selfPrune = 0.30f, shellBias = 0.58f, topFlatten = 0.82f
+            ).sortedByDescending { it.r0 },
+            LandscapeProfile.treeSkeleton(
+                seed = 1515, aspect = 1.02f, trunkFraction = 0.44f, attractorCount = 115,
+                lean = 0.01f, scaffoldSpread = 0.92f, arch = 0.32f, gnarl = 0.28f,
+                occupancy = 0.65f, selfPrune = 0.32f, shellBias = 0.59f, topFlatten = 0.81f
             ).sortedByDescending { it.r0 }
         )
     }
@@ -193,6 +220,7 @@ object SceneGroundRenderer {
         val treeShadows: List<TreeShadowSpec>,
         val branchBuckets: List<BranchBucket>,
         val leafDarkP: Path,
+        val leafAltP: Path,
         val leafBodyDimP: Path,
         val leafBodyBrightP: Path,
         val leafRimP: Path,
@@ -202,6 +230,7 @@ object SceneGroundRenderer {
         val silverRimP: Path,
         val silverGlowP: Path,
         val oakDarkP: Path,
+        val oakAltP: Path,
         val oakDimP: Path,
         val oakBrightP: Path,
         val oakRimP: Path,
@@ -1177,10 +1206,10 @@ object SceneGroundRenderer {
             val treeShadows = mutableListOf<TreeShadowSpec>()
             val branchBuckets = listOf(1.1f, 1.8f, 2.8f, 4.2f, 6.2f, 9f, 13f, 19f, 27f)
                 .map { BranchBucket(it, Path(), Path()) }
-            val leafDarkP = Path(); val leafBodyDimP = Path(); val leafBodyBrightP = Path(); val leafRimP = Path()
+            val leafDarkP = Path(); val leafAltP = Path(); val leafBodyDimP = Path(); val leafBodyBrightP = Path(); val leafRimP = Path()
             val leafGlowP = Path()
             val silverDarkP = Path(); val silverBodyP = Path(); val silverRimP = Path(); val silverGlowP = Path()
-            val oakDarkP = Path(); val oakDimP = Path(); val oakBrightP = Path(); val oakRimP = Path()
+            val oakDarkP = Path(); val oakAltP = Path(); val oakDimP = Path(); val oakBrightP = Path(); val oakRimP = Path()
             val oakGlowP = Path(); val oakFruitP = Path(); val twigP = Path()
             val paulowniaLeafDarkP = Path(); val paulowniaLeafP = Path()
             val paulowniaFlowerShadowP = Path(); val paulowniaFlowerLitP = Path()
@@ -1192,6 +1221,23 @@ object SceneGroundRenderer {
                 path.addOval(
                     androidx.compose.ui.geometry.Rect(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
                 )
+            }
+            // One leaf cluster as an irregular lobed polygon (LandscapeProfile
+            // .clusterPolygon) instead of an oval: the perimeter alternates lobes
+            // and notches, so crowns fray like foliage instead of scalloping like
+            // cotton balls. Same bake-once path cost class as the oval it replaces.
+            fun addClusterTo(
+                path: Path, cx: Float, cy: Float, r: Float, seed: Int, index: Int,
+                squish: Float = 0.78f, lobes: Int = 7
+            ) {
+                val pts = LandscapeProfile.clusterPolygon(r, squish, seed, index, lobes)
+                path.moveTo(cx + pts[0], cy + pts[1])
+                var k = 2
+                while (k < pts.size) {
+                    path.lineTo(cx + pts[k], cy + pts[k + 1])
+                    k += 2
+                }
+                path.close()
             }
             // One skeleton planted at (cx, by) with total height [hgt]: pipe-model woody
             // structure bucketed by width class (shadow pass offset anti-sun for
@@ -1223,17 +1269,40 @@ object SceneGroundRenderer {
                 treeShadows += TreeShadowSpec(cx, by, hgt)
                 for (seg in skeleton) {
                     val wdt = ((seg.r0 + seg.r1) * hgt).coerceIn(0.8f, (hgt * 0.09f).coerceAtLeast(1f))
-                    val bucket = branchBuckets.firstOrNull { it.widthPx >= wdt } ?: branchBuckets.last()
+                    val bIdx = branchBuckets.indexOfFirst { it.widthPx >= wdt }
+                        .let { if (it < 0) branchBuckets.lastIndex else it }
+                    val bucket = branchBuckets[bIdx]
                     val x0 = cx + sx * seg.x0 * hgt
                     val y0 = by - seg.y0 * hgt
                     val x1 = cx + sx * seg.x1 * hgt
                     val y1 = by - seg.y1 * hgt
+                    // Branches are not ruler-straight: each segment bows a little
+                    // (Sapling/MTree curvature + straightness lesson), the bow
+                    // hashed from the segment itself so it is stable per layout.
+                    // Trunk segments bow least; twigs wander most.
+                    val segLen = sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)).coerceAtLeast(1f)
+                    val bowKey = ((seg.x0 + seg.y0) * 10000f).toInt() + seg.depth * 131
+                    val bowAmt = (LandscapeProfile.hash01(seed * 337 + 7, bowKey) - 0.5f) *
+                        segLen * if (seg.depth < 2) 0.05f else 0.16f
+                    val perpX = -(y1 - y0) / segLen
+                    val perpY = (x1 - x0) / segLen
+                    val ctrlX = (x0 + x1) / 2f + perpX * bowAmt
+                    val ctrlY = (y0 + y1) / 2f + perpY * bowAmt
                     if (detail) {
                         bucket.shadowP.moveTo(x0 - sunSign * wdt * 0.22f, y0)
                         bucket.shadowP.lineTo(x1 - sunSign * wdt * 0.22f, y1)
                     }
                     bucket.litP.moveTo(x0, y0)
-                    bucket.litP.lineTo(x1, y1)
+                    bucket.litP.quadraticBezierTo(ctrlX, ctrlY, x1, y1)
+                    // Trunk taper read: the lowest segments are re-stroked one
+                    // width class up, so the base flares into its limbs instead
+                    // of ending in a uniform pole (Sapling root-flare lesson).
+                    if (seg.depth <= 1) {
+                        branchBuckets.getOrNull(bIdx + 1)?.let { wider ->
+                            wider.litP.moveTo(x0, y0)
+                            wider.litP.quadraticBezierTo(ctrlX, ctrlY, x1, y1)
+                        }
+                    }
                 }
                 // Crown envelope in flipped unit space, for the volume shading below.
                 var minUx = Float.MAX_VALUE; var maxUx = -Float.MAX_VALUE
@@ -1251,6 +1320,36 @@ object SceneGroundRenderer {
                 val crx = ((maxUx - minUx) / 2f).coerceAtLeast(0.05f)
                 val cry = ((topUy - lowUy) / 2f).coerceAtLeast(0.05f)
 
+                // Per-instance crown proportions: the same skeleton carries a
+                // narrower or broader leaf mass per planted tree (its woody
+                // structure unchanged), so neighbours stop sharing one outline.
+                val crownWide = 0.88f + 0.24f * LandscapeProfile.hash01(seed * 613 + 9, 7)
+                // Painterly under-mass: ONE jagged dark polygon spanning the
+                // crown envelope, laid down before any cluster. It fills the
+                // gaps between terminals with shaded interior foliage, so the
+                // crown reads as one cohesive leaf mass that the lit clusters
+                // then break up — instead of separate dotted blobs with the
+                // field showing through. One polygon per tree, at any range.
+                run {
+                    val massBucket = when (kind) {
+                        TreeKind.SAGE -> silverDarkP
+                        TreeKind.OAK -> oakDarkP
+                        TreeKind.CHERRY -> blossomShadowP
+                        TreeKind.PAULOWNIA -> paulowniaLeafDarkP
+                        else -> leafDarkP
+                    }
+                    addClusterTo(
+                        massBucket,
+                        cx + ccx * hgt, by - ccy * hgt,
+                        crx * hgt * 0.84f * crownWide, seed * 419 + 7, 5,
+                        squish = (cry / crx).coerceIn(0.45f, 1.05f), lobes = 9
+                    )
+                }
+                // Per-instance foliage variation: each planted tree leans a
+                // hashed share of its body clusters into the variant-tone bucket,
+                // so no two crowns of a species share quite the same green
+                // (Sapling seed-variation lesson, at bucket granularity).
+                val altFrac = LandscapeProfile.hash01(seed * 771 + 5, 3) * 0.50f
                 val dabs = when (kind) {
                     TreeKind.OAK, TreeKind.CHERRY, TreeKind.PAULOWNIA -> if (detail) 5 else 3
                     else -> if (detail) 4 else 2
@@ -1268,18 +1367,42 @@ object SceneGroundRenderer {
                     // Oak leafs in tufts at the shell; its shaded interior stays woody.
                     val accept = if (kind == TreeKind.OAK) foliage * (0.55f + 0.45f * r01) else foliage
                     if (LandscapeProfile.hash01(seed * 71 + 13, ci * 3 + 1) > accept) continue
-                    val px = cx + sx * seg.x1 * hgt
+                    // Cluster position: branch tip, with its offset from the
+                    // crown centre scaled by this tree's crown-width variation.
+                    val px = cx + ccx * hgt + (sx * seg.x1 - ccx) * hgt * crownWide
                     val py = by - seg.y1 * hgt
                     val crMul = when (kind) {
                         TreeKind.OAK -> 1.25f
-                        TreeKind.CHERRY -> 0.80f
+                        TreeKind.CHERRY -> 0.98f // blossom smothers: clusters must overlap, not dot
                         TreeKind.PAULOWNIA -> 1.50f // huge heart leaves read coarse at range
                         else -> 1f
                     }
                     val cr = hgt * (0.045f + 0.040f * LandscapeProfile.hash01(seed * 37 + 7, ci * 5 + 2)) * crMul
+                    // Depth layering under every lit cluster: a darker, slightly
+                    // larger jagged underlay dropped down/anti-sun. This is what
+                    // stops a crown reading as one flat cut-out — clusters sit IN
+                    // shade of their neighbours like real leaf masses.
+                    if (detail) {
+                        val under = when (kind) {
+                            TreeKind.SAGE -> silverDarkP
+                            TreeKind.OAK -> oakDarkP
+                            TreeKind.CHERRY -> blossomShadowP
+                            TreeKind.PAULOWNIA -> paulowniaLeafDarkP
+                            else -> leafDarkP
+                        }
+                        addClusterTo(
+                            under, px + sunSign * cr * 0.05f, py + cr * 0.14f,
+                            cr * 0.85f, seed * 409 + 3, ci * 77 + 1
+                        )
+                    }
                     val tone = 0.85f + 0.3f * LandscapeProfile.hash01(seed * 53 + 3, ci * 7 + 4)
                     // Spherized-normal light × crown-depth AO × per-cluster variation.
                     val light = (0.50f + 0.42f * facing) * (0.42f + 0.58f * r01) * tone
+                    // Ordered-dither offset for the tone thresholds below: bucket
+                    // boundaries are crossed at hashed light values, so the
+                    // dim->bright transition grades across the crown instead of
+                    // splitting it into two flat zones with spotty contrast.
+                    val dith = (LandscapeProfile.hash01(seed * 59 + 3, ci * 31 + 7) - 0.5f)
                     // Cluster-of-clusters (the SpeedTree leaf-card lesson, in 2D): one
                     // smooth oval reads as a lollipop. A dark core, body satellites
                     // orbited around it at ~0.4·cr, and one small edge dab pushed out
@@ -1293,7 +1416,7 @@ object SceneGroundRenderer {
                     val backShell = facing < -0.25f && r01 > 0.55f
                     for (d in 0 until dabs) {
                         val baseR = if (kind == TreeKind.CHERRY) {
-                            cr * (0.30f + 0.26f * LandscapeProfile.hash01(seed * 83 + 9, ci * 41 + d * 13))
+                            cr * (0.38f + 0.30f * LandscapeProfile.hash01(seed * 83 + 9, ci * 41 + d * 13))
                         } else {
                             cr * (0.42f + 0.30f * LandscapeProfile.hash01(seed * 83 + 9, ci * 41 + d * 13))
                         }
@@ -1338,30 +1461,40 @@ object SceneGroundRenderer {
                                 isCore -> oakDarkP
                                 rimDab -> oakRimP
                                 glowDab -> oakGlowP
-                                light < 0.55f -> oakDimP
+                                light < 0.55f + dith * 0.28f -> oakDimP
+                                LandscapeProfile.hash01(seed * 211 + 17, ci * 29 + d) < altFrac -> oakAltP
                                 else -> oakBrightP
                             }
                             TreeKind.CHERRY -> when {
-                                light < 0.42f -> blossomShadowP
-                                light < 0.72f -> blossomMidP
+                                light < 0.42f + dith * 0.16f -> blossomShadowP
+                                light < 0.72f + dith * 0.16f -> blossomMidP
                                 else -> blossomLitP
                             }
                             TreeKind.PAULOWNIA -> when {
                                 isCore -> paulowniaLeafDarkP
                                 rimDab -> paulowniaLeafP
                                 glowDab -> paulowniaLeafP
-                                light < 0.55f -> paulowniaLeafDarkP
+                                light < 0.55f + dith * 0.24f -> paulowniaLeafDarkP
                                 else -> paulowniaLeafP
                             }
                             else -> when {
                                 isCore -> leafDarkP
                                 rimDab -> leafRimP
                                 glowDab -> leafGlowP
-                                light < 0.55f -> leafBodyDimP
+                                light < 0.55f + dith * 0.28f -> leafBodyDimP
+                                LandscapeProfile.hash01(seed * 211 + 17, ci * 29 + d) < altFrac -> leafAltP
                                 else -> leafBodyBrightP
                             }
                         }
-                        addOvalTo(target, px + ox, py + oy, r * 2f, r * 1.25f)
+                        // Shell clusters shrink and fray; interior clusters
+                        // swell — the crown's edge goes lacey while its heart
+                        // stays dense (leaf cards do the same by distribution).
+                        val shellGrade = when {
+                            r01 > 0.80f -> 0.82f
+                            r01 < 0.35f -> 1.10f
+                            else -> 1f
+                        }
+                        addClusterTo(target, px + ox, py + oy, r * shellGrade, seed * 401 + 11, ci * 101 + d * 13)
                     }
                     // Paulownia flowers before/with the leaves: upright foxglove-like
                     // panicles standing off the outer terminals — pale lavender in the
@@ -1755,6 +1888,7 @@ object SceneGroundRenderer {
                 treeShadows = treeShadows,
                 branchBuckets = branchBuckets,
                 leafDarkP = leafDarkP,
+                leafAltP = leafAltP,
                 leafBodyDimP = leafBodyDimP,
                 leafBodyBrightP = leafBodyBrightP,
                 leafRimP = leafRimP,
@@ -1764,6 +1898,7 @@ object SceneGroundRenderer {
                 silverRimP = silverRimP,
                 silverGlowP = silverGlowP,
                 oakDarkP = oakDarkP,
+                oakAltP = oakAltP,
                 oakDimP = oakDimP,
                 oakBrightP = oakBrightP,
                 oakRimP = oakRimP,
@@ -1845,6 +1980,7 @@ object SceneGroundRenderer {
         drawScope.drawPath(veg.leafDarkP, canopyDark)
         drawScope.drawPath(veg.leafBodyDimP, canopy.scaled(0.92f))
         drawScope.drawPath(veg.leafBodyBrightP, canopy.scaled(1.10f))
+        drawScope.drawPath(veg.leafAltP, lerp(canopy, Color(0xFF9DBE6E), 0.32f * lightLevel))
         drawScope.drawPath(veg.leafRimP, rimColor.copy(alpha = 0.55f))
         drawScope.drawPath(veg.leafGlowP, leafGlowCol.copy(alpha = 0.85f))
         drawScope.drawPath(veg.silverDarkP, silverDark)
@@ -1865,6 +2001,7 @@ object SceneGroundRenderer {
         drawScope.drawPath(veg.oakDarkP, oakBody.scaled(0.55f))
         drawScope.drawPath(veg.oakDimP, oakBody.scaled(0.85f))
         drawScope.drawPath(veg.oakBrightP, lerp(oakBody, Color(0xFF7FA05A), 0.38f * lightLevel))
+        drawScope.drawPath(veg.oakAltP, lerp(oakBody, Color(0xFF8FA653), 0.34f * lightLevel))
         drawScope.drawPath(veg.oakRimP, oakRimCol.copy(alpha = 0.55f))
         drawScope.drawPath(veg.oakGlowP, oakGlowCol.copy(alpha = 0.85f))
         // Acorn cups: pale tan specks in the lit shell.

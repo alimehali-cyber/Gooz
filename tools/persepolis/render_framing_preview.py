@@ -806,6 +806,8 @@ def main():
         tree_skeleton(303, aspect=1.45, trunk_fraction=0.30, attractor_count=85, lean=0.05),
         tree_skeleton(505, aspect=1.05, trunk_fraction=0.44, attractor_count=90, lean=0.08),
         tree_skeleton(606, aspect=1.55, trunk_fraction=0.26, attractor_count=95, lean=-0.06),
+        tree_skeleton(151, aspect=1.22, trunk_fraction=0.38, attractor_count=105, lean=-0.04),
+        tree_skeleton(252, aspect=1.38, trunk_fraction=0.33, attractor_count=92, lean=0.01),
     ]
     BUSH_SKELS = [
         tree_skeleton(404 + k * 77, aspect=1.5, trunk_fraction=0.12, attractor_count=46)
@@ -817,6 +819,10 @@ def main():
                       scaffold_spread=1.30, arch=0.5, gnarl=0.55, shell_bias=0.80, top_flatten=0.78),
         tree_skeleton(808, aspect=1.60, trunk_fraction=0.26, attractor_count=105, lean=-0.04,
                       scaffold_spread=1.20, arch=0.6, gnarl=0.65, shell_bias=0.80, top_flatten=0.76),
+        tree_skeleton(111, aspect=1.68, trunk_fraction=0.28, attractor_count=110, lean=0.03,
+                      scaffold_spread=1.25, arch=0.55, gnarl=0.60, shell_bias=0.80, top_flatten=0.77),
+        tree_skeleton(313, aspect=1.80, trunk_fraction=0.32, attractor_count=100, lean=-0.02,
+                      scaffold_spread=1.35, arch=0.45, gnarl=0.50, shell_bias=0.82, top_flatten=0.79),
     ]
     # Flowering cherry (Somei Yoshino vase): ascending limbs opening to a round vase.
     CHERRY_SKELS = [
@@ -826,6 +832,9 @@ def main():
         tree_skeleton(1010, aspect=1.30, trunk_fraction=0.40, attractor_count=115, lean=-0.03,
                       vase=0.65, scaffold_spread=0.50, arch=0.9, gnarl=0.20,
                       shell_bias=0.35, top_flatten=0.96),
+        tree_skeleton(1313, aspect=1.38, trunk_fraction=0.38, attractor_count=118, lean=-0.02,
+                      vase=0.60, scaffold_spread=0.55, arch=0.85, gnarl=0.18,
+                      shell_bias=0.35, top_flatten=0.955),
     ]
 
     # Paulownia (princess tree): long straight trunk, broad umbrella crown of
@@ -835,7 +844,23 @@ def main():
                       scaffold_spread=0.95, arch=0.35, gnarl=0.25, shell_bias=0.60, top_flatten=0.80),
         tree_skeleton(1212, aspect=0.98, trunk_fraction=0.46, attractor_count=110, lean=-0.03,
                       scaffold_spread=0.90, arch=0.30, gnarl=0.30, shell_bias=0.58, top_flatten=0.82),
+        tree_skeleton(1515, aspect=1.02, trunk_fraction=0.44, attractor_count=115, lean=0.01,
+                      scaffold_spread=0.92, arch=0.32, gnarl=0.28, shell_bias=0.59, top_flatten=0.81),
     ]
+
+    def cluster_poly(cx, cy, r, seed, index, lobes=7, squish=0.78):
+        # Irregular lobed leaf-cluster outline (mirror of
+        # LandscapeProfile.clusterPolygon): lobes + notches, never an ellipse.
+        phase = _hash01(seed * 0.13 + index * 1.01) * 2 * math.pi
+        freq = 2 + int(_hash01(seed * 0.17 + index * 1.03) * 3) % 3
+        pts = []
+        for k in range(lobes):
+            jit = (_hash01(seed * 0.29 + k * 0.31 + index * 1.9) - 0.5) * 0.30
+            ang = phase + k / lobes * 2 * math.pi + jit * 0.45
+            lobe = 0.5 + 0.5 * math.sin(ang * freq + phase * 2.1)
+            f = min(max(0.66 + 0.38 * lobe + (_hash01(seed * 0.37 + k * 0.41 + index * 2.3) - 0.5) * 0.36, 0.62), 1.20)
+            pts.append((cx + math.cos(ang) * r * f, cy + math.sin(ang) * r * f * squish))
+        return pts
 
     def draw_skeleton(cx, by, hgt, skel, flip, foliage, seed, kind="pistachio"):
         sx = -1.0 if flip else 1.0
@@ -850,9 +875,19 @@ def main():
         for x0, y0, x1, y1, r0, r1, dep, term in sorted(skel, key=lambda s: -s[4]):
             wdt = max(1, int((r0 + r1) * hgt))
             p0, p1 = P(x0, y0), P(x1, y1)
-            d.line([(p0[0] + wdt * 0.22, p0[1]), (p1[0] + wdt * 0.22, p1[1])],
+            # Bowed segments (mirror of the app's quadratic branch curvature).
+            seglen = max(math.hypot(p1[0] - p0[0], p1[1] - p0[1]), 1.0)
+            bow = (_hash01(seed * 3.37 + (x0 + y0) * 10.0 + dep * 1.31) - 0.5) * seglen * (0.05 if dep < 2 else 0.16)
+            mx, my = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
+            ctrl = (mx - (p1[1] - p0[1]) / seglen * bow, my + (p1[0] - p0[0]) / seglen * bow)
+            curve = []
+            for t in (0.0, 0.33, 0.66, 1.0):
+                u = 1 - t
+                curve.append((u * u * p0[0] + 2 * u * t * ctrl[0] + t * t * p1[0],
+                              u * u * p0[1] + 2 * u * t * ctrl[1] + t * t * p1[1]))
+            d.line([(qx + wdt * 0.22, qy) for qx, qy in curve],
                    fill=(34, 26, 20), width=wdt)
-            d.line([p0, p1], fill=(58, 44, 32), width=wdt)
+            d.line(curve, fill=(58, 44, 32), width=wdt)
         # Crown envelope (flipped unit space) for volume shading: spherized-normal
         # light x crown-depth AO, as in the app.
         uxs = [sx * s[2] for s in skel]
@@ -870,6 +905,14 @@ def main():
             "Paulownia": ((34, 48, 26), (62, 88, 40), (96, 128, 58), (156, 186, 106)),
         }
         base_dark, base_dim, base_bright, base_rim = PALS[kind]
+        # Per-tree crown width + ONE jagged dark under-mass spanning the crown
+        # envelope (painterly underpainting): fills inter-cluster gaps with
+        # shaded interior so the crown reads as one leaf mass.
+        crown_wide = 0.88 + 0.24 * _hash01(seed * 6.13 + 0.9)
+        d.polygon(
+            cluster_poly(cx + ccx * hgt, by - ccy * hgt, crx * hgt * 0.84 * crown_wide,
+                         seed * 4 + 7, 5, lobes=9, squish=min(max(cry / crx, 0.45), 1.05)),
+            fill=(*tuple(int(c * 0.62) for c in base_dark), 235))
         dabs = 4 if kind in ("oak", "cherry", "Paulownia") else 3
         min_dep = 6 if kind in ("cherry", "Paulownia") else 7
         ci = 0
@@ -885,7 +928,8 @@ def main():
             if _hash01(seed * 7.1 + ci * 3.3) > accept:
                 continue
             px, py = P(x1, y1)
-            cr_mul = 1.25 if kind == "oak" else (0.80 if kind == "cherry" else (1.50 if kind == "Paulownia" else 1.0))
+            px = cx + ccx * hgt + (px - (cx + ccx * hgt)) * crown_wide
+            cr_mul = 1.25 if kind == "oak" else (0.98 if kind == "cherry" else (1.50 if kind == "Paulownia" else 1.0))
             cr = hgt * (0.045 + 0.040 * _hash01(seed * 3.7 + ci * 5.1)) * cr_mul
             tone = 0.85 + 0.3 * _hash01(seed * 5.3 + ci * 7.7)
             light = (0.50 + 0.42 * facing) * (0.42 + 0.58 * r01) * tone
@@ -894,8 +938,15 @@ def main():
             # normal — rim on the sun shell, warm translucency glow on the
             # anti-sun shell (sun at left in this schematic).
             back_shell = facing < -0.25 and r01 > 0.55
+            alt_frac = _hash01(seed * 7.71 + 0.5) * 0.50
+            dith = _hash01(seed * 5.9 + ci * 3.1) - 0.5  # ordered-dither tone offset
+            # Dark jagged underlay: cluster depth (near trees only at this scale).
+            if hgt > H * 0.034:
+                d.polygon(cluster_poly(px - cr * 0.05, py + cr * 0.14, cr * 0.85,
+                                       seed * 4 + 3, ci * 77 + 1),
+                          fill=(*tuple(int(c * 0.55) for c in base_dark), 235))
             for dab in range(dabs):
-                base_r = cr * ((0.30 + 0.26 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
+                base_r = cr * ((0.38 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
                                if kind == "cherry" else
                                (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3)))
                 is_core = dab == 0
@@ -914,7 +965,7 @@ def main():
                     ox, oy = math.cos(ang) * dist, -math.sin(ang) * dist * 0.72
                     r = base_r * 0.62
                 if kind == "cherry":
-                    col = base_dark if light < 0.42 else (base_dim if light < 0.72 else base_bright)
+                    col = base_dark if light < 0.42 + dith * 0.16 else (base_dim if light < 0.72 + dith * 0.16 else base_bright)
                     if rim_dab:
                         col = base_rim
                     alpha = 245
@@ -927,11 +978,15 @@ def main():
                     col = lerp(base_bright, (255, 230, 170), 0.45)  # transmitted low sun
                     alpha = 225
                 else:
-                    src = base_dim if light < 0.55 else base_bright
+                    src = base_dim if light < 0.55 + dith * 0.28 else base_bright
                     col = tuple(int(c * tone) for c in src)
                     alpha = 240
-                d.ellipse([px + ox - r, py + oy - r * 0.62,
-                           px + ox + r, py + oy + r * 0.62], fill=(*col, alpha))
+                if kind in ("pistachio", "oak") and not is_core and not rim_dab and not glow_dab \
+                        and _hash01(seed * 2.11 + ci * 2.9 + dab) < alt_frac:
+                    col = tuple(int(c * 1.18) for c in col)  # variant-tone tree share
+                grade = 0.82 if r01 > 0.80 else (1.10 if r01 < 0.35 else 1.0)
+                d.polygon(cluster_poly(px + ox, py + oy, r * grade, seed * 4 + 11, ci * 101 + dab * 13),
+                          fill=(*col, alpha))
             # Twig tips fraying the lit crown edge (v4 mirror).
             if term and r01 > 0.70 and _hash01(seed * 16.3 + ci * 0.7) < 0.45:
                 tl = cr * (0.35 + 0.30 * _hash01(seed * 16.7 + ci * 1.1))

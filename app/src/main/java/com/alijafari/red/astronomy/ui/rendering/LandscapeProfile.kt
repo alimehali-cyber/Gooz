@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.rendering
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.floor
@@ -421,6 +422,34 @@ internal object LandscapeProfile {
                     depth = depth[i], terminal = children[i].isEmpty()
                 )
             )
+        }
+        return out
+    }
+
+    /**
+     * Outline of one leaf cluster as an irregular lobed polygon — the fix for the
+     * "oval dab" problem. A filled ellipse reads as a plastic blob at any size;
+     * real leaf clusters (and the leaf cards of SpeedTree/MTree-style generators,
+     * whose outlines are noise-broken superformula shapes) have a perimeter that
+     * alternates lobes and notches at several scales. This returns `lobes`
+     * vertices (x, y pairs, centred on the origin, y squashed by [squish]) whose
+     * radius is a low-frequency lobe wave (2–4 lobes, hash-phased) broken by
+     * restrained per-vertex jitter, clamped to 0.62–1.20 of [r]. Deterministic per
+     * ([seed], [index]); pure math so it is unit-testable and bake-time only.
+     */
+    fun clusterPolygon(r: Float, squish: Float, seed: Int, index: Int, lobes: Int = 7): FloatArray {
+        val n = lobes.coerceIn(5, 9)
+        val out = FloatArray(n * 2)
+        val phase = hash01(seed, index * 13 + 101) * 2f * PI.toFloat()
+        val lobeFreq = 2 + (hash01(seed, index * 17 + 103) * 3f).toInt().coerceIn(0, 2)
+        for (k in 0 until n) {
+            val jitter = (hash01(seed + k * 29, index * 19 + k * 7) - 0.5f) * 0.30f
+            val ang = phase + (k / n.toFloat()) * 2f * PI.toFloat() + jitter * 0.45f
+            val lobe = 0.5f + 0.5f * kotlin.math.sin(ang * lobeFreq + phase * 2.1f)
+            val factor = (0.66f + 0.38f * lobe + (hash01(seed + k * 37, index * 23 + k * 11) - 0.5f) * 0.36f)
+                .coerceIn(0.62f, 1.20f)
+            out[k * 2] = kotlin.math.cos(ang) * r * factor
+            out[k * 2 + 1] = kotlin.math.sin(ang) * r * factor * squish
         }
         return out
     }
